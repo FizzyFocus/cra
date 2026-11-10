@@ -516,6 +516,11 @@
 #307   Packages/CraCore/Tests/CraCoreTests/TabSearchScopeTests.swift::commandBarTabsFollowTheSetting  316e28600e93
 #307   Packages/CraCore/Tests/CraCoreTests/TabSearchScopeTests.swift::currentSpaceOnlySettingDefaultsOffAndRoundTrips  8465a635dabd
 #307   Tests/Scenarios/command-bar-space-scope.scenario  0b4de914ffa4
+#310   Packages/CraCore/Tests/CraCoreTests/PageTranslationTests.swift::buttonOutlivesTheAutomaticOffer  8b6c61024b81
+#310   Packages/CraCore/Tests/CraCoreTests/PageTranslationTests.swift::decodesChromiumsState  b0c474fb3a4e
+#310   Packages/CraCore/Tests/CraCoreTests/ToolbarCompositionTests.swift::translatablePageHasTheButton  e4b3dfaf2f19
+#310   Tests/BrowserManagerLifecycleTests.swift::translationCase  3179a30235a7
+#310   Tests/Scenarios/translate.scenario  acf981ce24a3
 #316   Packages/CraCore/Tests/CraCoreTests/LittleWindowTargetTests.swift::aDeletedSpaceIsForgotten  b5f0c408a55e
 #316   Packages/CraCore/Tests/CraCoreTests/LittleWindowTargetTests.swift::aPickedSpaceStaysInItsWindowOnly  c1427dd3ad84
 #316   Packages/CraCore/Tests/CraCoreTests/PictureInPictureLayoutTests.swift::followsTheDisplayWhenItIsRearranged  a6a666786be3
