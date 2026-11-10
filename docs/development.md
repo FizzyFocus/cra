@@ -125,6 +125,8 @@ to Markdown or `docs/` alone runs nothing.
   the footer colour.
 - `scripts/test-link-summary-panel.sh`: 5-Second Previews' card window (`LinkSummaryPanel`) off screen with
   a stub service: the loading card, the answer growing in under the link, the small card above its link, closing.
+- `scripts/test-music-notes.sh`: the production note sprites over fixed white and black backgrounds
+  at 1x and 2x, checking light-theme contrast and the dark-theme tint without CEF or a visible window.
 - `scripts/test-live-folder-plugins.sh`: the real `CraPluginHost` (sandboxed JavaScriptCore) and
   the bundled GitHub, GitLab and Jira providers in `resources/live-folder-plugins`, through
   `LiveFolderPluginProcess` with made-up session responses: permissions, timeouts, and each

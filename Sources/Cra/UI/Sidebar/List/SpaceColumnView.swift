@@ -610,6 +610,16 @@ final class FavoritesGridView: NSView {
     private var favoritesID: UUID?
     private(set) var palette: SpacePalette?
     private var syncQueued = false
+    /// Keep notes above the tiles and pinned extensions so they can drift over the row above.
+    private let notesHost = MusicNotesHost()
+    private var notes: [UUID: MusicNotesView] = [:]
+    private var playing: [UUID: Playing] = [:]
+    /// The pane of a tile that plays, among how many and cut which way.
+    private struct Playing: Equatable {
+        let cell: Int
+        let count: Int
+        let vertical: Bool
+    }
     /// A sidebar item dragged over the tiles and the slot held open for it (#176).
     private var drop: Drop? { didSet { if drop != oldValue { dropChanged(from: oldValue) } } }
     private struct Drop: Equatable {
@@ -645,6 +655,7 @@ final class FavoritesGridView: NSView {
         card.isHidden = true
         addSubview(strip)
         addSubview(card)
+        addSubview(notesHost)
         registerForDraggedTypes([.craSidebarItem])
         sync()
     }
@@ -661,6 +672,7 @@ final class FavoritesGridView: NSView {
         var pins: [Pin] = []
         var protectedMedia: String?
         let shownList = favoritesID
+        var playing: [UUID: Playing] = [:]
         withObservationTracking {
             spaceID = store.focusedSpaceID(window: ui.windowID)
             guard let space = store.space(spaceID) else { return }
@@ -683,9 +695,16 @@ final class FavoritesGridView: NSView {
             dismissed = store.isStandalone(space: spaceID) || store.isFavoritesEmptyStateDismissed(space.favoritesContainerID)
             // A favorite split is one tile with a cell per pane (Arc: AppItem.childItems).
             let logoOutline = store.settings.favoriteLogoOutline
+            let soundPlaying = ui.soundPlayingTabIDs
             for item in store.children(of: space.favoritesContainerID) where item.isTab || item.isSplit {
                 let panes = item.isSplit ? store.children(of: item.id).filter(\.isTab) : [item]
                 guard !panes.isEmpty else { continue }
+                // A split emits notes from its first playing music pane.
+                if let cell = panes.firstIndex(where: { p in
+                    p.tab.map { MusicNotes.plays(url: $0.url, soundPlaying: soundPlaying.contains(p.id), muted: $0.muted) } ?? false
+                }) {
+                    playing[item.id] = Playing(cell: cell, count: panes.count, vertical: item.split?.orientation == .vertical)
+                }
                 let cells = panes.map { p in
                     let key = p.tab?.iconKey
                     let icon = favicons.image(forKey: key)
@@ -730,11 +749,12 @@ final class FavoritesGridView: NSView {
             let t = tiles[id] ?? {
                 let t = FavoriteTileView(itemID: id, grid: self)
                 tiles[id] = t
-                addSubview(t)
+                addSubview(t, positioned: .below, relativeTo: notesHost)
                 return t
             }()
             if let palette { t.show(m, palette: palette) }
         }
+        showNotes(playing)
         order = ids
         if let palette { strip.palette = palette; card.palette = palette }
         strip.hasFavorites = !ids.isEmpty
@@ -743,6 +763,25 @@ final class FavoritesGridView: NSView {
         card.isHidden = !showsCard
         needsLayout = true
         if countChanged { onHeightChange(false) }
+    }
+
+    /// Keep an overlay only while its favorite plays; `placeTiles` positions it over the playing pane.
+    private func showNotes(_ playing: [UUID: Playing]) {
+        self.playing = playing
+        for (id, v) in notes where playing[id] == nil {
+            v.removeFromSuperview()
+            notes[id] = nil
+        }
+        for id in playing.keys {
+            guard let dark = tiles[id]?.tileIsDark else { continue }
+            if let v = notes[id] {
+                v.dark = dark
+            } else {
+                let v = MusicNotesView(dark: dark)
+                notes[id] = v
+                notesHost.addSubview(v)
+            }
+        }
     }
 
     private struct Pin { let id: String; let name: String; let icon: NSImage?; let badge: ExtensionBadge? }
@@ -763,7 +802,7 @@ final class FavoritesGridView: NSView {
             let b = extensionButtons[p.id] ?? {
                 let b = ToolbarGlyphButton()
                 extensionButtons[p.id] = b
-                addSubview(b)
+                addSubview(b, positioned: .below, relativeTo: notesHost)
                 return b
             }()
             // On a WebKit page they dim and say why (docs/protected-media.md).
@@ -831,6 +870,7 @@ final class FavoritesGridView: NSView {
         }
         let top = ext.favoritesOffset
         let grid = grid(forWidth: w)
+        notesHost.frame = bounds
         placeTiles(grid, top: top, animated: false)
         strip.frame = NSRect(x: 0, y: top + grid.gridHeight + (order.isEmpty ? 0 : 4), width: w, height: strip.height)
         card.frame = NSRect(x: 0, y: top, width: w, height: FavoritesEmptyCard.height)
@@ -845,11 +885,18 @@ final class FavoritesGridView: NSView {
             let f = grid.frame(at: FavoritesLayout.slot(ofTile: i, opening: open)).offsetBy(dx: 0, dy: top)
             // A tile that just came in, or was hidden, has no place to move from.
             if animated && t.frame != .zero && t.alphaValue > 0 { t.animator().frame = f } else { t.frame = f }
+            if let v = notes[id], let p = playing[id] {
+                // The notes rise from the playing pane's icon and slide along with their tile.
+                let cells = FavoriteTileMetrics.cellFrames(in: NSRect(origin: .zero, size: f.size), count: p.count, vertical: p.vertical)
+                let field = MusicNotes.field(over: cells[min(p.cell, cells.count - 1)].offsetBy(dx: f.minX, dy: f.minY))
+                if animated && v.frame != .zero && !v.isHidden { v.animator().frame = field } else { v.frame = field }
+            }
         }
         for (id, t) in tiles {
             let dragged = drop?.id == id
             if dragged, let open { t.frame = grid.frame(at: open).offsetBy(dx: 0, dy: top) }
             t.alphaValue = dragged ? 0 : 1
+            notes[id]?.isHidden = dragged
         }
     }
 
@@ -1288,7 +1335,8 @@ final class FavoriteTileView: NSView, ArcTooltipTarget, NSDraggingSource {
         refresh()
     }
 
-    private var tileIsDark: Bool {
+    /// Share the tile's effective tone with its note overlay.
+    var tileIsDark: Bool {
         guard let m = model, let palette else { return false }
         return m.tileColor.flatMap(HexColor.luminance).map { $0 < 0.5 } ?? palette.isDark
     }
