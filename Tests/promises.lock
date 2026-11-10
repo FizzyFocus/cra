@@ -510,6 +510,12 @@
 #307   Packages/CraCore/Tests/CraCoreTests/TabSearchScopeTests.swift::commandBarTabsFollowTheSetting  316e28600e93
 #307   Packages/CraCore/Tests/CraCoreTests/TabSearchScopeTests.swift::currentSpaceOnlySettingDefaultsOffAndRoundTrips  8465a635dabd
 #307   Tests/Scenarios/command-bar-space-scope.scenario  0b4de914ffa4
+#316   Packages/CraCore/Tests/CraCoreTests/LittleWindowTargetTests.swift::aDeletedSpaceIsForgotten  5864303b2c55
+#316   Packages/CraCore/Tests/CraCoreTests/LittleWindowTargetTests.swift::aPickedSpaceStaysAndCarriesToTheNextLittleWindow  72a239324df4
+#316   Packages/CraCore/Tests/CraCoreTests/PictureInPictureLayoutTests.swift::followsTheDisplayWhenItIsRearranged  a6a666786be3
+#316   Packages/CraCore/Tests/CraCoreTests/PictureInPictureLayoutTests.swift::reopensOnTheDisplayItWasLeftOn  bcc683102ab9
+#316   Packages/CraCore/Tests/CraCoreTests/PictureInPictureLayoutTests.swift::unpluggedDisplayFallsBackToTheCorner  51c44c1dbb84
+#316   Tests/Scenarios/little-window-space-pick.scenario  d0e43ee84d38
 #319   Tests/Scenarios/app-icon-dock-return.scenario  32316d80e199
 #319   Tests/Scenarios/app-icon-download.scenario  55c47e7e0e5b
 #346   Packages/CraCore/Tests/CraCoreTests/ScreenshotPickTests.swift::aPickOverThePageTakesTheMainWindow  916c67b02ac1

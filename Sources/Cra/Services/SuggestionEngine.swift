@@ -68,7 +68,9 @@ final class SuggestionEngine {
 
     // MARK: Entry
 
-    func suggestions(for rawQuery: String, mode: CommandBarMode, currentTabID: UUID?) -> SuggestionResult {
+    /// `spaceShown` is the space the bar's window shows, which "Switch to" leaves out: a Little
+    /// Window's own target (#316); nil, the focused space.
+    func suggestions(for rawQuery: String, mode: CommandBarMode, currentTabID: UUID?, spaceShown: UUID? = nil) -> SuggestionResult {
         let query = rawQuery.trimmingCharacters(in: .whitespaces)
         let q = query.lowercased()
         var result = SuggestionResult(query: query)
@@ -91,7 +93,7 @@ final class SuggestionEngine {
             items.append(contentsOf: historySuggestions(q, openURLs: searchIndex.openURLs.union(bookmarks.compactMap(\.url))))
             items.append(contentsOf: topDomainSuggestions(q))
         }
-        items.append(contentsOf: commandSuggestions(q, currentTabID: currentTabID))
+        items.append(contentsOf: commandSuggestions(q, currentTabID: currentTabID, spaceShown: spaceShown))
 
         // Learned: the user picked this URL for this query before.
         if let learned = store.ranking.queriesToSelected[q] {
@@ -164,11 +166,11 @@ final class SuggestionEngine {
 
     /// The bar scoped to actions (Tab on the empty field, Arc's typeTravel): commands, space
     /// switches and moves, the most used first, narrowed by what is typed.
-    func suggestions(forActionsMatching rawQuery: String, currentTabID: UUID?) -> SuggestionResult {
+    func suggestions(forActionsMatching rawQuery: String, currentTabID: UUID?, spaceShown: UUID? = nil) -> SuggestionResult {
         let query = rawQuery.trimmingCharacters(in: .whitespaces)
         let q = query.lowercased()
         var result = SuggestionResult(query: query)
-        let rows = actionRows(q, currentTabID: currentTabID).filter { row in
+        let rows = actionRows(q, currentTabID: currentTabID, spaceShown: spaceShown).filter { row in
             if case .command(let id) = row.suggestion.kind { return ActionSearchScope.lists(actionID: id) }
             return true
         }
@@ -382,9 +384,9 @@ final class SuggestionEngine {
         return out
     }
 
-    private func commandSuggestions(_ q: String, currentTabID: UUID?) -> [Suggestion] {
+    private func commandSuggestions(_ q: String, currentTabID: UUID?, spaceShown: UUID?) -> [Suggestion] {
         guard q.count >= 2 else { return [] }
-        return actionRows(q, currentTabID: currentTabID).map { row in
+        return actionRows(q, currentTabID: currentTabID, spaceShown: spaceShown).map { row in
             var s = row.suggestion
             s.score += Double(min(row.uses, 10)) * 2
             return s
@@ -393,7 +395,7 @@ final class SuggestionEngine {
 
     /// Commands, space switches and moves the text names (all of them with nothing typed), each
     /// scored by its name alone, with how often it was run from the bar.
-    private func actionRows(_ q: String, currentTabID: UUID?) -> [(suggestion: Suggestion, uses: Int)] {
+    private func actionRows(_ q: String, currentTabID: UUID?, spaceShown: UUID?) -> [(suggestion: Suggestion, uses: Int)] {
         var out: [(suggestion: Suggestion, uses: Int)] = []
         func nameScore(_ name: String, triggers: [String]) -> Double {
             let n = name.lowercased()
@@ -412,7 +414,7 @@ final class SuggestionEngine {
         }
         for space in incognito ? [] : store.orderedSpaces {
             let s = nameScore("Switch to \(space.title)", triggers: [space.title.lowercased()])
-            if s > 0 && space.id != store.focusedSpaceID {
+            if s > 0 && space.id != (spaceShown ?? store.focusedSpaceID) {
                 out.append((Suggestion(id: "space:\(space.id)", kind: .switchSpace(space.id), title: "Switch to \(space.title)",
                                        subtitle: "Space", url: nil, faviconKey: nil, symbol: nil, trailing: space.emoji, score: s), 0))
             }
