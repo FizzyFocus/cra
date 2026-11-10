@@ -1626,6 +1626,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                 }
                 return
             }
+            // The focused space's own engine by keyword, as its Search Engine menu sets it (#306); empty is Default.
+            if let keyword = dict["spaceSearchEngine"] {
+                store.setSearchEngine(keyword, forSpace: store.focusedSpaceID)
+                return
+            }
             if let spikeURL = dict["chromeSpike"] {
                 CraCEFRuntime.spikeChromeWindow(withURL: spikeURL) { [weak self] w in
                     guard let self, let host = self.main.window else { return }
