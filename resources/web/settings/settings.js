@@ -355,7 +355,7 @@
           toggle('hapticFeedbackOnReorder', 'Haptic feedback when reordering tabs'),
           toggle('middleClickUnloadsTab', 'Middle-click a tab to unload it instead of closing it'),
           toggle('folderPreviews', 'Preview a folder’s tabs when hovering over it'),
-          toggle('autoPictureInPicture', 'Enable Picture in Picture when you leave a video tab'),
+          toggle('autoPictureInPicture', 'Enable Picture in Picture when you leave a video tab', 'For every site you haven’t switched yourself: a site switched in its Extensions menu keeps that until you switch it again.'),
         ], { footnote: 'Right-click a tab ▸ Load on Start to have it load when Cra opens and stay in memory.' }),
         card('Favorites', [
           toggle('favoritePreviews', 'Preview unread Gmail when hovering its favorite'),

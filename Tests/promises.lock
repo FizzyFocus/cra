@@ -532,6 +532,8 @@
 #322   Packages/CraCore/Tests/CraCoreTests/CleanURLTests.swift::noPicksCopyTheOpenTab  d5ac544933e5
 #322   Packages/CraCore/Tests/CraCoreTests/CleanURLTests.swift::picksNoLongerListedFollowTheListedOnes  f5f06c74b1da
 #322   Packages/CraCore/Tests/CraCoreTests/CleanURLTests.swift::severalPicksCopyEveryPickInSidebarOrder  ac1ca14492fd
+#326   Packages/CraCore/Tests/CraCoreTests/SidebarModelTests.swift::automaticPictureInPictureIsPerSite  1620e133d838
+#326   Tests/BrowserManagerLifecycleTests.swift::pictureInPicturePerSiteCase  1260bcff5f0e
 #331   Packages/CraCore/Tests/CraCoreTests/LittleMoveMenuTests.swift::hangsFromTheWindowsTopRightCorner  befc647f4f56
 #331   Packages/CraCore/Tests/CraCoreTests/LittleMoveMenuTests.swift::longListsScroll  e26a1474f24e
 #331   Packages/CraCore/Tests/CraCoreTests/LittleMoveMenuTests.swift::noResults  433eb120d5e7
