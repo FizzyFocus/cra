@@ -518,6 +518,9 @@
 #316   Tests/Scenarios/little-window-space-pick.scenario  052a6261ccd6
 #319   Tests/Scenarios/app-icon-dock-return.scenario  32316d80e199
 #319   Tests/Scenarios/app-icon-download.scenario  55c47e7e0e5b
+#322   Packages/CraCore/Tests/CraCoreTests/CleanURLTests.swift::noPicksCopyTheOpenTab  d5ac544933e5
+#322   Packages/CraCore/Tests/CraCoreTests/CleanURLTests.swift::picksNoLongerListedFollowTheListedOnes  f5f06c74b1da
+#322   Packages/CraCore/Tests/CraCoreTests/CleanURLTests.swift::severalPicksCopyEveryPickInSidebarOrder  ac1ca14492fd
 #346   Packages/CraCore/Tests/CraCoreTests/ScreenshotPickTests.swift::aPickOverThePageTakesTheMainWindow  916c67b02ac1
 #346   Tests/Scenarios/screenshot-window-pick.scenario  bf271139d3c5
 #349   Packages/CraCore/Tests/CraCoreTests/ChromiumDialogTests.swift::hangsWhereASheetDoes  c4438e2ff53c
