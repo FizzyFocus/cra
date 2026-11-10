@@ -307,6 +307,7 @@ final class SettingsPageBridge: NSObject, WKScriptMessageHandlerWithReply {
             "\(TidyTabsService.shared.status)",
             "\(String(describing: sync.location))\(sync.error ?? "")\(sync.pendingChoice != nil)\(String(describing: sync.lastSync))\(sync.awaitingDownload)",
             AppIconManager.shared.selectedID + "\(AppIconManager.shared.customImage != nil)",
+            { let m = MCPServer.shared; return "\(m.enabled)\(m.status)\(m.lastTool)\(m.allowsScripts)\(m.allowsHistory)" + m.agents.map { "\($0.id)\($0.allowed)" }.joined() }(),
         ]
     }
 

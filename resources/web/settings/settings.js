@@ -453,6 +453,7 @@
           // #307, not in Arc: ⌘T finds tabs in the window's space only (CraCore TabSearchScope).
           toggle('commandBarCurrentSpaceOnly', 'Search only the current space’s tabs', 'Off, ⌘T finds a tab in any space, as in Arc. % then Tab searches one space either way.'),
         ]),
+        mcpCard(),
         card('Import & export', [
           button('Import', 'Spaces, tabs, bookmarks and passwords from Arc, Chrome, Safari and others.', 'Import…', 'importData'),
           button('Export', 'Every space’s favorites, pinned tabs and folders as a bookmarks file.', 'Export…', 'exportSpaces'),
@@ -666,6 +667,31 @@
   }
 
   // MARK: General ▸ Sync and App Icon, Tabs & Spaces ▸ Air Traffic Control
+
+  // Advanced ▸ Agents: the local MCP server (upstream 31187f8, #193). Off by default; Cra asks once
+  // per agent, and scripts and history stay off unless switched on here.
+  function mcpCard() {
+    const host = el('div');
+    list(host, () => S && S.mcp, (h, m) => {
+      if (!m) return;
+      const rows = [row({ title: 'Allow local agents to control Cra', detail: `Connected agents can read pages and act using your signed-in sessions. ${m.status}`,
+        trailing: switchControl(m.enabled, false, (on) => run('mcpEnabled', { on }).catch(() => update())), search: 'mcp agents claude cursor codex' })];
+      if (m.enabled) {
+        rows.push(row({ title: 'MCP configuration', detail: `Last tool: ${m.lastTool || 'None'}`,
+          trailing: el('button', { class: 'btn', type: 'button', onclick: () => run('mcpCopyConfiguration').then(() => toast('MCP configuration copied')).catch(() => {}) }, 'Copy Configuration') }));
+        rows.push(row({ title: 'Let agents run JavaScript in pages', detail: 'A script can read anything a page holds, including passwords Cra fills in.',
+          trailing: switchControl(m.scripts, false, (on) => run('mcpScripts', { on }).catch(() => update())) }));
+        rows.push(row({ title: 'Let agents read your history',
+          trailing: switchControl(m.history, false, (on) => run('mcpHistory', { on }).catch(() => update())) }));
+        for (const a of m.agents) {
+          rows.push(row({ title: a.name, detail: a.allowed ? 'Allowed' : 'Not allowed',
+            trailing: el('button', { class: 'btn', type: 'button', onclick: () => run('mcpForget', { id: a.id }).catch(() => {}) }, 'Forget') }));
+        }
+      }
+      h.replaceChildren(...rows);
+    });
+    return card('Agents', [host]);
+  }
 
   function syncCard() {
     const host = el('div');

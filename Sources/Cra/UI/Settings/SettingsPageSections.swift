@@ -22,9 +22,20 @@ extension SettingsPageBridge {
             "sync": syncState(app.composition.sync),
             "appIcon": appIconState(),
             "routes": routesState(store),
+            "mcp": mcpState(),
             "prompt": pendingPrompt as Any? ?? NSNull(),
             "hiddenSites": store.settings.hiddenSiteSearches.sorted(),
         ]
+    }
+
+    /// Advanced ▸ Agents: the local MCP server (upstream 31187f8, #193), off unless switched on.
+    private func mcpState() -> [String: Any] {
+        let m = MCPServer.shared
+        return ["enabled": m.enabled, "status": m.status, "lastTool": m.lastTool,
+                "scripts": m.allowsScripts, "history": m.allowsHistory,
+                "agents": m.agents.map { a -> [String: Any] in
+                    ["id": a.id, "name": a.via.isEmpty ? a.name : "\(a.name) in \(a.via)", "allowed": a.allowed]
+                }]
     }
 
     private func profilesState(_ store: SidebarStore) -> [String: Any] {
@@ -154,6 +165,21 @@ extension SettingsPageBridge {
         switch name {
         // Profiles
         // The page asks with its own dialogs (in its light or dark, 11 Nov 2026); these just do it.
+        // Agents (MCP)
+        case "mcpEnabled":
+            MCPServer.shared.setEnabled(args["on"]?.bool ?? false)
+        case "mcpScripts":
+            MCPServer.shared.allowsScripts = args["on"]?.bool ?? false
+        case "mcpHistory":
+            MCPServer.shared.allowsHistory = args["on"]?.bool ?? false
+        case "mcpCopyConfiguration":
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(MCPServer.shared.configuration, forType: .string)
+        case "mcpForget":
+            guard let agent = MCPServer.shared.agents.first(where: { $0.id == args["id"]?.string }) else {
+                return .some("That agent isn’t on the list any more.")
+            }
+            MCPServer.shared.forget(agent)
         case "createProfile":
             let name = (args["name"]?.string ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
             guard !name.isEmpty else { return .some("Give the Profile a name.") }
