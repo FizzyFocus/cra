@@ -449,6 +449,10 @@
           toggle('pageTopWindowDrag', 'Allow window dragging from the top of webpages'),
           toggle('boostsEnabled', 'Enable Boosts on websites you visit'),
         ]),
+        card('Command bar', [
+          // #307, not in Arc: ⌘T finds tabs in the window's space only (CraCore TabSearchScope).
+          toggle('commandBarCurrentSpaceOnly', 'Search only the current space’s tabs', 'Off, ⌘T finds a tab in any space, as in Arc. % then Tab searches one space either way.'),
+        ]),
         card('Import & export', [
           button('Import', 'Spaces, tabs, bookmarks and passwords from Arc, Chrome, Safari and others.', 'Import…', 'importData'),
           button('Export', 'Every space’s favorites, pinned tabs and folders as a bookmarks file.', 'Export…', 'exportSpaces'),

@@ -143,7 +143,7 @@ public enum SettingsBridge {
         // Privacy
         "blockAdsAndTrackers", "blockCookieBanners", "fingerprintingProtection", "httpsOnly", "perfHidesSiteNames", "allowAppleEventsJavaScript",
         // Advanced
-        "chromeEngine", "pageTopWindowDrag", "boostsEnabled", "hardwareAcceleration", "perfRecording",
+        "commandBarCurrentSpaceOnly", "chromeEngine", "pageTopWindowDrag", "boostsEnabled", "hardwareAcceleration", "perfRecording",
         // Max
         "tidyTabs", "tidyTabTitles", "tidyDownloads",
     ]
