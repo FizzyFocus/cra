@@ -499,6 +499,10 @@
 #299   Packages/CraCore/Tests/CraCoreTests/UnpackedCopiesTests.swift::theCopyStopsLoadingInThatProfileOnly  7878314f97fd
 #299   Tests/ExtensionStoreMigrationTests.swift::unpackedCopiesStepAside  e9a30c4a0209
 #299   Tests/Scenarios/unpacked-extension-copy.scenario  59ab5b7e11a8
+#305   Packages/CraCore/Tests/CraCoreTests/AddressBarPlacementTests.swift::bothChoicesAreNamed  36f4e5cee543
+#305   Packages/CraCore/Tests/CraCoreTests/AddressBarPlacementTests.swift::placementIsTheToolbarSwitch  b2e689828283
+#305   Packages/CraCore/Tests/CraCoreTests/AddressBarPlacementTests.swift::settingsFileKeepsShowToolbar  c852bda6b868
+#305   Packages/CraCore/Tests/CraCoreTests/AddressBarPlacementTests.swift::startsInTheSidebar  fb73715b0ab0
 #319   Tests/Scenarios/app-icon-dock-return.scenario  32316d80e199
 #319   Tests/Scenarios/app-icon-download.scenario  55c47e7e0e5b
 #346   Packages/CraCore/Tests/CraCoreTests/ScreenshotPickTests.swift::aPickOverThePageTakesTheMainWindow  916c67b02ac1

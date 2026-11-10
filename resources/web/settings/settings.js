@@ -321,7 +321,6 @@
           toggle('animateSidebarDocking', 'Animate sidebar docking', 'Showing and hiding the sidebar glides, the page easing into place. Off, it snaps as in Arc.'),
         ]),
         card('Pages', [
-          toggle('showToolbar', 'Show the toolbar above the page'),
           toggle('toolbarShowsFullURL', 'Show full URLs', null, { disabled: () => !value('showToolbar') }),
           toggle('edgeToEdgeContent', 'Pages fill the window edge to edge'),
           button('Fonts', 'Sizes and typefaces websites use.', 'Customize Fonts…', 'openURL', { url: 'chrome://settings/fonts' }),
@@ -334,7 +333,22 @@
     },
 
     'tabs-and-spaces'() {
+      // #305: onboarding's "Choose where the address bar goes" (CraCore AddressBarPlacement), saved
+      // as showToolbar. The View menu's Show Toolbar switches it too.
+      const toolbarKeys = () => {
+        const a = S && (S.shortcuts || []).find((x) => x.id === 'toggleToolbar');
+        return a && a.keys.length ? a.keys[0] : null;
+      };
       return [
+        card('Address Bar', [
+          select('showToolbar', 'Address bar', [
+            { value: 'sidebar', label: 'At the top of the sidebar' },
+            { value: 'toolbar', label: 'In a toolbar above the page' },
+          ], (() => { const d = el('span'); control(() => { const k = toolbarKeys(); d.textContent = `${k ? k + ' in any window, or ' : ''}View ▸ Show Toolbar switches it too.`; }); return d; })(), {
+            current: () => (value('showToolbar') ? 'toolbar' : 'sidebar'),
+            onchange: (v) => write('showToolbar', v === 'toolbar'),
+          }),
+        ]),
         card('Tabs', [
           toggle('newTabsAtTop', 'Add new tabs to the top'),
           toggle('newTabButtonAtTop', 'Show the New Tab button above tabs'),
