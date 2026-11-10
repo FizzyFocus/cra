@@ -141,7 +141,7 @@ public enum SettingsBridge {
         "littleWindowShortcutEverywhere", "littleWindowArchiveAfter", "peekLinksToOtherSites", "peekInEveryTab",
         "peekOnShiftClick", "openLinksInForeground", "autoArchiveEnabled", "autoArchive",
         // Privacy
-        "blockAdsAndTrackers", "blockCookieBanners", "httpsOnly", "perfHidesSiteNames", "allowAppleEventsJavaScript",
+        "blockAdsAndTrackers", "blockCookieBanners", "fingerprintingProtection", "httpsOnly", "perfHidesSiteNames", "allowAppleEventsJavaScript",
         // Advanced
         "chromeEngine", "pageTopWindowDrag", "boostsEnabled", "hardwareAcceleration", "perfRecording",
         // Max

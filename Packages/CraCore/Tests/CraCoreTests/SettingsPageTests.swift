@@ -93,4 +93,16 @@ struct SettingsPageTests {
         let keys = Set(try SettingsBridge.json(AppSettings()).keys)
         #expect(SettingsBridge.editableKeys.subtracting(keys).isEmpty)
     }
+
+    /// Settings ▸ Privacy ▸ Fingerprinting protection (upstream 3e3a82b's switch, on the page here):
+    /// off by default, and the page's switch writes it as settings.json reads it.
+    @Test func fingerprintingProtectionIsThePrivacySwitch() throws {
+        let s = AppSettings()
+        #expect(!s.fingerprintingProtection)
+        #expect(SettingsBridge.editableKeys.contains("fingerprintingProtection"))
+        let on = try SettingsBridge.applying("fingerprintingProtection", .bool(true), to: s)
+        #expect(on.fingerprintingProtection && on.httpsOnly == s.httpsOnly)
+        let off = try SettingsBridge.applying("fingerprintingProtection", .bool(false), to: on)
+        #expect(!off.fingerprintingProtection)
+    }
 }

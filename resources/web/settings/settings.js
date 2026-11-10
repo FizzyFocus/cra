@@ -396,6 +396,8 @@
         card('Content blocking', [
           toggle('blockAdsAndTrackers', 'Block ads and trackers', 'Cra’s own lists, on every site you visit.'),
           toggle('blockCookieBanners', 'Block cookie banners'),
+          // Not in Arc or Dia: Cra's Chromium (scripts/cef-patches/fingerprinting-protection.patch).
+          toggle('fingerprintingProtection', 'Fingerprinting protection', 'Sites that tell browsers apart by reading back drawings, 3D graphics or sound get faint noise in what they read, different for each site and each time Cra opens. Sites also see 8 processor cores.'),
         ]),
         card('Connections', [
           toggle('httpsOnly', 'Always use secure connections', 'Pages load over HTTPS, and Cra asks before one that can’t.'),
