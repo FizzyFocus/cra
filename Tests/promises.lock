@@ -512,3 +512,5 @@
 #349   Packages/CraCore/Tests/CraCoreTests/ExtensionIconsTests.swift::retinaTakesTheNextSizeUp  6e1e7d7bcd07
 #349   Packages/CraCore/Tests/CraCoreTests/ExtensionIconsTests.swift::threeTimesTakesTheLargerStill  26e4ac9aef72
 #349   Tests/Scenarios/extension-dialogs.scenario  63311e149d3c
+#354   Packages/CraCore/Tests/CraCoreTests/PageWindowStartTests.swift::aNewPageWindowStartsOnTheWindowInUseNotOnThePrimaryDisplay  54a52c06fe08
+#354   Tests/Scenarios/page-windows-open-on-cra.scenario  57616ba445a7
