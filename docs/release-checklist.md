@@ -357,6 +357,15 @@ built release app with a test profile. Note anything that fails in the release's
   space's darkest tone. Recent open tabs show "Switch to Tab" before typing. Arrow through results
   and check every row's inks follow the selection; long titles truncate before the trailing action.
 
+- **PR #324, 5-Second Previews:** with Apple Intelligence on and Settings ▸ Max ▸ 5-Second Previews
+  on, rest 1 s on a story title on Hacker News, a Google result and a link in a post on X: a loading
+  card hangs under the link, then the answer streams in (picture, bold line, 2–4 rows), next to Arc's
+  on the same link (arc-reverse-engineering.md has its measurements). A story's "comments" link, a
+  Google side-panel link and a plain hover on any other site show nothing; Shift held as the pointer
+  reaches a link shows the answer, or the small card for a link within the site. Leaving the link
+  closes it at once unless the pointer is on the card. Share ▸ Copy as Text and Copy as Image paste as
+  Arc's do. Check a beige and a dark space, 1x and 2x.
+
 - **#196:** hover a Today tab and move onto its ✕ several times. The ✕ never vanishes before
   the click.
 - **#7:** click a tab while moving the pointer a few points on a trackpad. It opens.

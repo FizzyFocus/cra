@@ -602,6 +602,8 @@
           feature('tidyTabs', 'Tidy Tabs', 'Press the broom to let your Sidebar organize itself whenever you have six or more Today Tabs.', 'tidy-tabs'),
           feature('tidyTabTitles', 'Tidy Tab Titles', 'Have your tabs automatically renamed with tidier, shorter titles when you Pin them.', 'tidy-titles'),
           feature('tidyDownloads', 'Tidy Downloads', 'Keep your many files more organized with smartly renamed downloads — and make them a little easier to find later.', 'tidy-downloads'),
+          // #324: Arc Max's hover cards, on the Mac's own Apple Intelligence model.
+          feature('fiveSecondPreviews', '5-Second Previews', 'Instant summaries appear when you hover over links on certain websites (Google results, X and Hacker News). Or hold Shift while hovering to preview any link.', 'five-second-previews'),
         ]),
         foot,
       ];
@@ -642,6 +644,7 @@
 
   // Max's pictures, after Arc's: the broom on lavender, a renamed tab on mauve, a renamed download on blue.
   const MAX_PICTURES = {
+    'five-second-previews': '<svg viewBox="0 0 88 56"><rect x="9" y="13" width="70" height="30" rx="4" fill="#fff"/><path d="M15.2 19.6l1.2-1.2a1.4 1.4 0 0 1 2 2l-1.2 1.2M17.2 21.6l-1.2 1.2a1.4 1.4 0 0 1-2-2l1.2-1.2" fill="none" stroke="#8C8C8C" stroke-width=".8" stroke-linecap="round"/><rect x="21" y="18.6" width="30" height="3" rx="1.5" fill="#111"/><path d="M72 17.5l.7 1.7 1.7.7-1.7.7-.7 1.7-.7-1.7-1.7-.7 1.7-.7z" fill="#8C73E6"/><g fill="#8C8C8C"><circle cx="15.5" cy="28" r="1"/><circle cx="15.5" cy="33" r="1"/><circle cx="15.5" cy="38" r="1"/></g><g fill="#8C8C8C" opacity=".7"><rect x="18.5" y="27" width="44" height="2" rx="1"/><rect x="18.5" y="32" width="50" height="2" rx="1"/><rect x="18.5" y="37" width="34" height="2" rx="1"/></g></svg>',
     'tidy-tabs': '<svg viewBox="0 0 88 56"><path d="M14 28c3-4 6 4 9 0s6 4 9 0 6 4 9 0" fill="none" stroke="#B3ABE6" stroke-width="1.6" stroke-linecap="round"/><g fill="none" stroke="#8C85B8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M60 19l-6 8M51 29l6 4.5-2.5 4c-.6 1-1.8 1.2-2.8.6L48 35.6c-1-.6-1.2-1.8-.6-2.8L49 30.4z"/><path d="M68 24l7 7M75 24l-7 7"/></g></svg>',
     'tidy-titles': '<svg viewBox="0 0 88 56"><rect x="12" y="20" width="64" height="16" rx="8" fill="#fff"/><rect x="17" y="25" width="8" height="6" rx="1.5" fill="#521E5C"/><rect x="29" y="24" width="38" height="3.5" rx="1.7" fill="#6B459E"/><rect x="29" y="29.5" width="26" height="2.5" rx="1.2" fill="#6B459E" opacity=".6"/><g fill="#fff"><circle cx="10" cy="14" r="1.2"/><circle cx="78" cy="12" r="1"/><circle cx="74" cy="44" r="1.3"/><circle cx="20" cy="45" r="1"/></g></svg>',
     'tidy-downloads': '<svg viewBox="0 0 88 56"><rect x="9" y="15" width="70" height="26" rx="4" fill="#fff"/><rect x="14" y="19.5" width="34" height="2.5" rx="1.2" fill="#8C8C8C"/><rect x="14" y="25" width="44" height="4" rx="2" fill="#111"/><rect x="14" y="32" width="30" height="2.5" rx="1.2" fill="#A0A0A0"/><path d="M14 33.2h30" stroke="#A0A0A0" stroke-width=".8"/></svg>',

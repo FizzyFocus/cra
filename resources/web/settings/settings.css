@@ -362,6 +362,7 @@ dialog h2 { margin: 0 0 16px; font-size: 15px; font-weight: 700; }
 .max-picture.tidy-tabs svg { background: #D6D1F5; }
 .max-picture.tidy-titles svg { background: #9C7A9E; }
 .max-picture.tidy-downloads svg { background: #2933ED; }
+.max-picture.five-second-previews svg { background: #1A8580; }
 .max-foot { margin: -14px 0 30px; }
 
 /* Extensions */

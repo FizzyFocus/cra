@@ -65,7 +65,8 @@ protocol BrowserManagerDelegate: AnyObject {
     func browserManagerDidUpdate(_ tabID: UUID)
     /// A page opened a tab (a link, a pop-up); `background` when it stayed behind the open one.
     func browserManagerOpenedTab(_ tabID: UUID, background: Bool)
-    func browserManager(statusMessage: String)
+    /// The status bubble's text (a hovered link's URL, "" when the pointer leaves it) and the tab whose page shows it.
+    func browserManager(statusMessage: String, tabID: UUID?)
     /// Find in page results for the visible tab; -1 = no new value.
     func browserManager(findMatches count: Int, activeMatch: Int)
     func browserManager(download: CraDownloadInfo)
@@ -1382,7 +1383,7 @@ final class BrowserManager: NSObject, @preconcurrency CraBrowserDelegate {
     }
 
     func browser(_ browser: CraBrowser, didChangeStatusMessage message: String) {
-        delegate?.browserManager(statusMessage: message)
+        delegate?.browserManager(statusMessage: message, tabID: tabID(of: browser))
     }
 
     func browser(_ browser: CraBrowser, didFindMatches count: Int, activeMatch: Int) {
