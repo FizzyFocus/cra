@@ -446,6 +446,9 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
             guard let main = app?.main, let window = main.window, let key = NSApp.keyWindow, key === window || key.parent === window else { return nil }
             return main.extensionPopupAnchor(id)
         }
+        // Chromium's install and removal prompts come without a parent window (#349): they hang
+        // over the browser window in use, where a sheet does.
+        ChromiumDialogs.start { [weak app] in app?.main?.window }
         ExtensionActions.shared.watchActions { [weak app] in
             app?.mainWindows.flatMap { $0.browsers.runtimes.values.map { (tab: $0.tabID, browser: $0.browser) } } ?? []
         }
@@ -1118,6 +1121,8 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
         // The address field's dropdown over the floating sidebar's field: above the sidebar, or the
         // sidebar covered its left part and cut off what was typed (11 Nov 2026).
         if commandPanel.isVisible, commandPanel.parent === window { wanted.append(commandPanel) }
+        // Chromium's install and removal prompts (#349) hang over everything, as a sheet does.
+        wanted += ChromiumDialogs.dialogs(over: window)
         // Already the last children, in order, and showing: re-adding each one rebuilt the
         // window's ordering group, a window server round trip, on every tab switch.
         let children = window.childWindows ?? []
