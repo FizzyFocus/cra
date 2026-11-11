@@ -573,3 +573,5 @@
 #356   Tests/Scenarios/picked-tabs-menu.scenario  4a41e1119a25
 #357   Packages/CraCore/Tests/CraCoreTests/FolderShareLinkTests.swift::sharesTheFolderAsTheSidebarShowsIt  c6c447a9a8f8
 #357   Packages/CraCore/Tests/CraCoreTests/FolderShareLinkTests.swift::versionOneStillOpens  6a2b1a89faba
+#363   Tests/Scenarios/page-top-click.scenario  ee4243bd50dc
+#363   Tests/WindowContentGrabberTests.swift::checkClicksAndDrag  d4446653e531
