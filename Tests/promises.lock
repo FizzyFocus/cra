@@ -574,7 +574,8 @@
 #356   Packages/CraCore/Tests/CraCoreTests/PickedTabsMenuTests.swift::shareLinksThePicksCurrentPages  3b29cf95bb9c
 #356   Packages/CraCore/Tests/CraCoreTests/PickedTabsMenuTests.swift::splitViewIsDimmedPastFourPicks  07c4b65874f7
 #356   Packages/CraCore/Tests/CraCoreTests/PickedTabsMenuTests.swift::todayTabsGetArcsRows  631808b39e75
-#356   Tests/Scenarios/picked-tabs-menu.scenario  fe70d3aebb5d
+#356   Tests/DialogTests.swift::checkShareWarning  fe0f15761e86
+#356   Tests/Scenarios/picked-tabs-menu.scenario  38d2a3d6e4ba
 #357   Packages/CraCore/Tests/CraCoreTests/FolderShareLinkTests.swift::sharesTheFolderAsTheSidebarShowsIt  c6c447a9a8f8
 #357   Packages/CraCore/Tests/CraCoreTests/FolderShareLinkTests.swift::versionOneStillOpens  6a2b1a89faba
 #363   Packages/CraCore/Tests/CraCoreTests/PageTopDragTests.swift::underABarTheBandIsWhatIsLeftOf60Points  5f3b649778c7
