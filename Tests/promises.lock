@@ -542,6 +542,9 @@
 #337   Tests/Scenarios/little-window-card.scenario  6c5a8341e907
 #339   Packages/CraCore/Tests/CraCoreTests/SpaceMenuLayoutTests.swift::dockOpensTheSpaceForItsListAndHeader  cd0d0aed9120
 #339   Packages/CraCore/Tests/CraCoreTests/SpaceMenuLayoutTests.swift::dockShowsArcsWholeSpaceMenu  074df60c8297
+#345   Packages/CraCore/Tests/CraCoreTests/PinnedIconClickTests.swift::doubleClickGoesBackWithoutRenaming  0245d5fc1ed4
+#345   Packages/CraCore/Tests/CraCoreTests/PinnedIconClickTests.swift::otherClicksAreTheRows  75f7631008a4
+#345   Tests/Scenarios/pinned-icon-double-click.scenario  e0383d787f7c
 #346   Packages/CraCore/Tests/CraCoreTests/ScreenshotPickTests.swift::aPickOverThePageTakesTheMainWindow  916c67b02ac1
 #346   Tests/Scenarios/screenshot-window-pick.scenario  bf271139d3c5
 #349   Packages/CraCore/Tests/CraCoreTests/ChromiumDialogTests.swift::hangsWhereASheetDoes  c4438e2ff53c
