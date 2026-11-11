@@ -49,9 +49,43 @@ public enum SpaceColorPresets {
         return pages.firstIndex { $0.swatches.contains(k) }
     }
 
-    /// A new space's theme: one of Arc's bright colours, one colour on Auto.
-    public static func newSpaceTheme(index: Int = Int.random(in: 0..<9)) -> SpaceTheme {
-        SpaceThemeVariants.theme(key: [brand[index % brand.count]], intensity: 0.8, noise: 0, appearance: "auto")
+    /// Where a new space starts: Pastel's sky, a clean light blue.
+    public static let newSpaceIndex = 7
+
+    /// A new space's theme: unthemed, nothing on the picker's pad (count 0, the neutral grey look),
+    /// in Light, so it never starts on a dark look nobody picked (10 Nov 2026: a new space no
+    /// longer starts on a colour of Cra's choosing). A tap on the pad or its + brings the first
+    /// colour in (`firstPadColour`).
+    /// `opacity`: how see-through it starts (Settings ▸ Appearance), a subtle frost by default.
+    public static func newSpaceTheme(opacity: Double? = AppSettings.defaultSpaceOpacityDefault) -> SpaceTheme {
+        SpaceThemeVariants.theme(key: [], intensity: 0.8, noise: 0, appearance: "light", opacity: opacity)
+    }
+
+    /// A space with nothing on its pad is painted this (AppSettings.defaultSpaceTint): Arc's light
+    /// pastel sky blue, see-through like any theme with an opacity under 1.
+    public static let defaultTint = "#DCF3FC"
+
+    /// `hex` as "#RRGGBB" in capitals when it is one, else nil.
+    public static func validTint(_ hex: String) -> String? {
+        let h = hex.trimmingCharacters(in: .whitespaces).uppercased()
+        guard h.count == 7, h.hasPrefix("#"), h.dropFirst().allSatisfy(\.isHexDigit) else { return nil }
+        return h
+    }
+
+    /// The colour the pad's + puts on an empty pad: Pastel's sky blue (`newSpaceIndex`).
+    public static var firstPadColour: String { pastel[newSpaceIndex] }
+
+    /// One of Arc's Pastel catalogue colours (warm off-white, blush, lilac, rose, peach, cream,
+    /// mint, sky, periwinkle) alone on the pad, in Light: Arc's light pastel look whatever macOS is
+    /// set to. What the + makes of an empty pad (`newSpaceIndex`).
+    public static func pastelTheme(index: Int = newSpaceIndex) -> SpaceTheme {
+        SpaceThemeVariants.theme(key: [pastel[index % pastel.count]], intensity: 0.8, noise: 0, appearance: "light")
+    }
+
+    /// The first space of a new install: Arc's warm off-white (ColorPickerBrand1), in Light, with
+    /// the default frost (the desktop a little through it).
+    public static func firstSpaceTheme() -> SpaceTheme {
+        SpaceThemeVariants.theme(key: [brand[0]], intensity: 0.8, noise: 0, appearance: "light", opacity: AppSettings.defaultSpaceOpacityDefault)
     }
 }
 

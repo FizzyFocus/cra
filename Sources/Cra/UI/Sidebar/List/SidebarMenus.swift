@@ -117,6 +117,10 @@ enum SidebarMenus {
             store.setMuted(id, !tab.muted)
             actions.performAction("muteTab:\(id)")
         }
+        // Frees the page's memory; the tab stays and loads again when shown. Not for a tab on screen.
+        add(menu, "Unload Tab", enabled: ui.canUnload(id) && tab.loadOnStart != true) { actions.unloadTab(id) }
+        // Its page loads when Cra opens and stays in memory (10 Nov 2026).
+        add(menu, "Load on Start", on: tab.loadOnStart == true) { store.setLoadOnStart(tab.loadOnStart != true, for: id) }
         if m.pinned, m.navigatedAway {
             menu.addItem(.separator())
             add(menu, action: "resetTab", "Back to Pinned Page") { actions.resetPinnedTab(id) }
@@ -171,12 +175,14 @@ enum SidebarMenus {
 
     // MARK: Folders
 
+    /// Arc's Auto, White and Black, then a colour of the folder's own (FolderColor, Cra's).
     private static func iconColor(_ menu: NSMenu, _ item: SidebarItem, list: SpaceListView) {
         let sub = submenu(menu, "Icon Color")
         let id = item.id
         for (title, style) in [("Auto", FolderIconStyle?.none), ("White", .white), ("Black", .black)] {
-            add(sub, title, on: item.folderIcon == style) { list.store.setFolderIcon(style, for: id) }
+            add(sub, title, on: item.folderColor == nil && item.folderIcon == style) { list.store.setFolderIcon(style, for: id) }
         }
+        FolderColorMenu.add(to: sub, current: item.folderColor) { list.store.setFolderColor($0, for: id) }
     }
 
     static func folder(_ item: SidebarItem, list: SpaceListView) -> NSMenu {
@@ -405,7 +411,8 @@ enum SidebarMenus {
                 add(menu, "Change Space Icon…") { [weak header] in if let header { actions.changeSpaceIcon(s, header) } }
                 add(menu, "Rename Space…") { [weak header] in header?.beginRename() }
             }
-            add(menu, "Edit Theme Color…") { actions.editSpaceTheme(s) }
+            let asked = NSEvent.mouseLocation
+            add(menu, "Edit Theme Color…") { actions.editSpaceTheme(s, asked) }
             menu.addItem(.separator())
         }
         add(menu, action: "newTab", "New Tab") { actions.openCommandBar(.newTab) }

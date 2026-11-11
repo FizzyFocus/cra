@@ -15,6 +15,9 @@ enum PageEngines {
     /// The app's pages of its own (EaselBrowser), registered at launch: a browser for an address
     /// one of them owns, else nil.
     static var nativePage: ((_ frame: NSRect, _ url: String, _ delegate: CraBrowserDelegate?, _ incognito: Bool, _ profilePath: String?) -> CraBrowser?)?
+    /// Whether one of those pages owns an address: a page of an engine navigating there (cra://settings
+    /// typed into the bar) gives the tab to it.
+    static var nativeOwns: ((String) -> Bool)?
 
     /// The list, with the user's own choices (protected-media.json) on it. `defaults write
     /// dk.kildahl.cra webKitProtectedMedia -bool NO` turns it all off (every page Chromium's again).
@@ -95,6 +98,8 @@ enum PageEngines {
     static func handoffTarget(from browser: CraBrowser, to url: String, method: String) -> PageEngine? {
         // An easel hands every other address to the engine that address gets.
         if let page = browser as? NativePage { return page.owns(url) ? nil : sites.engine(for: url) }
+        // Any engine: the tab's page opens again, and makeBrowser gives the address its own page.
+        if nativeOwns?(url) == true { return .chromium }
         let current = engine(of: browser)
         switch current {
         case .chromium: return sites.handoff(from: current, to: url, method: method)

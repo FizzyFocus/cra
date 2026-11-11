@@ -664,6 +664,8 @@ final class WebKitBrowser: CraBrowser, WKNavigationDelegate, WKUIDelegate, WKDow
             inPictureInPicture = on
             pictureInPicturePlaying = on && (m["playing"] as? Bool ?? true)
             delegate?.browser?(self, didChangePictureInPicture: on)
+            // The state the video left the window in, for the sidebar's card.
+            if !on, let playing = m["playing"] as? Bool { delegate?.browser?(self, didChangePictureInPicturePlayback: playing) }
         case "pipPlaying":
             let on = m["on"] as? Bool ?? false
             guard inPictureInPicture, on != pictureInPicturePlaying else { return }
@@ -699,7 +701,7 @@ final class WebKitBrowser: CraBrowser, WKNavigationDelegate, WKUIDelegate, WKDow
         if (v && e.target === v && (ev === 'play' || ev === 'pause')) post({ t: 'pipPlaying', on: ev === 'play' });
       }, true);
       addEventListener('enterpictureinpicture', e => post({ t: 'pip', on: true, playing: !e.target.paused }), true);
-      addEventListener('leavepictureinpicture', () => post({ t: 'pip', on: false }), true);
+      addEventListener('leavepictureinpicture', e => post({ t: 'pip', on: false, playing: !(e.target.paused || e.target.ended) }), true);
       if (window.top === window) {
         let last = '';
         addEventListener('mouseover', e => {

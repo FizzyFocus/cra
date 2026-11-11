@@ -26,6 +26,11 @@ public struct SpaceTheme: Codable, Equatable {
     /// The theme editor's pad colours the theme was built from (Arc: the editor's key colour and
     /// the ones its wheel adds); nil for a preset or an import, whose own colours go on the pad.
     public var key: [String]? = nil
+    /// How opaque the space's colours are over the blurred desktop, ThemeOpacity.range (the theme
+    /// picker's Opacity slider): 1 is a solid window, lower lets the desktop through. Saved in
+    /// sidebar.json with the rest of the theme, so a see-through space comes back see-through.
+    /// nil keeps the look's own: opaque, or Arc's see-through for a vibrant import and a one-colour fill.
+    public var opacity: Double? = nil
 
     /// One half of an Auto theme: everything but the appearance, which is the half's own.
     public struct Variant: Codable, Equatable {
@@ -59,7 +64,7 @@ public struct SpaceTheme: Codable, Equatable {
     }
 
     public init(colors: [String], intensity: Double, noise: Double, appearance: String, vibrant: Bool = false, accent: String? = nil,
-         solid: Bool = false, dark: Variant? = nil, key: [String]? = nil) {
+         solid: Bool = false, dark: Variant? = nil, key: [String]? = nil, opacity: Double? = nil) {
         self.colors = colors
         self.intensity = intensity
         self.noise = noise
@@ -69,6 +74,7 @@ public struct SpaceTheme: Codable, Equatable {
         self.solid = solid
         self.dark = dark
         self.key = key
+        self.opacity = opacity
     }
 
     /// Arc's Auto: a light and a dark half, shown as macOS' appearance says.
@@ -90,6 +96,8 @@ public struct SpaceTheme: Codable, Equatable {
         // A dark half that can't be read is dropped, not the whole sidebar.json with it.
         dark = (try? c.decodeIfPresent(Variant.self, forKey: .dark)) ?? nil
         key = try c.decodeIfPresent([String].self, forKey: .key)
+        // A value that isn't a number is dropped, not the whole sidebar.json with it.
+        opacity = (try? c.decodeIfPresent(Double.self, forKey: .opacity)) ?? nil
     }
 
     var variant: Variant {
@@ -106,7 +114,7 @@ public struct SpaceTheme: Codable, Equatable {
         if let d = dark {
             if !systemDark { var t = self; t.appearance = "light"; t.dark = nil; return t }
             return SpaceTheme(colors: d.colors, intensity: d.intensity, noise: d.noise, appearance: "dark", vibrant: d.vibrant,
-                              accent: d.accent, solid: d.solid)
+                              accent: d.accent, solid: d.solid, opacity: opacity)
         }
         // One set of colours keeps its look on both sides, as an Arc `single` theme does: swapping
         // it for a derived half made an imported space look nothing like Arc's while macOS ran the

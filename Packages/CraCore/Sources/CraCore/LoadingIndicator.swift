@@ -1,3 +1,5 @@
+import CoreGraphics
+
 /// Arc's loading indicator, a bar at the top middle of the window chrome, in the margin above the
 /// page card. Measured from a screen recording of Arc 1.171, 2 Nov 2026 (60 fps, 1.4 px per pt):
 /// - Waiting: the request is out and no response has committed. A 48 pt pill fades in over 0.7 s,
@@ -51,6 +53,26 @@ public enum LoadingIndicator {
             return (k[i - 1].start + (k[i].start - k[i - 1].start) * f, k[i - 1].end + (k[i].end - k[i - 1].end) * f)
         }
         return (1, 1)
+    }
+
+    /// The least margin above the card that holds the bar.
+    public static let minimumMargin: Double = height + 2
+    /// With no margin, the bar's centre this far below the card's top edge, over the page.
+    public static let insideInset: Double = 5
+
+    /// Where the bar's view goes (y up, `bounds` the window's content): centred over the card at
+    /// `content`, in the margin above it. Edge to edge (a maximized window with its sidebar hidden,
+    /// a window in full screen, the setting) there is no margin, and the bar sat in none: every
+    /// load went unseen (10 Nov 2026). It then lies just inside the card's top edge, over the page.
+    /// A page in full screen (a video) has none; nil.
+    public static func frame(content: CGRect, in bounds: CGRect, pageFullscreen: Bool) -> CGRect? {
+        guard !pageFullscreen, !content.isEmpty else { return nil }
+        let w = trackWidth + 2
+        let x = (content.midX - w / 2).rounded()
+        let margin = bounds.maxY - content.maxY
+        if margin >= minimumMargin { return CGRect(x: x, y: content.maxY, width: w, height: margin) }
+        let h = 2 * insideInset
+        return CGRect(x: x, y: content.maxY - h, width: w, height: h)
     }
 
     /// The time the waiting pill takes to widen into the track.

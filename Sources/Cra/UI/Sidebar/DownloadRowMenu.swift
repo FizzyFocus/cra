@@ -5,7 +5,8 @@ import UniformTypeIdentifiers
 /// alike (#272). Which items show is CraCore's `DownloadMenu`; this performs them.
 @MainActor
 enum DownloadRowMenu {
-    static func fill(_ menu: NSMenu, for row: DownloadHistory.Listed) {
+    /// `done` hears which action ran (the preview's ⋯ drops a file hidden or moved to the Trash).
+    static func fill(_ menu: NSMenu, for row: DownloadHistory.Listed, done: ((DownloadMenu.Action) -> Void)? = nil) {
         let history = DownloadHistory.shared
         let path: String
         switch row {
@@ -33,6 +34,7 @@ enum DownloadRowMenu {
                     case (.moveToTrash, .finished(let e)): history.moveToTrash(e)
                     default: break
                     }
+                    done?(action)
                 }
             }
         }

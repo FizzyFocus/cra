@@ -30,9 +30,26 @@ public struct PageHistory: Codable, Equatable, Sendable {
     /// Whether a new page for a tab now at `tabURL`, made in `engine`, opens with this history.
     /// Only while it ends where the tab is: a pinned tab put back on its page, a tab whose page
     /// moved on after the last save or a page reopened in the other engine starts fresh there.
+    /// Chromium's own pages (Settings, History, DevTools) start fresh too, and so does a list with
+    /// one of them in it: Chromium crashed putting such a list back into a page being made
+    /// (Cra.restoreHistory on a Settings tab). They lose only their Back list.
     public func restores(into engine: PageEngine, at tabURL: String) -> Bool {
-        engine == self.engine && !state.isEmpty && url == tabURL
+        guard engine == self.engine, !state.isEmpty, url == tabURL else { return false }
+        guard engine == .chromium else { return true }
+        return !Self.isChromiumPage(tabURL) && !Self.internalMarkers.contains { state.range(of: $0) != nil }
     }
+
+    /// The schemes of Chromium's own (WebUI) pages.
+    public static let chromiumPageSchemes = ["chrome", "chrome-untrusted", "devtools"]
+
+    /// Whether `url` is one of Chromium's own pages.
+    public static func isChromiumPage(_ url: String) -> Bool {
+        guard let colon = url.firstIndex(of: ":") else { return false }
+        return chromiumPageSchemes.contains(url[..<colon].lowercased())
+    }
+
+    /// The schemes as they appear in Chromium's serialized navigations (the URLs are UTF-8 there).
+    private static let internalMarkers: [Data] = chromiumPageSchemes.map { Data("\($0)://".utf8) }
 
     /// The tabs whose saved history stays on disk: every tab in the sidebar, and the tabs most
     /// recently closed, which ⇧⌘T and the Library bring back with their history (Chrome's

@@ -11,8 +11,15 @@ struct SiteControlCenterActions {
     /// Gets the Share button, to hang the share list from.
     var share: (NSView) -> Void = { _ in }
     var copyURL: () -> Void = {}
+    /// Arc's Boost button: the Boost editor for this site.
+    var boost: (() -> Void)?
     var capture: () -> Void = {}
     var captureFullPage: () -> Void = {}
+    /// The bookmark star in the top row (Cra's, not Arc's): bookmarks the page or edits its
+    /// bookmark (BookmarkEditPopover). nil: no star (nothing to bookmark here).
+    var bookmark: (() -> Void)?
+    /// The page is bookmarked: the star is filled, in the accent colour.
+    var bookmarked = false
     var runExtension: (String) -> Void = { _ in }
     var addExtension: () -> Void = {}
     var manageExtensions: () -> Void = {}
@@ -28,10 +35,24 @@ struct SiteControlCenterActions {
 }
 
 enum SiteControlCenterMetrics {
-    static let width: CGFloat = 236
     static let inset: CGFloat = 10
     static let tile = CGSize(width: 48, height: 32)
     static let gap: CGFloat = 8
+    /// Arc's grid is four tiles across (236 pt). Cra's top row has a fifth action (the bookmark
+    /// star), and its buttons are tiles of the grid's own size, never stretched or squeezed (Arc's
+    /// are its extension tiles' size, 10 Nov 2026): the grid is five across.
+    static let columns = 5
+    static let width: CGFloat = 2 * inset + CGFloat(columns) * tile.width + CGFloat(columns - 1) * gap
+    /// A tile's place in the grid, `i`th across then down, `top` its first row.
+    static func tileFrame(_ i: Int, top: CGFloat = 0, x: CGFloat = 0) -> NSRect {
+        NSRect(x: x + CGFloat(i % columns) * (tile.width + gap), y: top + CGFloat(i / columns) * (tile.height + gap),
+               width: tile.width, height: tile.height)
+    }
+    /// The height of `count` tiles in the grid.
+    static func gridHeight(_ count: Int) -> CGFloat {
+        let rows = max(1, (count + columns - 1) / columns)
+        return CGFloat(rows) * tile.height + CGFloat(rows - 1) * gap
+    }
 }
 
 /// The popover's content: built in one pass from the store and the extension list, and built
@@ -70,8 +91,10 @@ final class SiteControlCenterView: NSView {
         self.actions = actions
         self.store = store
         super.init(frame: NSRect(x: 0, y: 0, width: M.width, height: 100))
+        // No fill of its own: the popover's own material shows through, frosted, as in Arc (and
+        // the reference's site controls). An opaque panel colour flattened it.
         wantsLayer = true
-        layer?.backgroundColor = colors.background.cgColor
+        layer?.backgroundColor = NSColor.clear.cgColor
         observe()
         // An extension changing its icon redraws only its tile, so the one under the pointer
         // keeps its hover. Ends with the view: then nothing observable is read.
@@ -121,17 +144,24 @@ final class SiteControlCenterView: NSView {
         subviews.forEach { $0.removeFromSuperview() }
         let x = M.inset, w = M.width - 2 * M.inset
         var y: CGFloat = 9
-        // The four raised action buttons.
+        // The raised action buttons: Arc's four, and the bookmark star after Copy URL when there is a
+        // page to bookmark; each one a tile of the grid, from the left.
         let share = actions.share
-        for (i, (symbol, help, run)) in [("square.and.arrow.up", "Share", {}), ("link", "Copy URL", actions.copyURL),
-                                         ("camera", "Capture this page", actions.capture),
-                                         ("text.viewfinder", "Capture the full page", actions.captureFullPage)].enumerated() {
-            let b = SiteActionButton(symbol: symbol, help: help, colors: colors, action: run)
+        // Copy Link lives in the address field (10 Nov 2026); Arc's Boost takes its place.
+        var top: [(String, String, NSColor?, () -> Void)] = [("square.and.arrow.up", "Share", nil, {})]
+        if let boost = actions.boost { top.append(("wand.and.sparkles", "Boost This Site", nil, boost)) }
+        if let bookmark = actions.bookmark {
+            top.append(actions.bookmarked ? ("star.fill", "Edit Bookmark (⇧⌘D)", .controlAccentColor, bookmark)
+                                          : ("star", "Bookmark This Page (⇧⌘D)", nil, bookmark))
+        }
+        top += [("camera", "Capture this page", nil, actions.capture), ("text.viewfinder", "Capture the full page", nil, actions.captureFullPage)]
+        for (i, (symbol, help, tint, run)) in top.enumerated() {
+            let b = SiteActionButton(symbol: symbol, help: help, colors: colors, tint: tint, action: run)
             if i == 0 { b.onClick = { [weak b] in if let b { share(b) } } }
-            b.frame = NSRect(x: x + CGFloat(i) * (M.tile.width + M.gap), y: y, width: M.tile.width, height: M.tile.height)
+            b.frame = M.tileFrame(i, top: y, x: x)
             addSubview(b)
         }
-        y += M.tile.height + 11
+        y += M.gridHeight(top.count) + 11
         if let service = protectedMedia {
             // A WebKit page: no extensions run in it, so the card says why instead (Arc has none).
             let card = SiteProtectedMediaCard(service: service, width: w, colors: colors, learnMore: actions.learnAboutProtectedMedia)
@@ -156,13 +186,11 @@ final class SiteControlCenterView: NSView {
             add.setGlyph(SidebarSymbols.image("plus", size: 14, weight: .medium), tint: colors.text)
             tiles.append(add)
             for (i, t) in tiles.enumerated() {
-                t.frame = NSRect(x: CGFloat(i % 4) * (M.tile.width + M.gap), y: 27 + CGFloat(i / 4) * (M.tile.height + M.gap),
-                                 width: M.tile.width, height: M.tile.height)
+                t.frame = M.tileFrame(i, top: 27)
                 ext.addSubview(t)
             }
             for case let t as SiteExtensionTile in tiles { ext.addSubview(t.badge) }
-            let rows = (tiles.count + 3) / 4
-            let extH = 27 + CGFloat(rows) * M.tile.height + CGFloat(rows - 1) * M.gap
+            let extH = 27 + M.gridHeight(tiles.count)
             ext.frame = NSRect(x: x, y: y, width: w, height: extH)
             addSubview(ext)
             y += extH + 15
@@ -187,7 +215,7 @@ final class SiteControlCenterView: NSView {
         }
         for (i, r) in rowsSpec.enumerated() {
             let row = SiteSettingRow(symbol: r.0, title: r.1, subtitle: r.2, active: r.3, colors: colors, action: r.4)
-            row.frame = NSRect(x: 0, y: 27 + CGFloat(i) * 43, width: 208, height: 33)
+            row.frame = NSRect(x: 0, y: 27 + CGFloat(i) * 43, width: w, height: 33)
             settings.addSubview(row)
         }
         let setH = 27 + rowsSpec.count * 33 + (rowsSpec.count - 1) * 10
@@ -245,8 +273,9 @@ struct SiteControlCenterColors {
     var actionOutline: NSColor { dark ? NSColor(hex: "#141115") : .black.withAlphaComponent(0.14) }
 }
 
-/// A view that tracks the pointer and acts on release, the base of the popover's controls.
-private class SiteHoverView: NSView {
+/// A view that tracks the pointer and acts on release, the base of the popover's controls (the
+/// bookmark card's too, BookmarkEditPopover).
+class SiteHoverView: NSView {
     var hovered = false { didSet { if hovered != oldValue { refresh(); onHover() } } }
     var onClick: () -> Void = {}
     var onHover: () -> Void = {}
@@ -276,7 +305,7 @@ private class SiteHoverView: NSView {
 }
 
 /// A titled section; hovering it shows `hoverText` at the header's right end (Arc: "Manage").
-private final class SiteSectionView: SiteHoverView {
+final class SiteSectionView: SiteHoverView {
     private let manage: NSTextField?
     private let onHeaderClick: () -> Void
 
@@ -437,7 +466,7 @@ private final class SiteExtensionTile: SiteTile {
 }
 
 /// Arc draws these raised: a top-lit gradient, a light top edge and a dark outline.
-private final class SiteActionButton: SiteHoverView {
+final class SiteActionButton: SiteHoverView {
     private let colors: SiteControlCenterColors
     private let fill = CAGradientLayer()
     private let highlight = CAGradientLayer()
@@ -445,7 +474,7 @@ private final class SiteActionButton: SiteHoverView {
     private let outline = CAShapeLayer()
     private let glyph = NSImageView()
 
-    init(symbol: String, help: String, colors: SiteControlCenterColors, action: @escaping () -> Void) {
+    init(symbol: String, help: String, colors: SiteControlCenterColors, tint: NSColor? = nil, action: @escaping () -> Void) {
         self.colors = colors
         super.init(frame: .zero)
         onClick = action
@@ -466,7 +495,7 @@ private final class SiteActionButton: SiteHoverView {
         outline.lineWidth = 0.5
         layer?.addSublayer(outline)
         glyph.image = SidebarSymbols.image(symbol, size: 15)
-        glyph.contentTintColor = colors.text
+        glyph.contentTintColor = tint ?? colors.text
         glyph.imageScaling = .scaleNone
         addSubview(glyph)
         _ = ArcTooltipAnchorView.attach(to: self, help: help)
@@ -529,13 +558,22 @@ private final class SiteSettingRow: SiteHoverView {
         s.textColor = colors.secondary
         s.frame = NSRect(x: 40 - SidebarText.inset, y: 17, width: 160 + 2 * SidebarText.inset, height: 16)
         addSubview(s)
+        labels = [t, s]
         setAccessibilityLabel("\(title), \(subtitle)")
         setAccessibilityRole(.button)
     }
 
     required init?(coder: NSCoder) { fatalError() }
 
+    private var labels: [NSTextField] = []
+
     override func refresh() { alphaValue = hovered ? 0.85 : 1 }
+
+    /// The title and state run to the row's end, 8 pt short of it.
+    override func layout() {
+        super.layout()
+        for l in labels { l.frame.size.width = max(0, bounds.width - 48) + 2 * SidebarText.inset }
+    }
 }
 
 /// A WebKit page's place for the extensions: which engine plays it, and what that means here
@@ -662,6 +700,60 @@ private final class SiteSecurityPill: SiteHoverView {
     }
 }
 
+/// A footer pill in the Security pill's look (a glyph and a 14 pt semibold label on the footer fill,
+/// 32 pt tall, brightened under the pointer) or, `prominent`, the setting circles' accent with
+/// its glyph colour: the bookmark card's Bookmarked and Done.
+final class SitePillButton: SiteHoverView {
+    private let colors: SiteControlCenterColors
+    private let base: NSColor
+    private let clickable: Bool
+
+    init(symbol: String?, title: String, colors: SiteControlCenterColors, prominent: Bool = false, glyphTint: NSColor? = nil,
+         help: String? = nil, action: (() -> Void)?) {
+        self.colors = colors
+        base = prominent ? colors.accent : colors.footerFill
+        clickable = action != nil
+        super.init(frame: .zero)
+        if let action { onClick = action }
+        wantsLayer = true
+        layer?.cornerRadius = prominent ? 16 : 8
+        layer?.cornerCurve = .continuous
+        let ink = prominent ? colors.glyphOnAccent : colors.text
+        let label = NSTextField.sidebarLabel(size: 14, weight: .semibold)
+        label.stringValue = title
+        label.textColor = ink
+        let tw = ceil(label.attributedStringValue.size().width)
+        var x: CGFloat = prominent ? 14 : 10
+        if let symbol {
+            let glyph = NSImageView()
+            glyph.image = SidebarSymbols.image(symbol, size: 12, weight: .semibold)
+            glyph.contentTintColor = glyphTint ?? ink
+            glyph.imageScaling = .scaleNone
+            let gw = glyph.image?.size.width ?? 10
+            glyph.frame = NSRect(x: x, y: 0, width: gw, height: 32)
+            addSubview(glyph)
+            x += gw + 6
+        }
+        label.frame = NSRect(x: x - SidebarText.inset, y: (32 - 17) / 2, width: tw + 2 * SidebarText.inset, height: 17)
+        addSubview(label)
+        setFrameSize(NSSize(width: x + tw + (prominent ? 14 : 10), height: 32))
+        if let help { _ = ArcTooltipAnchorView.attach(to: self, help: help) }
+        setAccessibilityElement(true)
+        setAccessibilityLabel(title)
+        setAccessibilityRole(clickable ? .button : .staticText)
+        refresh()
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func refresh() {
+        // SwiftUI's .brightness(0.04) on hover, as the More button.
+        let c = base.usingColorSpace(.sRGB) ?? base
+        layer?.backgroundColor = (hovered && clickable ? NSColor(srgbRed: min(1, c.redComponent + 0.04), green: min(1, c.greenComponent + 0.04),
+                                                                  blue: min(1, c.blueComponent + 0.04), alpha: c.alphaComponent) : c).cgColor
+    }
+}
+
 /// Arc's footer "…": Clear Cache, Clear Cookies, Manage Extensions, Add Extension, All Site Settings.
 private final class SiteMoreButton: SiteHoverView {
     private let colors: SiteControlCenterColors
@@ -755,6 +847,7 @@ final class SiteControlCenterPopover: NSObject, NSPopoverDelegate {
         // opens over it).
         func closing(_ f: @escaping () -> Void) -> () -> Void { { [weak p] in p?.performClose(nil); f() } }
         acts.copyURL = closing(actions.copyURL)
+        acts.boost = actions.boost.map(closing)
         acts.capture = closing(actions.capture)
         acts.captureFullPage = closing(actions.captureFullPage)
         acts.runExtension = { [weak p] id in p?.performClose(nil); actions.runExtension(id) }
@@ -776,6 +869,7 @@ final class SiteControlCenterPopover: NSObject, NSPopoverDelegate {
         p.contentViewController = host
         popover = p
         p.show(relativeTo: rect, of: view, preferredEdge: .minY)
+        CraLog.note("site control center shows (shown: \(p.isShown), app active: \(NSApp.isActive))")
     }
 
     func close() { popover?.performClose(nil) }
@@ -788,7 +882,10 @@ final class SiteControlCenterPopover: NSObject, NSPopoverDelegate {
         if let e = NSApp.currentEvent, e.type == .leftMouseDown { closingClick = e.timestamp }
     }
 
-    func popoverDidClose(_ notification: Notification) { popover = nil }
+    func popoverDidClose(_ notification: Notification) {
+        popover = nil
+        CraLog.note("site control center closed")
+    }
 }
 
 /// The Site Control Center's share list (GitHub #90). macOS finds the share extensions the

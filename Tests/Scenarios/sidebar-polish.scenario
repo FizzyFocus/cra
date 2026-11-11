@@ -1,0 +1,40 @@
+# 11 Nov 2026. A light space's tips are light (TooltipTones.forSpace). A plain click on a tab, or a
+# click on the list's empty space, clears a ⌘-click selection. A tab still loading off screen spins an
+# arc round its favicon (TabLoadingIndicator), and the tab on screen doesn't (it has the loading bar).
+cra://debug?windowSize=1200x800
+wait 2
+cra://debug?tooltip=Hello
+wait 0.5
+expect-log tooltip shown: light
+# ${STALL} never answers: its tab keeps loading once another tab is in front.
+cra://open?url=${STALL}/slow
+wait 1.5
+cra://open?url=${PAGE}?n=front
+expect-log loaded 127\.0\.0\.1 \(HTTP 200\)
+wait 1.5
+cra://debug?loadingRows=background
+expect-log loading rows background: 1
+cra://open?url=${PAGE}?n=third
+wait 1.5
+# Picks: ⌘-click two rows, then a plain click on one leaves none picked.
+cra://debug?pickTabs=0,1
+cra://debug?picksState=picked
+expect-log tab picks picked: [2-9]
+cra://debug?plainClickTab=0
+cra://debug?picksState=afterClick
+expect-log tab picks afterClick: 0
+# Picks again, then a click on the list's empty space.
+cra://debug?pickTabs=0,1
+cra://debug?emptyListClick=1
+expect-log tab picks cleared: a click on the list's empty space
+cra://debug?picksState=afterEmpty
+expect-log tab picks afterEmpty: 0
+# A plain click anywhere in the sidebar that isn't a row, tile, button or control clears the picks
+# too: the space's header here. A tab row's own click is the row's (it selects just that tab).
+cra://debug?pickTabs=0,1
+cra://debug?sidebarClick=TabRowView,0
+expect-log sidebar click TabRowView,0: picks kept
+cra://debug?sidebarClick=SpaceHeaderView
+expect-log sidebar click SpaceHeaderView: picks cleared
+cra://debug?picksState=afterHeader
+expect-log tab picks afterHeader: 0

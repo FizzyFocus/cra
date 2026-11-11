@@ -3,14 +3,15 @@ import Foundation
 /// Cra's own performance, recorded on this Mac (GitHub #91, docs/performance.md). Data flows one
 /// way. The main thread records small facts under one lock (Perf, the run-loop observer); the
 /// watchdog thread writes a hang file itself while the main thread is blocked; one serial queue
-/// samples processes and the system every 5 s, writes the black box every 60 s and the history
+/// samples processes and the system every 10 s, writes the black box every 60 s and the history
 /// every 15 minutes, and builds the export. Nothing on the main thread does file I/O, JSON
 /// encoding or libproc calls. Nothing here touches the network (lint: perf-no-network).
 final class PerfRecorder: @unchecked Sendable {
     struct Config {
-        var sampleInterval: Double = 5
-        var blackBoxEvery = 12        // samples: 60 s
-        var historyEvery = 180        // samples: 15 min
+        /// 10 s since 11 Nov 2026 (5 s before): fewer wake-ups while recording runs.
+        var sampleInterval: Double = 10
+        var blackBoxEvery = 6         // samples: 60 s
+        var historyEvery = 90         // samples: 15 min
         var policy = PerfStallPolicy()
         /// `/usr/bin/sample` on Cra at a hang, at most this many times a session (0: never).
         var stacks = 3

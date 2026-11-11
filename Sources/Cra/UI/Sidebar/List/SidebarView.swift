@@ -1,8 +1,10 @@
 import AppKit
+import SwiftUI
 
 /// The whole left column in AppKit, laid out like Arc: traffic lights + sidebar toggle with the
-/// nav buttons at the right of the top row, the space pager (favorites, header, tab list), the
-/// update banner and the dock. The Library takes the column over while it is open.
+/// nav buttons at the right of the top row, then the static chrome's favorites (global, never on
+/// a space's page), the space pager (header, tab list), the update banner and the dock. The
+/// Library takes the column over while it is open.
 @MainActor
 final class SidebarView: NSView {
     private let store: SidebarStore
@@ -14,17 +16,30 @@ final class SidebarView: NSView {
 
     /// The URL field's sliders button (screen rect), nil while the toolbar has it.
     var siteControlsButtonFrameOnScreen: NSRect? { topBar.siteControlsButtonFrameOnScreen }
+
+    /// The swipe past the last space: the ring's fill, nil once it's over.
+    func showCreateSwipe(_ fill: Double?) { createSwipe.show(fill: fill) }
+    /// The URL field (screen rect), while the sidebar shows it.
+    var urlFieldFrameOnScreen: NSRect? { topBar.urlFieldFrameOnScreen }
     /// Scenario hooks (#226): the URL field as if the pointer were over the header, and a press on
     /// one of its buttons. nil while the toolbar has the address.
     func debugURLFieldHover(_ on: Bool) -> [ToolbarComposition.Item]? { topBar.debugURLFieldHover(on) }
     func debugURLFieldPress(_ item: ToolbarComposition.Item) -> Bool { topBar.debugURLFieldPress(item) }
     private let pager: SpacePagerView
+    /// Arc's top apps, pinned under the URL field outside the pager: still while spaces change.
+    private let favorites: FavoritesGridView
     private let trayHost: DownloadsTrayView
+    /// Swiping on past the last space: the ring that opens Create a Space (SpaceCreateSwipe).
+    private let createSwipe = CreateSpaceSwipeIndicator()
     private let player: NowPlayingTrayView
     private let trayMask = CAGradientLayer()
     private let bannerHost = UpdateBannerView()
     private let dock: SpaceDockView
     private var libraryHost: LibraryView?
+    /// Create a Space, in place of the favorites, the pager and the trays while it is open.
+    private var createHost: NSHostingView<CreateSpaceSheet>?
+    /// The views Create a Space stands in for.
+    private var createCovers: [NSView] { [favorites, pager, player, trayHost, bannerHost] }
     /// The palette drawn now; the theme-shown scenario hook reads it (#155).
     private(set) var palette: SpacePalette
     private var lastSpaceID: UUID?
@@ -39,6 +54,7 @@ final class SidebarView: NSView {
         palette = store.focusedSpace(window: ui.windowID).theme.palette
         topBar = SidebarTopBarView(store: store, ui: ui, actions: actions)
         pager = SpacePagerView(store: store, ui: ui, actions: actions, favicons: favicons)
+        favorites = FavoritesGridView(store: store, ui: ui, actions: actions, favicons: favicons)
         trayHost = DownloadsTrayView(ui: ui)
         player = NowPlayingTrayView(store: store, ui: ui, favicons: favicons)
         dock = SpaceDockView(store: store, ui: ui, actions: actions)
@@ -47,9 +63,18 @@ final class SidebarView: NSView {
         pager.wantsLayer = true
         trayMask.startPoint = CGPoint(x: 0.5, y: 0)
         trayMask.endPoint = CGPoint(x: 0.5, y: 1)
-        for v in [topBar, pager, player, trayHost, bannerHost, dock] as [NSView] { tabs.addSubview(v) }
+        // The favorites above the pager: the strip slides under them.
+        for v in [topBar, pager, favorites, player, trayHost, bannerHost, dock, createSwipe] as [NSView] { tabs.addSubview(v) }
         addSubview(tabs)
+        favorites.onHeightChange = { [weak self] animated in self?.placeFavorites(animated: animated) }
         player.onCountChange = { [weak self] in self?.needsLayout = true }
+        // A plain click anywhere in the sidebar that isn't a row, tile, button or control (its
+        // background, a header, a divider, the space's name, a gutter) drops a ⌘/⇧-click tab
+        // selection (11 Nov 2026). Seen before the click is handled; it goes on as it would.
+        backgroundClickMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { [weak self] e in
+            MainActor.assumeIsolated { self?.backgroundClick(e) }
+            return e
+        }
         ui.observeLibraryReveal { [weak self] in self?.applyLibraryReveal() }
         observe()
         observeRenameCard()
@@ -105,16 +130,20 @@ final class SidebarView: NSView {
         v.tailX = bin.midX - 8
     }
 
+    deinit { backgroundClickMonitor.map(NSEvent.removeMonitor) }
+
     required init?(coder: NSCoder) { fatalError() }
 
     override var isFlipped: Bool { true }
 
     private func observe() {
         var bannerHeight: CGFloat = 0
+        var creating: CreateSpaceModel?
         let (space, library, trayOpen, recentCount) = withObservationTracking {
             let space = store.focusedSpace(window: ui.windowID)
             _ = SystemAppearance.shared.isDark
             bannerHeight = UpdateBannerView.preferredHeight
+            creating = ui.creatingSpace
             return (space, ui.libraryPage, ui.downloadsListOpen, DownloadHistory.shared.recent.count)
         } onChange: { [weak self] in
             Task { @MainActor in self?.observe() }
@@ -130,6 +159,7 @@ final class SidebarView: NSView {
             palette = space.theme.palette
             let colors = SidebarColors(palette)
             trayHost.colors = colors
+            createSwipe.colors = colors
             bannerHost.colors = colors
             let shown = space.theme.shown
             bannerHost.themeColor = shown.accent ?? shown.colors.first
@@ -139,7 +169,56 @@ final class SidebarView: NSView {
         self.bannerHeight = bannerHeight
         updateTrayMask(open: trayOpen, rows: recentCount)
         showLibrary(library)
+        showCreateSpace(creating)
         needsLayout = true
+    }
+
+    // MARK: Create a Space
+
+    /// Create a Space comes in where the favorites and the tab list were, which fade out under it;
+    /// the top row and the dock stay. Closing gives them back.
+    private func showCreateSpace(_ model: CreateSpaceModel?) {
+        guard model !== createHost?.rootView.model else { return }
+        if let old = createHost {
+            createHost = nil
+            NSAnimationContext.runAnimationGroup { ctx in
+                ctx.duration = 0.12
+                ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                old.animator().alphaValue = 0
+                for v in createCovers { v.isHidden = false; v.animator().alphaValue = 1 }
+            } completionHandler: {
+                old.removeFromSuperview()
+            }
+            // The downloads tray shows only with downloads to list (updateTrayMask's rule).
+            trayHost.isHidden = DownloadHistory.shared.recent.isEmpty
+        }
+        guard let model else { return }
+        let host = NSHostingView(rootView: CreateSpaceSheet(model: model))
+        host.sizingOptions = []
+        model.toScreen = { [weak host] r in
+            guard let host, let window = host.window else { return nil }
+            // SwiftUI's global space is the hosting view's own, flipped like it.
+            return window.convertToScreen(host.convert(r, to: nil))
+        }
+        tabs.addSubview(host)
+        createHost = host
+        layoutCreateHost()
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = 0.12
+            ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            for v in createCovers { v.animator().alphaValue = 0 }
+        } completionHandler: { [weak self] in
+            // Faded isn't gone: the favorites' tooltips and the list's hover would still answer.
+            guard let self, self.createHost === host else { return }
+            for v in self.createCovers { v.isHidden = true }
+        }
+    }
+
+    /// Between the top row and the dock.
+    private func layoutCreateHost() {
+        guard let host = createHost else { return }
+        let top = topBar.frame.maxY
+        host.frame = NSRect(x: 0, y: top, width: tabs.bounds.width, height: max(0, dock.frame.minY - 6 - top))
     }
 
     private var bannerHeight: CGFloat = 0
@@ -148,7 +227,7 @@ final class SidebarView: NSView {
     /// and fades back in over the 170 pt above that.
     private func updateTrayMask(open: Bool, rows: Int) {
         let h = max(pager.bounds.height, 1)
-        let clearTop = max(0, h - DownloadsTrayMetrics.listHeight(rows: rows) - 1)
+        let clearTop = max(0, h - DownloadsTrayMetrics.listHeight(rows: rows) - DownloadsTrayMetrics.bottomClearance - 3)
         let fadeTop = max(0, clearTop - DownloadsTrayMetrics.fade)
         CATransaction.begin()
         CATransaction.setAnimationDuration(open ? 0.18 : 0.13)
@@ -194,6 +273,13 @@ final class SidebarView: NSView {
         } else if let host = libraryHost {
             libraryHost = nil
             tabs.isHidden = false
+            if ui.libraryCloseCut {
+                // ⇧⌘L: the drawer closed over the Library; the tab list is simply there.
+                ui.libraryCloseCut = false
+                host.removeFromSuperview()
+                tabs.alphaValue = 1
+                return
+            }
             NSAnimationContext.runAnimationGroup { ctx in
                 ctx.duration = 0.1
                 ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
@@ -269,6 +355,7 @@ final class SidebarView: NSView {
         if ui.libraryReveal == nil {
             tabs.frame = bounds
             libraryHost?.frame = bounds
+            libraryHost?.heldWidth = ui.libraryHeldWidth
         } else {
             applyLibraryReveal()
         }
@@ -285,11 +372,92 @@ final class SidebarView: NSView {
         player.frame = NSRect(x: 0, y: th, width: b.width, height: max(0, bannerTop - th))
         let listBottom = bannerTop - NowPlayingMetrics.restHeight(cards: player.shownCount)
         pager.frame = NSRect(x: 0, y: th, width: b.width, height: max(0, listBottom - th))
+        placeFavorites(animated: false)
+        layoutCreateHost()
         let rows = DownloadHistory.shared.recent.count
-        let trayH = DownloadsTrayMetrics.listHeight(rows: rows) + 4
-        trayHost.frame = NSRect(x: 0, y: pager.frame.maxY - trayH, width: b.width, height: trayH)
+        // The rows end just above the list's area; the view runs on down to the Library button
+        // (4 pt into the dock), so moving up from the button to the rows never leaves it (11 Nov
+        // 2026: the empty strip between closed the list on the way). Only the rows take clicks.
+        let listTop = pager.frame.maxY - (DownloadsTrayMetrics.listHeight(rows: rows) + 2) - DownloadsTrayMetrics.bottomClearance
+        trayHost.frame = NSRect(x: 0, y: listTop, width: b.width, height: max(0, dock.frame.minY + 4 - listTop))
+        // At the column's right edge, where the strip pulls away past the last space.
+        let side = CreateSpaceSwipeIndicator.side
+        createSwipe.frame = NSRect(x: b.width - side - 16, y: (pager.frame.midY - side / 2).rounded(), width: side, height: side)
         updateTrayMask(open: ui.downloadsListOpen, rows: rows)
         if renameCard?.layer?.animationKeys()?.isEmpty ?? true { layoutRenameCard() }
+    }
+
+    private var backgroundClickMonitor: Any?
+
+    private func backgroundClick(_ e: NSEvent) {
+        guard !ui.multiSelection.isEmpty, e.modifierFlags.intersection([.command, .shift]).isEmpty,
+              let w = window, e.window === w, let root = w.contentView?.superview ?? w.contentView else { return }
+        let hit = root.hitTest(root.convert(e.locationInWindow, from: nil))
+        _ = clearPicksIfBackground(hit)
+    }
+
+    /// The sidebar's own clickable things: a plain click on them does what it does (a tab row
+    /// selects just its tab), so the picks are theirs to handle.
+    private static func isInteractive(_ v: NSView) -> Bool {
+        v is TabRowView || v is FolderRowView || v is SplitRowView || v is NewTabRowView || v is GroupHeaderRowView
+            || v is LiveStatusRowView || v is PinPlaceholderRowView || v is NSControl || v is SidebarGlyphButton
+            || v is FavoriteTileView || v is SidebarURLPill || v is LibraryButtonView || v is DownloadsTrayView
+            || v is NowPlayingCardView || v is LibraryView || v is BookmarkOutlineView || v is FavoritesEmptyCard
+            || v is SpaceDockView || v is NSScroller || v is NSTextView
+    }
+
+    /// A click landed on `hit`: in the sidebar and on nothing interactive, the picks go.
+    @discardableResult
+    func clearPicksIfBackground(_ hit: NSView?) -> Bool {
+        guard let hit, hit === self || hit.isDescendant(of: self) else { return false }
+        var v: NSView? = hit
+        while let x = v, x !== self {
+            if Self.isInteractive(x) { return false }
+            v = x.superview
+        }
+        guard !ui.multiSelection.isEmpty else { return false }
+        ui.clearPicks()
+        CraLog.note("tab picks cleared: a click on the sidebar's \(type(of: hit))")
+        return true
+    }
+
+    /// `cra://debug?downloadsGeometry=`: the open list's rows, the gap from its last row to the dock,
+    /// and whether its hover area reaches down into the dock (no dead strip on the way up).
+    func debugDownloadsHit(_ label: String) {
+        layoutSubtreeIfNeeded()
+        let h = ui.downloadsTray?.debugHits() ?? (gap: "-", below: "-")
+        CraLog.note("downloads list hit \(label): gap=\(h.gap) below=\(h.below)")
+    }
+
+    func debugDownloadsGeometry(_ label: String) {
+        layoutSubtreeIfNeeded()
+        let rows = DownloadHistory.shared.recent.count
+        let lastBottom = trayHost.frame.minY + 2 + DownloadsTrayMetrics.listHeight(rows: rows)
+        let gap = dock.frame.minY - lastBottom
+        let reaches = trayHost.frame.maxY >= dock.frame.minY
+        CraLog.note("downloads list \(label): rows=\(rows) gapToDock=\(Int(gap.rounded())) reachesButton=\(reaches ? 1 : 0) open=\(ui.downloadsListOpen ? 1 : 0)")
+    }
+
+    /// The favorites where the space pages used to carry them: from the pager's top, 8 pt in from
+    /// both sides. Each page leaves their room above its header (SpaceColumnView.place). A row
+    /// coming or going, or a drag opening the "Add to Favorites" strip, moves the pages' headers
+    /// and lists on Arc's 0.15 s ease-out; a list swapped for another lands in one frame.
+    private func placeFavorites(animated: Bool) {
+        let w = max(0, tabs.bounds.width - 16)
+        let f = NSRect(x: 8, y: pager.frame.minY, width: w, height: favorites.height(forWidth: w))
+        let bottom = favorites.tilesBottom(forWidth: w)
+        guard animated, window != nil else {
+            if favorites.frame != f { favorites.frame = f }
+            pager.setFavoritesBottom(bottom, animated: false)
+            return
+        }
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = 0.15
+            ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            ctx.allowsImplicitAnimation = true
+            favorites.animator().frame = f
+            pager.setFavoritesBottom(bottom, animated: true)
+        }
     }
 }
 
@@ -328,6 +496,12 @@ final class SidebarTopBarView: NSView {
     private var rowButtons: [SidebarGlyphButton] = []
     private var chevron: NSView?
     private let pill = SidebarURLPill()
+
+    /// The URL field (screen rect); nil while it isn't shown (the toolbar has it).
+    var urlFieldFrameOnScreen: NSRect? {
+        guard !pill.isHiddenOrHasHiddenAncestor, let window else { return nil }
+        return window.convertToScreen(pill.convert(pill.bounds, to: nil))
+    }
 
     /// Where the URL field's sliders button is or appears on hover (screen rect): its last
     /// accessory, 28 pt ending 5 pt in. nil while the field isn't shown (the toolbar has it).
@@ -453,7 +627,10 @@ final class SidebarTopBarView: NSView {
         }
         (chevron as? DevMenuChevron)?.tint = colors.textTertiary
         pill.isHidden = !compact
-        if compact {
+        if compact, ui.pageFullscreen {
+            // Arc 1.172: with a page in full screen the pill is its way out.
+            pill.showExitFullscreen(colors: colors)
+        } else if compact {
             let url = tab?.tab?.url ?? ""
             let host = URL(string: url)?.host ?? ""
             let text = tab == nil ? "Search or Enter URL…" : (host.isEmpty ? SuggestionEngine.humanURL(url) : host.replacingOccurrences(of: "www.", with: ""))
@@ -479,15 +656,22 @@ final class SidebarTopBarView: NSView {
         let w = bounds.width
         // A drag across 212 pt swaps the header's layout (#287).
         if SidebarHeaderLayout.isNarrow(width: Double(w)) != narrowWidth { apply() }
-        // Row 1: 71 pt for the traffic lights, then the toggle. In fullscreen the lights are gone and
-        // Arc draws it from 20 pt in (glyph 20–38.5 pt); the floating panel draws stand-in lights.
-        // It moves left to stay 2 pt clear of ← when the sidebar is just wide enough for both.
-        let lights = !fullscreen || window?.parent != nil
+        // Row 1: 71 pt for the traffic lights, then the toggle. In fullscreen the lights belong to
+        // the menu bar's title bar, never the sidebar (anchored or floating), and Arc draws the
+        // toggle from 20 pt in (glyph 20–38.5 pt). It moves left to stay 2 pt clear of ← when the
+        // sidebar is just wide enough for both.
+        let lights = !fullscreen
+        // Full screen in or out: the toggle glides into the lights' place or out of it instead of
+        // jumping. Started as the window's transition starts and over well before it ends, so the
+        // lights coming back on the way out never land on it.
+        let docking = laidOutLights.map { $0 != lights } == true && window != nil
+        laidOutLights = lights
         let nav = toggleShown ? Array(rowButtons.dropFirst()) : rowButtons
         let afterLights: CGFloat = lights ? 6 + 71 + 2 : 13
+        var toggleFrame: NSRect?
         if toggleShown, let t = rowButtons.first {
             let size = t.size.width
-            t.frame = NSRect(x: afterLights, y: CraMetrics.titleRowCenter - 1 - size / 2, width: size, height: size)
+            toggleFrame = NSRect(x: afterLights, y: CraMetrics.titleRowCenter - 1 - size / 2, width: size, height: size)
         }
         if narrow {
             for (b, box) in zip(nav, SidebarHeaderLayout.navButtons(width: Double(w))) {
@@ -516,8 +700,27 @@ final class SidebarTopBarView: NSView {
             }
         }
         // The toggle steps left to stay 2 pt clear of ← (Arc, #287).
-        if toggleShown, compact || devNav, !narrow, let t = rowButtons.first {
-            t.frame.origin.x = SidebarHeaderLayout.toggleX(width: Double(w), afterLights: afterLights, developer: devNav)
+        if toggleShown, compact || devNav, !narrow {
+            toggleFrame?.origin.x = SidebarHeaderLayout.toggleX(width: Double(w), afterLights: afterLights, developer: devNav)
+        }
+        if let t = rowButtons.first, let f = toggleFrame { placeToggle(t, at: f, docking: docking) }
+    }
+
+    /// Whether the last layout left room for the traffic lights (nil before the first).
+    private var laidOutLights: Bool?
+    private static let dockDuration: TimeInterval = 0.22
+
+    private func placeToggle(_ toggle: NSView, at f: NSRect, docking: Bool) {
+        guard docking else {
+            // Layout passes during a glide (the window resizing under it) leave it to finish.
+            if toggle.frame != f { toggle.frame = f }
+            return
+        }
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = Self.dockDuration
+            ctx.timingFunction = CAMediaTimingFunction(controlPoints: 0.2, 0.8, 0.2, 1)
+            ctx.allowsImplicitAnimation = true
+            toggle.animator().frame = f
         }
     }
 
@@ -637,8 +840,37 @@ final class SidebarURLPill: NSView {
     override var isFlipped: Bool { true }
     override var mouseDownCanMoveWindow: Bool { false }
 
+    /// "Exit Fullscreen" with Arc's ⤡ while a page in this window is in full screen; a click leaves it.
+    private(set) var exitsFullscreen = false
+    private lazy var exitGlyph: NSImageView = {
+        let v = NSImageView()
+        v.imageScaling = .scaleNone
+        return v
+    }()
+
+    func showExitFullscreen(colors: SidebarColors) {
+        exitsFullscreen = true
+        self.colors = colors
+        hasTab = true
+        tip.text = ""
+        label.stringValue = "Exit Fullscreen"
+        label.textColor = colors.textPrimary
+        exitGlyph.image = SidebarSymbols.image("arrow.down.right.and.arrow.up.left", size: 11, weight: .medium)
+        exitGlyph.contentTintColor = colors.textSecondary
+        if exitGlyph.superview == nil { addSubview(exitGlyph) }
+        exitGlyph.isHidden = false
+        model = ([], false)
+        accessories.forEach { $0.removeFromSuperview() }
+        accessories = []
+        shownItems = []
+        refreshFill()
+        needsLayout = true
+    }
+
     func show(text: String, url: String, hasTab: Bool, colors: SidebarColors, active: Bool,
               pinned: [(String, String, NSImage?)], protectedMedia: String? = nil) {
+        exitsFullscreen = false
+        exitGlyph.isHidden = true
         self.protectedMedia = protectedMedia
         self.colors = colors
         self.hasTab = hasTab
@@ -719,7 +951,11 @@ final class SidebarURLPill: NSView {
             right -= 28
             v.frame = NSRect(x: right, y: (h - 28) / 2, width: 28, height: 28)
         }
-        let x: CGFloat = 12
+        var x: CGFloat = 12
+        if exitsFullscreen {
+            exitGlyph.frame = NSRect(x: 12, y: (h - 16) / 2, width: 16, height: 16)
+            x = 12 + 16 + 8
+        }
         let lh = label.intrinsicContentSize.height
         label.frame = NSRect(x: x - SidebarText.inset, y: (h - lh) / 2, width: max(0, right - x) + 2 * SidebarText.inset, height: lh)
         tip.frame = NSRect(x: 0, y: 0, width: right, height: h)
@@ -735,6 +971,7 @@ final class SidebarURLPill: NSView {
     override func mouseDown(with event: NSEvent) {}
     override func mouseUp(with event: NSEvent) {
         guard bounds.contains(convert(event.locationInWindow, from: nil)) else { return }
+        if exitsFullscreen { actions?.exitPageFullscreen(); return }
         actions?.openCommandBar(hasTab ? .editURL : .newTab)
     }
 
@@ -906,7 +1143,8 @@ final class SpaceDockView: NSView {
     }
 
     /// The dragged space follows the pointer; the ones it passes slide a cell the other way, like
-    /// the gap Arc's collection view opens at the proposed drop index.
+    /// the gap Arc's collection view opens at the proposed drop index, on a spring that picks up
+    /// from wherever a cell is, so a quick drag back and forth never jumps.
     private func placeCells(animated: Bool, dragX: CGFloat = 0) {
         let ws = cellWidths, xs = cellXs, step = pitch
         let y = (bounds.height - Self.cell.height) / 2
@@ -917,9 +1155,63 @@ final class SpaceDockView: NSView {
                 if r.id == id { x += dragX } else if r.from < i && i <= r.to { x -= step } else if r.to <= i && i < r.from { x += step }
             }
             let f = NSRect(x: x, y: y, width: ws[i], height: Self.cell.height)
-            if animated && reorder?.id != id { c.animator().frame = f } else { c.frame = f }
+            if animated && reorder?.id != id { Self.slide(c, to: f) } else if c.frame != f { c.frame = f }
         }
-        if let r = reorder, let c = cells[r.id] { c.removeFromSuperview(); addSubview(c) }
+        if let r = reorder, let c = cells[r.id], subviews.last !== c { c.removeFromSuperview(); addSubview(c) }
+    }
+
+    /// The dock's reorder spring: quick, a touch of give (SwiftUI's .spring(response: 0.28, dampingFraction: 0.78)).
+    static let reorderSpring = SpringMotion(response: 0.28, dampingFraction: 0.78)
+
+    /// A cell to `f` on the reorder spring, from where it shows now (an earlier slide included).
+    /// A reordered item springs from where it shows to `f` (the dock's cells, the Library's space cards).
+    static func slide(_ c: NSView, to f: NSRect, completion: (() -> Void)? = nil) {
+        let shownX = c.layer?.presentation()?.frame.minX ?? c.frame.minX
+        c.frame = f
+        guard let layer = c.layer, abs(shownX - f.minX) > 0.25, !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else {
+            c.layer?.removeAnimation(forKey: "dockSlide")
+            completion?()
+            return
+        }
+        let s = CASpringAnimation(keyPath: "position.x")
+        s.isAdditive = true
+        s.fromValue = shownX - f.minX
+        s.toValue = 0
+        s.mass = 1
+        s.stiffness = reorderSpring.stiffness
+        s.damping = reorderSpring.damping
+        s.duration = s.settlingDuration
+        CATransaction.begin()
+        CATransaction.setCompletionBlock { completion?() }
+        layer.add(s, forKey: "dockSlide")
+        CATransaction.commit()
+    }
+
+    /// The pressed space lifts while it is dragged (a little larger, over the others) and settles
+    /// back as it lands, on the same spring. Scaled through the sublayers, which AppKit leaves alone.
+    private static func lift(_ c: NSView, _ up: Bool) {
+        guard let layer = c.layer else { return }
+        let b = layer.bounds
+        func scaled(_ k: CGFloat) -> CATransform3D {
+            var t = CATransform3DMakeTranslation(b.midX, b.midY, 0)
+            t = CATransform3DScale(t, k, k, 1)
+            return CATransform3DTranslate(t, -b.midX, -b.midY, 0)
+        }
+        let to = up ? scaled(1.18) : CATransform3DIdentity
+        let from = layer.presentation()?.sublayerTransform ?? layer.sublayerTransform
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        layer.sublayerTransform = to
+        CATransaction.commit()
+        guard !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else { return }
+        let s = CASpringAnimation(keyPath: "sublayerTransform")
+        s.fromValue = NSValue(caTransform3D: from)
+        s.toValue = NSValue(caTransform3D: to)
+        s.mass = 1
+        s.stiffness = reorderSpring.stiffness
+        s.damping = reorderSpring.damping
+        s.duration = s.settlingDuration
+        layer.add(s, forKey: "dockLift")
     }
 
     private func index(at p: NSPoint) -> Int? {
@@ -974,6 +1266,11 @@ final class SpaceDockView: NSView {
         let p = point(event)
         let dx = p.x - r.start.x
         if !r.moved && abs(dx) < 3 && abs(p.y - r.start.y) < 3 { return }
+        if !r.moved {
+            // Picked up: it lifts over the others, and its tip gets out of the way.
+            if let c = cells[r.id] { Self.lift(c, true) }
+            for c in cells.values { ArcTooltipController.shared.mouseExited(c) }
+        }
         r.moved = true
         let w = pitch
         let clamped = min(max(dx, -CGFloat(r.from) * w), CGFloat(order.count - 1 - r.from) * w)
@@ -981,15 +1278,10 @@ final class SpaceDockView: NSView {
         let changed = to != r.to
         r.to = to
         reorder = r
-        if changed {
-            NSAnimationContext.runAnimationGroup { ctx in
-                ctx.duration = 0.2
-                ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
-                placeCells(animated: true, dragX: clamped)
-            }
-        } else {
-            placeCells(animated: false, dragX: clamped)
+        if changed, store.settings.hapticFeedbackOnReorder {
+            NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
         }
+        placeCells(animated: changed, dragX: clamped)
     }
 
     /// A release inside the pressed cell that didn't move the space switches to it, so a shaky
@@ -997,25 +1289,29 @@ final class SpaceDockView: NSView {
     override func mouseUp(with event: NSEvent) {
         guard let r = reorder else { return }
         let p = point(event)
+        if r.moved, let c = cells[r.id] { Self.lift(c, false) }
         guard r.to != r.from else {
             reorder = nil
             if index(at: p) == r.from { store.focusSpace(r.id, window: ui.windowID) }
             hovered = index(at: p).map { order[$0] }
-            NSAnimationContext.runAnimationGroup { ctx in
-                ctx.duration = 0.15
-                placeCells(animated: true)
-            }
+            // A drag let go where it started: everything springs home.
+            placeCells(animated: true)
             refreshCells()
             return
         }
         // `moveSpace` indexes the full space order; land next to the space now in that cell.
         let target = store.spaceOrder.firstIndex(of: order[r.to]) ?? r.to
-        NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = 0.15
-            ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
-            placeCells(animated: true, dragX: CGFloat(r.to - r.from) * pitch)
-            cells[r.id]?.animator().frame.origin.x = (cellXs.first ?? 0) + CGFloat(r.to) * pitch
-        } completionHandler: { [weak self] in
+        let dropped = cells[r.id]
+        let slot = cellXs.indices.contains(r.to) ? cellXs[r.to] : (cellXs.first ?? 0) + CGFloat(r.to) * pitch
+        // The others are already in their places; the dropped space springs into its cell, then the
+        // order is saved and the dock lays out as it now is (nothing moves: every cell is in place).
+        placeCells(animated: false, dragX: CGFloat(r.to - r.from) * pitch)
+        guard let dropped else {
+            reorder = nil
+            store.moveSpace(r.id, to: target)
+            return
+        }
+        Self.slide(dropped, to: NSRect(x: slot, y: dropped.frame.minY, width: dropped.frame.width, height: dropped.frame.height)) { [weak self] in
             MainActor.assumeIsolated {
                 guard let self else { return }
                 self.reorder = nil
@@ -1025,21 +1321,18 @@ final class SpaceDockView: NSView {
         }
     }
 
+    /// A space's icon takes the same menu as its header (SpaceMenu: Change Space Icon…, Rename
+    /// Space…, Edit Theme Color…, Set Profile, New Folder, … Delete Space). Rename goes to that
+    /// space and edits its header in place; the icon picker points at the dock icon.
     override func menu(for event: NSEvent) -> NSMenu? {
-        guard let i = index(at: point(event)), let space = store.space(order[i]) else { return nil }
-        let store = self.store, ui = self.ui, actions = self.actions
-        let m = NSMenu()
-        m.autoenablesItems = false
-        MenuItems.add(m, action: "editSpace") { actions.editSpace(space) }
-        m.addItem(.separator())
-        MenuItems.add(m, "Move Left") { if let i = store.spaceOrder.firstIndex(of: space.id) { store.moveSpace(space.id, to: max(0, i - 1)) } }
-        MenuItems.add(m, "Move Right") { if let i = store.spaceOrder.firstIndex(of: space.id) { store.moveSpace(space.id, to: i + 1) } }
-        m.addItem(.separator())
-        MenuItems.add(m, action: "deleteSpace") {
-            store.focusSpace(space.id, window: ui.windowID)
-            actions.performAction("deleteSpace")
+        guard let i = index(at: point(event)), let cell = cells[order[i]] else { return nil }
+        let id = order[i], store = self.store, ui = self.ui
+        hovered = nil
+        for c in cells.values { ArcTooltipController.shared.mouseExited(c) }
+        return SpaceMenu.make(spaceID: id, store: store, ui: ui, actions: actions, anchor: cell) {
+            store.focusSpace(id, window: ui.windowID)
+            ui.renameSpaceRequest = id
         }
-        return m
     }
 }
 
@@ -1218,6 +1511,9 @@ final class SpaceCellView: NSView, ArcTooltipTarget {
 /// latest download's "bin" (DownloadsUI.DownloadToLibrary): the file's thumbnail, 32 pt with
 /// 8 pt corners, up and to the right of the glyph. It drops in from 6 pt above, overshoots 12 pt
 /// below and settles (Arc 1.170 at 60 fps), and is faint while the window is in the background.
+/// When hovering opens the downloads list, the bin flies up into it as its newest row (the same
+/// file), leaving the button and its "View Library" tip clear, and comes back down as the list
+/// closes; it stayed put over the tip (10 Nov 2026).
 final class LibraryButtonView: NSView {
     private let ui: SidebarUIState
     private let actions: SidebarActions
@@ -1229,6 +1525,9 @@ final class LibraryButtonView: NSView {
     /// The ring on the bin's corner while downloads run (#272).
     private let badge = DownloadProgressBadgeView()
     private var shownDownload: UInt32?
+    /// The bin is up in the open downloads list (or on its way there).
+    private var tucked = false
+    private var binAlpha: CGFloat = 1
     private var hovering = false { didSet { if hovering != oldValue { refresh() } } }
     var colors = SidebarColors() { didSet { if colors != oldValue { glyph.image = LibraryGlyph.image(dark: colors.isDark); badge.colors = colors; refresh() } } }
     static let binOffset = CGSize(width: 9, height: -12)
@@ -1288,17 +1587,123 @@ final class LibraryButtonView: NSView {
     override var mouseDownCanMoveWindow: Bool { false }
 
     private func observe() {
-        let (download, active) = withObservationTracking { (ui.recentDownload, ui.appActive) } onChange: { [weak self] in
+        let (download, active, listOpen) = withObservationTracking { (ui.recentDownload, ui.appActive, ui.downloadsListOpen) } onChange: { [weak self] in
             Task { @MainActor in self?.observe() }
         }
-        guard let download else { bin.isHidden = true; shownDownload = nil; return }
+        guard let download else { putAway(); return }
+        bin.layer?.removeAnimation(forKey: "putAway")
         bin.isHidden = false
         binImage.contents = download.image
-        bin.alphaValue = active ? 1 : 0.4
+        binAlpha = active ? 1 : 0.4
+        if !tucked { bin.alphaValue = binAlpha }
         binTip.text = (download.path as NSString).lastPathComponent
         if shownDownload != download.id {
             shownDownload = download.id
-            drop()
+            if !listOpen { drop() }
+        }
+        setTucked(listOpen)
+    }
+
+    /// The bin's time is up: it shrinks a little as it fades, on a spring with no bounce, then goes.
+    private func putAway() {
+        shownDownload = nil
+        let wasTucked = tucked
+        tucked = false
+        badge.isHidden = false
+        guard !bin.isHidden, !wasTucked, let layer = bin.layer, window != nil,
+              !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else {
+            bin.isHidden = true
+            return
+        }
+        let spring = SpringMotion(response: 0.32, dampingFraction: 1)
+        let fade = CASpringAnimation(keyPath: "opacity")
+        fade.fromValue = layer.presentation()?.opacity ?? 1
+        fade.toValue = 0
+        let shrink = CASpringAnimation(keyPath: "transform.scale")
+        shrink.fromValue = 1
+        shrink.toValue = 0.7
+        for a in [fade, shrink] {
+            a.mass = 1
+            a.stiffness = spring.stiffness
+            a.damping = spring.damping
+            a.duration = a.settlingDuration
+            a.fillMode = .forwards
+            a.isRemovedOnCompletion = false
+        }
+        let group = CAAnimationGroup()
+        group.animations = [fade, shrink]
+        group.duration = fade.settlingDuration
+        group.fillMode = .forwards
+        group.isRemovedOnCompletion = false
+        CATransaction.begin()
+        CATransaction.setCompletionBlock { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, self.ui.recentDownload == nil else { return }
+                self.bin.isHidden = true
+                self.bin.layer?.removeAnimation(forKey: "putAway")
+            }
+        }
+        layer.add(group, forKey: "putAway")
+        CATransaction.commit()
+    }
+
+    /// Where the bin rests: up and to the right of the glyph.
+    private var restBinFrame: NSRect {
+        let c = NSPoint(x: bounds.midX + Self.binOffset.width, y: bounds.midY + Self.binOffset.height)
+        return NSRect(x: c.x - 16, y: c.y - 16, width: 32, height: 32)
+    }
+
+    /// The list opening: the bin rises to its newest row's thumbnail, growing to it and fading as
+    /// the row fades in there; closing, it comes back down from there into its place. On the
+    /// list's own curve (SidebarListMetrics); at once with Reduce Motion or nothing to fly to.
+    private func setTucked(_ tuck: Bool) {
+        guard tuck != tucked else { return }
+        tucked = tuck
+        badge.isHidden = tuck
+        if !bin.isHidden { CraLog.note(tuck ? "library bin rises into the downloads list" : "library bin comes back to the Library button") }
+        let rest = restBinFrame
+        guard !bin.isHidden, window != nil, let target = ui.downloadsTray?.newestThumbnailInWindow().map({ convert($0, from: nil) }),
+              !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else {
+            bin.layer?.removeAllAnimations()
+            bin.frame = rest
+            binImage.frame = CGRect(origin: .zero, size: rest.size)
+            bin.alphaValue = tuck ? 0 : binAlpha
+            return
+        }
+        bin.layer?.removeAnimation(forKey: "drop")
+        bin.layer?.removeAnimation(forKey: "fade")
+        if !tuck {
+            // Back from the row it became.
+            bin.frame = target
+            binImage.frame = CGRect(origin: .zero, size: target.size)
+            bin.alphaValue = 0
+        }
+        let to = tuck ? target : rest
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = tuck ? 0.26 : 0.22
+            ctx.timingFunction = SidebarListMetrics.timing
+            ctx.allowsImplicitAnimation = true
+            bin.animator().frame = to
+            bin.animator().alphaValue = tuck ? 0 : binAlpha
+            CATransaction.begin()
+            CATransaction.setAnimationDuration(ctx.duration)
+            CATransaction.setAnimationTimingFunction(SidebarListMetrics.timing)
+            binImage.frame = CGRect(origin: .zero, size: to.size)
+            binImage.cornerRadius = tuck ? 6 : 8
+            CATransaction.commit()
+        } completionHandler: { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, self.tucked == tuck else { return }
+                if tuck {
+                    // Out of sight in the list: home again, invisible, for the way back.
+                    CATransaction.begin()
+                    CATransaction.setDisableActions(true)
+                    self.bin.frame = self.restBinFrame
+                    self.binImage.frame = CGRect(origin: .zero, size: self.restBinFrame.size)
+                    self.binImage.cornerRadius = 8
+                    CATransaction.commit()
+                }
+            }
         }
     }
 
@@ -1326,10 +1731,12 @@ final class LibraryButtonView: NSView {
         super.layout()
         glyph.frame = bounds
         tip.frame = bounds
-        let c = NSPoint(x: bounds.midX + Self.binOffset.width, y: bounds.midY + Self.binOffset.height)
-        bin.frame = NSRect(x: c.x - 16, y: c.y - 16, width: 32, height: 32)
-        binImage.frame = bin.bounds
-        binTip.frame = bin.bounds
+        // Not while it flies to or from the downloads list.
+        if bin.layer?.animationKeys()?.isEmpty ?? true {
+            bin.frame = restBinFrame
+            binImage.frame = bin.bounds
+        }
+        binTip.frame = NSRect(origin: .zero, size: restBinFrame.size)
         // Over the bin's bottom right corner, 4 pt out (the bin isn't flipped).
         let b = DownloadProgressBadgeView.size
         badge.frame = NSRect(x: bin.bounds.maxX - b + 4, y: -4, width: b, height: b)
@@ -1337,7 +1744,7 @@ final class LibraryButtonView: NSView {
 
     override func hitTest(_ point: NSPoint) -> NSView? {
         let p = convert(point, from: superview)
-        if !bin.isHidden, bin.frame.contains(p) { return self }
+        if !bin.isHidden, !tucked, bin.frame.contains(p) { return self }
         return bounds.contains(p) ? self : nil
     }
 
@@ -1346,15 +1753,51 @@ final class LibraryButtonView: NSView {
         for t in trackingAreas where t.owner === self { removeTrackingArea(t) }
         addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self, userInfo: nil))
     }
-    override func mouseEntered(with event: NSEvent) { hovering = true; ui.libraryHovered = true; ui.downloadsHoverChanged() }
-    override func mouseExited(with event: NSEvent) { hovering = false; ui.libraryHovered = false; ui.downloadsHoverChanged() }
+    override func mouseEntered(with event: NSEvent) { setHovering(true) }
+    override func mouseExited(with event: NSEvent) { setHovering(false) }
     override func mouseDown(with event: NSEvent) {}
     override func mouseUp(with event: NSEvent) {
         let p = convert(event.locationInWindow, from: nil)
-        if !bin.isHidden, bin.frame.contains(p), let path = ui.recentDownload?.path {
+        if !bin.isHidden, !tucked, bin.frame.contains(p), let path = ui.recentDownload?.path {
             NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
         } else if bounds.contains(p) {
             actions.toggleLibrary()
+            // The Library slides in under the pointer (or the sidebar moves into its floating
+            // panel), and no exit comes for a view that moved away: look again once it has.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in self?.syncHover() }
         }
+        syncHover()
+    }
+
+    private func setHovering(_ on: Bool) {
+        guard on != hovering || ui.libraryHovered != on else { return }
+        hovering = on
+        ui.libraryHovered = on
+        ui.downloadsHoverChanged()
+    }
+
+    /// The fill follows where the pointer really is. A tracking area sends no exit when its view
+    /// moves out from under the pointer, is hidden, or changes window (the floating sidebar's
+    /// panel), which left the button lit after the Library opened.
+    func syncHover() {
+        guard let window, !isHiddenOrHasHiddenAncestor else { setHovering(false); return }
+        let p = convert(window.mouseLocationOutsideOfEventStream, from: nil)
+        let inside = (bounds.contains(p) || (!bin.isHidden && !tucked && bin.frame.contains(p))) && window.isVisible
+        setHovering(inside)
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        syncHover()
+    }
+
+    override func viewDidHide() {
+        super.viewDidHide()
+        setHovering(false)
+    }
+
+    override func setFrameOrigin(_ newOrigin: NSPoint) {
+        super.setFrameOrigin(newOrigin)
+        if hovering { syncHover() }
     }
 }

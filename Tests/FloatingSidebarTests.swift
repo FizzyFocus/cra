@@ -58,6 +58,7 @@ enum FloatingSidebarTests {
         shell.resizeHandle.onResize?(0, 0)
         shell.resizeHandle.onBegin = nil
         shell.resizeHandle.onResize = nil
+        libraryDrawer(shell: shell, sidebar: sidebar, panel: panel)
         shell.resizeHandle.onDrag = nil
         shell.resizeHandle.onEnd = nil
 
@@ -96,12 +97,24 @@ enum FloatingSidebarTests {
                "an uninterrupted hide still reattaches the sidebar normally")
 
         onlyTheKeyWindowReveals(window: window, sidebar: sidebar, panel: panel)
+        noTrafficLightsInFullScreen(sidebar: sidebar)
+        libraryLeavesWithThePointer(shell: shell, sidebar: sidebar)
 
-        // #136: the pointer is sampled only while Cra is the active app.
+        // #136: the pointer is sampled only while Cra is the active app, and (11 Nov 2026, macOS's
+        // "Using Significant Energy") only while the sidebar is hidden or floating out: docked, the
+        // 30 Hz timer woke Cra for nothing (FloatingSidebarPoll).
+        sidebar.sidebarHidden = { true }
         sidebar.install()
         expect(!sidebar.isPolling, "an inactive app installs no pointer timer")
         NotificationCenter.default.post(name: NSApplication.didBecomeActiveNotification, object: NSApp)
         expect(sidebar.isPolling, "becoming active starts the pointer timer")
+        expect(sidebar.pollingInterval == FloatingSidebarPoll.fast, "at the edge reveal's pace")
+        sidebar.sidebarHidden = { false }
+        sidebar.updatePolling()
+        expect(!sidebar.isPolling, "docked: no pointer timer at all")
+        sidebar.sidebarHidden = { true }
+        sidebar.updatePolling()
+        expect(sidebar.isPolling, "hidden again: the edge is watched")
         NotificationCenter.default.post(name: NSApplication.didResignActiveNotification, object: NSApp)
         expect(!sidebar.isPolling, "leaving the app stops it")
         window.close()
@@ -136,6 +149,107 @@ enum FloatingSidebarTests {
         window.removeChildWindow(page)
         page.close()
         front.close()
+    }
+
+    /// In macOS full screen the traffic lights belong to the menu bar's title bar: the hidden sidebar
+    /// comes out without the stand-in set it carries in a window (its toggle takes their place).
+    /// The Library opened over a hidden sidebar opens in the floating one, which widens to the
+    /// drawer's width and back, the sidebar never docked (MainWindowController.showLibrary).
+    @MainActor
+    private static func libraryDrawer(shell: ShellView, sidebar: FloatingSidebarController, panel: NSWindow) {
+        sidebar.reposition()
+        let width = shell.sidebarWidth
+        let before = panel.frame.width
+        shell.drawerWidth = 420
+        sidebar.reposition()
+        expect(abs(panel.frame.width - (before + 420 - width)) < 0.5 && abs(shell.sidebarHost.frame.width - 420) < 0.5,
+               "the floating panel and the sidebar in it take the Library drawer's width")
+        expect(sidebar.isShown && shell.sidebarDetached, "the sidebar stays floating, not docked, for the Library")
+        shell.drawerWidth = nil
+        sidebar.reposition()
+        expect(abs(panel.frame.width - before) < 0.5 && abs(shell.sidebarHost.frame.width - width) < 0.5,
+               "closing the Library gives the floating sidebar its own width back")
+    }
+
+    /// The Library open in the floating sidebar keeps it out until the pointer has been on it (from
+    /// ⇧⌘L the pointer is elsewhere); after that the pointer leaving takes the sidebar away like any
+    /// other time, and `didHide` tells the window, which closes the Library so the next reveal is
+    /// the space. Before, the shell's own pointer tracking hid the panel with the Library still in
+    /// it, and every reveal after came back stuck on the Library (10 Nov 2026).
+    @MainActor
+    private static func libraryLeavesWithThePointer(shell: ShellView, sidebar: FloatingSidebarController) {
+        let off = CGPoint(x: 900, y: 300), on = CGPoint(x: 120, y: 300)
+        var library = true, held = false, hid = 0
+        sidebar.holdsUntilVisited = { library }
+        sidebar.staysShown = { held }
+        sidebar.didHide = { hid += 1 }
+        sidebar.show()
+        drainAnimations()
+        sidebar.pointerSample(at: off, pressedMouseButtons: 0)
+        expect(sidebar.isShown, "the Library opened from the keyboard keeps the sidebar out until the pointer comes to it")
+        sidebar.pointerSample(at: on, pressedMouseButtons: 0)
+        sidebar.pointerSample(at: off, pressedMouseButtons: 1)
+        expect(sidebar.isShown, "a drag out of the Library doesn't take it away")
+        held = true
+        sidebar.pointerSample(at: off, pressedMouseButtons: 0)
+        expect(sidebar.isShown, "nor does leaving while something beside it is open (the bookmark card)")
+        held = false
+        sidebar.pointerSample(at: off, pressedMouseButtons: 0)
+        expect(!sidebar.isShown, "the pointer leaving after it has been on the Library takes the sidebar away")
+        drainAnimations()
+        expect(hid == 1 && !shell.sidebarDetached, "the window hears the sidebar went, once it is out of sight")
+
+        sidebar.show()
+        drainAnimations()
+        expect(sidebar.isShown, "the next reveal comes out")
+        sidebar.pointerSample(at: off, pressedMouseButtons: 0)
+        expect(sidebar.isShown, "each reveal waits for the pointer again while the Library holds it")
+        library = false
+        sidebar.pointerSample(at: off, pressedMouseButtons: 0)
+        expect(!sidebar.isShown, "without the Library, leaving takes it away at once")
+        drainAnimations()
+        expect(hid == 2, "every hide is heard")
+        sidebar.holdsUntilVisited = { false }
+        sidebar.staysShown = { false }
+        sidebar.didHide = nil
+
+        // Popovers hung from the sidebar (the Extensions popover, the bookmark card) go as the
+        // sidebar starts to go, not after its slide: they were left on screen with nothing under
+        // them (10 Nov 2026).
+        var starts = 0, endsAtStart = -1
+        sidebar.willHide = { starts += 1; endsAtStart = hid }
+        sidebar.didHide = { hid += 1 }
+        sidebar.show()
+        drainAnimations()
+        sidebar.hide(animated: true)
+        expect(starts == 1 && endsAtStart == 2 && hid == 2, "willHide comes as the hide starts, before the slide is over")
+        drainAnimations()
+        expect(hid == 3, "and didHide once it is out of sight")
+        sidebar.hide(animated: true)
+        expect(starts == 1, "a hidden sidebar's hide calls nothing")
+        sidebar.willHide = nil
+        sidebar.didHide = nil
+    }
+
+    @MainActor
+    private static func noTrafficLightsInFullScreen(sidebar: FloatingSidebarController) {
+        var fullscreen = false
+        sidebar.windowFullscreen = { fullscreen }
+        sidebar.show()
+        expect(sidebar.showsTrafficLights, "in a window the floating sidebar carries stand-in traffic lights")
+        sidebar.hide(animated: false)
+        fullscreen = true
+        sidebar.show()
+        expect(!sidebar.showsTrafficLights, "in full screen the floating sidebar shows no traffic lights")
+        // The window going full screen while the sidebar is out takes them away too.
+        sidebar.hide(animated: false)
+        fullscreen = false
+        sidebar.show()
+        fullscreen = true
+        sidebar.reposition()
+        expect(!sidebar.showsTrafficLights, "entering full screen with the sidebar out takes its traffic lights away")
+        sidebar.hide(animated: false)
+        sidebar.windowFullscreen = { false }
     }
 
     // promise: #24
@@ -296,6 +410,9 @@ final class ShellView: NSView {
     let sidebarHost = NSView()
     let resizeHandle = ResizeHandleView()
     var sidebarWidth: CGFloat = 328
+    /// The Library's drawer (ShellView.drawerWidth): the floating panel takes the wider width.
+    var drawerWidth: CGFloat?
+    var shownSidebarWidth: CGFloat { max(sidebarWidth, drawerWidth ?? 0) }
     var sidebarResizable = true
     var contentFullscreen = false
     var edgeToEdge = false
@@ -313,6 +430,6 @@ final class ShellView: NSView {
 
     func frames(sidebarVisible: Bool, floating: Bool, fullscreen: Bool, width: CGFloat) -> Frames {
         let margin = FloatingSidebarGeometry.margin
-        return Frames(sidebar: NSRect(x: margin, y: margin, width: width, height: bounds.height - 2 * margin))
+        return Frames(sidebar: NSRect(x: margin, y: margin, width: max(width, drawerWidth ?? 0), height: bounds.height - 2 * margin))
     }
 }

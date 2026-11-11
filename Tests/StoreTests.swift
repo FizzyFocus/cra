@@ -50,6 +50,8 @@ enum StoreTests {
         collapsedPinnedPeek()
         closeSuccessor()
         favoritesEmptyState()
+        tabLineage()
+        newSpaceWithoutAThemeIsPastel()
         sharedFavorites()
         themePreview()
         try arcSpacesWithoutAThemeShareOneDefault()
@@ -1052,12 +1054,44 @@ enum StoreTests {
         expect(store.integrityProblems().isEmpty, "and the sidebar stays sound")
     }
 
+    /// Links opened from a tab line up under it in order; a tab moved by hand leaves the line.
+    @MainActor
+    private static func tabLineage() {
+        let store = AppComposition(clock: ManualScheduler()).store
+        let today = store.focusedSpace.todayContainerID
+        let parent = store.createTab(url: "https://a.test/", parent: today, index: 0).id
+        func openLink(_ n: Int) -> UUID {
+            let siblings = store.item(today)?.children ?? []
+            let at = TabLineage.insertionIndex(after: parent, in: siblings, lineage: store.tabLineage)
+            let id = store.createTab(url: "https://a.test/\(n)", select: false, parent: today, index: at).id
+            store.noteOpened(id, from: parent)
+            return id
+        }
+        let first = openLink(1), second = openLink(2)
+        let order = store.item(today)?.children ?? []
+        expect(Array(order.prefix(3)) == [parent, first, second], "each link goes under the last one from its tab")
+        store.moveItem(first, to: today, index: 0)
+        expect(store.tabLineage[first] == nil && store.tabLineage[second] == parent, "a tab moved by hand leaves the line")
+    }
+
+    /// A space made without a theme starts unthemed (no colour picked), in Light, not a dark preset.
+    @MainActor
+    private static func newSpaceWithoutAThemeIsPastel() {
+        let store = AppComposition(clock: ManualScheduler()).store
+        let id = store.createSpace(title: "Plain", emoji: "🌱", focus: false).id
+        expect(store.space(id)?.theme == SpaceColorPresets.newSpaceTheme() && store.space(id)?.theme.colors.isEmpty == true,
+               "it starts unthemed")
+    }
+
     // promise: #157
     /// Arc's "Drag to add Favorites" card (#157): its × closes it for that space's favorites only,
     /// for good, and readers see the change.
     @MainActor
     private static func favoritesEmptyState() {
         let store = AppComposition(clock: ManualScheduler()).store
+        // The card closes for one favorites list; favorites are global by default, so give each
+        // space a list of its own to see the other one keep its card.
+        store.setFavoritesShared(false)
         let home = store.focusedSpaceID
         let work = store.createSpace(title: "Work", emoji: "💼", focus: false).id
         guard let homeFavorites = store.space(home)?.favoritesContainerID,
@@ -1081,6 +1115,8 @@ enum StoreTests {
     private static func sharedFavorites() {
         let store = AppComposition(clock: ManualScheduler()).store
         let home = store.focusedSpaceID
+        // From per-space lists (the setting off, or an older Cra's file) to see them merge.
+        store.setFavoritesShared(false)
         // Spaces earlier tests saved would share Default's list too.
         for s in store.orderedSpaces where s.id != home { store.deleteSpace(s.id) }
         let work = store.createSpace(title: "Shared Work", emoji: "💼", focus: false).id
@@ -1441,7 +1477,22 @@ enum StoreTests {
         expect(reloaded.item(folder.id)?.folderIcon == nil && reloaded.item(folder.id)?.folderSymbol == nil,
                "removing both choices restores the default folder")
         expect(reloaded.item(folder.id)?.children == [nested.id, tab.id], "changing the icon preserves folder contents")
+        // A colour of its own (FolderColor) takes White or Black's place, and theirs takes its.
+        reloaded.setFolderIcon(.white, for: folder.id)
+        reloaded.setFolderColor("#F0625D", for: folder.id)
+        expect(reloaded.item(folder.id)?.folderColor == "#F0625D" && reloaded.item(folder.id)?.folderIcon == nil,
+               "a folder colour replaces White or Black")
+        reloaded.setFolderColor("#F0625D", for: tab.id)
+        expect(reloaded.item(tab.id)?.folderColor == nil, "colours are only set on folders")
         reloaded.saveAll()
+        let again = AppComposition(clock: ManualScheduler()).store
+        expect(again.item(folder.id)?.folderColor == "#F0625D", "a folder's colour survives a store reload")
+        again.setFolderIcon(.black, for: folder.id)
+        expect(again.item(folder.id)?.folderColor == nil && again.item(folder.id)?.folderIcon == .black,
+               "White or Black replaces a folder colour")
+        again.setFolderColor(nil, for: folder.id)
+        expect(again.item(folder.id)?.folderColor == nil && again.item(folder.id)?.folderIcon == nil, "Auto clears both")
+        again.saveAll()
     }
 
     // promise: #85

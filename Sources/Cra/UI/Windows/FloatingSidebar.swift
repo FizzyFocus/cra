@@ -16,6 +16,16 @@ final class FloatingSidebarController {
     var sidebarHidden: () -> Bool = { false }
     /// Something beside the sidebar still belongs to it (a folder preview): the pointer may leave.
     var staysShown: () -> Bool = { false }
+    /// The Library is in the sidebar: it holds the sidebar out until the pointer has been on it
+    /// (opened from ⇧⌘L the pointer is elsewhere); after that the pointer leaving takes it away.
+    var holdsUntilVisited: () -> Bool = { false }
+    /// The sidebar went away and is out of sight (not when it is anchored): the window closes a
+    /// Library left in it, so the next reveal shows the space.
+    var didHide: (() -> Void)?
+    /// The sidebar starts to go: what hangs from it (its popovers) goes now, not after the slide.
+    var willHide: (() -> Void)?
+    /// The pointer has been on the sidebar since it came out.
+    private var visited = false
     var palette: () -> SpacePalette
     /// Called after the panel is attached so the overlay panel can be re-ordered above it.
     var didAttachPanel: (() -> Void)?
@@ -33,6 +43,8 @@ final class FloatingSidebarController {
     private var dwell = FloatingSidebarRevealDwell()
     /// The clock the wait runs on; the tests stand one in.
     var now: () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
+    /// Whether the window is in macOS full screen; the tests stand one in.
+    lazy var windowFullscreen: () -> Bool = { [unowned self] in self.window.styleMask.contains(.fullScreen) }
     /// The sidebar's rounded body; it slides inside the panel (see `panelFrame`).
     private let slider = NSView()
     private let blur = NSVisualEffectView()
@@ -75,11 +87,21 @@ final class FloatingSidebarController {
 
     deinit {
         poll?.invalidate()
+        wakeMonitor.map(NSEvent.removeMonitor)
         activation.forEach(NotificationCenter.default.removeObserver)
         displayOptions.map(NSWorkspace.shared.notificationCenter.removeObserver)
     }
 
     private var poll: Timer?
+    /// The rate `poll` runs at (CraCore FloatingSidebarPoll), nil while it doesn't.
+    private var pollInterval: TimeInterval?
+    /// Whether Cra is the active app, as its notifications last said.
+    private var appActive = false
+    /// Where the pointer was at the last sample, and when it last moved.
+    private var lastPointer = NSPoint(x: -1, y: -1)
+    private var pointerMovedAt = Date()
+    /// While the pointer rests (the slow rate): any mouse event in Cra brings the fast rate back.
+    private var wakeMonitor: Any?
     private var activation: [NSObjectProtocol] = []
     /// Reduce transparency changes the panel's lift (GitHub #156).
     private var displayOptions: NSObjectProtocol?
@@ -94,10 +116,16 @@ final class FloatingSidebarController {
         let center = NotificationCenter.default
         activation = [(NSApplication.didBecomeActiveNotification, true), (NSApplication.didResignActiveNotification, false)].map { name, on in
             center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
-                MainActor.assumeIsolated { self?.setPolling(on) }
+                MainActor.assumeIsolated {
+                    self?.appActive = on
+                    // Coming to Cra: the pointer is about to move, so sampling starts at the fast rate.
+                    if on { self?.pointerMovedAt = Date() }
+                    self?.updatePolling()
+                }
             }
         }
-        setPolling(NSApp.isActive)
+        appActive = NSApp.isActive
+        updatePolling()
         displayOptions = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification, object: nil, queue: .main
         ) { [weak self] _ in
@@ -105,32 +133,79 @@ final class FloatingSidebarController {
         }
     }
 
-    private func setPolling(_ on: Bool) {
-        guard on != (poll != nil) else { return }
+    /// Starts, slows or stops sampling (CraCore FloatingSidebarPoll): none in the background or
+    /// with the sidebar docked, 30 Hz while the pointer moves, 4 Hz once it rests. MainWindowController
+    /// calls it when the sidebar is docked or hidden.
+    func updatePolling() {
+        let want = FloatingSidebarPoll.interval(appActive: appActive, sidebarDocked: !sidebarHidden(), shown: isShown,
+                                                pointerStillFor: Date().timeIntervalSince(pointerMovedAt))
+        guard want != pollInterval else { return }
         poll?.invalidate()
         poll = nil
-        guard on else { return }
+        pollInterval = want
+        if let m = wakeMonitor { NSEvent.removeMonitor(m); wakeMonitor = nil }
+        guard let want else { return }
         // Fired on the main run loop, so no hop to the main actor: one wake-up per tick, not two.
-        poll = Timer.scheduledTimer(withTimeInterval: 1.0 / 30, repeats: true) { [weak self] _ in
+        poll = Timer.scheduledTimer(withTimeInterval: want, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.pointerMoved() }
         }
-        poll?.tolerance = 0.01
+        poll?.tolerance = want / 3
+        if want == FloatingSidebarPoll.resting {
+            wakeMonitor = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged, .rightMouseDragged]) { [weak self] e in
+                MainActor.assumeIsolated {
+                    self?.pointerMovedAt = Date()
+                    self?.updatePolling()
+                }
+                return e
+            }
+        }
     }
 
     /// Whether the pointer is being sampled (the tests check it follows the app's activation).
     var isPolling: Bool { poll != nil }
+    /// Seconds between samples now, nil while none (the tests read it).
+    var pollingInterval: TimeInterval? { pollInterval }
 
     private func pointerMoved() {
-        guard NSApp.isActive, !shell.contentFullscreen, window.isVisible else { return }
-        guard isShown || sidebarHidden() else { return }
         let screenPoint = NSEvent.mouseLocation
+        if screenPoint != lastPointer {
+            lastPointer = screenPoint
+            pointerMovedAt = Date()
+        }
+        // Docked, in the background or the pointer at rest: the rate follows (it stops when docked).
+        updatePolling()
+        // A page's full screen (a video) included: the sidebar floats over it (MainWindowController).
+        guard NSApp.isActive, window.isVisible else { return }
+        guard isShown || sidebarHidden() else { return }
         let p = shell.convert(window.convertPoint(fromScreen: screenPoint), from: nil)
         if !isShown {
             edgeSample(inStrip: sidebarHidden() && isKey && FloatingSidebarGeometry.shouldReveal(at: p, in: shell.bounds, edgeToEdge: shell.edgeToEdge))
-        } else if !staysShown(), FloatingSidebarGeometry.shouldHide(at: p, in: shell.bounds, sidebarWidth: shell.sidebarWidth,
-                                                    pressedMouseButtons: NSEvent.pressedMouseButtons, edgeToEdge: shell.edgeToEdge) {
-            hide(animated: true)
+        } else {
+            pointerSample(at: p, pressedMouseButtons: NSEvent.pressedMouseButtons)
         }
+    }
+
+    /// The shell saw the pointer leave the sidebar (its own mouse-moved): the poll's check, at once.
+    /// It used to hide the sidebar outright, past the Library and anything else that holds it out.
+    func pointerLeft() {
+        guard isShown else { return }
+        let p = shell.convert(window.convertPoint(fromScreen: NSEvent.mouseLocation), from: nil)
+        pointerSample(at: p, pressedMouseButtons: NSEvent.pressedMouseButtons)
+    }
+
+    /// The pointer at `p` (in the shell) while the sidebar is out: it goes once the pointer is off
+    /// it, unless something beside it still belongs to it or the Library holds it until the
+    /// pointer's first visit.
+    func pointerSample(at p: CGPoint, pressedMouseButtons: Int) {
+        guard isShown else { return }
+        let width = shell.shownSidebarWidth, edge = shell.edgeToEdge
+        if !FloatingSidebarGeometry.shouldHide(at: p, in: shell.bounds, sidebarWidth: width, pressedMouseButtons: 0, edgeToEdge: edge) {
+            visited = true
+        }
+        guard FloatingSidebarGeometry.shouldHide(at: p, in: shell.bounds, sidebarWidth: width, pressedMouseButtons: pressedMouseButtons,
+                                                 edgeToEdge: edge),
+              !staysShown(), visited || !holdsUntilVisited() else { return }
+        hide(animated: true)
     }
 
     /// The shell saw the pointer move in the strip: a sample toward the same wait as the poll's, so a
@@ -379,7 +454,9 @@ final class FloatingSidebarController {
         // From tucked away (not back from a hide in flight): the spring starts a beat late, see slide.
         let tucked = fresh || staged
         isShown = true
+        updatePolling()
         staged = false
+        visited = false
         dwell.reset()
         transitionGeneration &+= 1
         panel?.ignoresMouseEvents = false
@@ -411,12 +488,7 @@ final class FloatingSidebarController {
         host.autoresizingMask = [.width, .height]
         host.layer?.cornerRadius = 0
         slider.addSubview(host)
-        // The window's own traffic lights hide with the sidebar; these stand in at the
-        // same spot in the sidebar's top row.
-        if let lights = trafficLights {
-            lights.setFrameOrigin(NSPoint(x: 13, y: slider.bounds.height - CraMetrics.titleRowCenter - lights.frame.height / 2))
-            slider.addSubview(lights, positioned: .above, relativeTo: host)
-        }
+        syncTrafficLights()
         let w = Metrics.resizeHandleWidth
         resizeHandle.frame = NSRect(x: slider.bounds.width - w, y: 0, width: w, height: slider.bounds.height)
         resizeHandle.isHidden = !shell.sidebarResizable
@@ -445,9 +517,11 @@ final class FloatingSidebarController {
         // A synchronous hide also finishes a hide already in flight (for example,
         // before a traffic-light action). Repeated animated exits do not restart it.
         guard isShown || (!animated && shell.sidebarDetached), panel != nil else { return }
+        if isShown { willHide?() }
         isShown = false
         staged = false
         dwell.reset()
+        updatePolling()
         transitionGeneration &+= 1
         let generation = transitionGeneration
         let finish = { [weak self] in
@@ -455,6 +529,7 @@ final class FloatingSidebarController {
             for l in [self.slider.layer, self.shadowView.layer] { l?.removeAnimation(forKey: Self.slideKey) }
             self.detachPanels()
             self.reattach(floating: false)
+            self.didHide?()
         }
         guard animated else { finish(); return }
         slide(shown: false) { finish() }
@@ -470,6 +545,7 @@ final class FloatingSidebarController {
         isShown = false
         staged = false
         dwell.reset()
+        updatePolling()
         for l in [slider.layer, shadowView.layer] { l?.removeAnimation(forKey: Self.slideKey) }
         detachPanels()
         reattach(floating: true)
@@ -486,9 +562,26 @@ final class FloatingSidebarController {
         shell.layoutSubtreeIfNeeded()
     }
 
+    /// The window's own traffic lights hide with the sidebar; these stand in at the same spot in
+    /// the sidebar's top row. In full screen the window's lights live in the menu bar's title bar,
+    /// so the sidebar carries none and its toggle takes their place (SidebarTopBarView).
+    private func syncTrafficLights() {
+        guard let lights = trafficLights else { return }
+        guard !windowFullscreen() else {
+            lights.removeFromSuperview()
+            return
+        }
+        lights.setFrameOrigin(NSPoint(x: 13, y: slider.bounds.height - CraMetrics.titleRowCenter - lights.frame.height / 2))
+        slider.addSubview(lights, positioned: .above, relativeTo: shell.sidebarHost)
+    }
+
+    /// Whether the stand-in traffic lights are in the sidebar (the tests read it).
+    var showsTrafficLights: Bool { trafficLights?.superview === slider }
+
     /// Window moved or resized while floating.
     func reposition() {
         guard isShown, let p = panel else { return }
+        syncTrafficLights()
         p.setFrame(panelFrame, display: true)
         shadowPanel?.setFrame(shadowPanelFrame, display: true)
         CATransaction.begin()

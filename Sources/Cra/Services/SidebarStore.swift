@@ -13,6 +13,13 @@ final class SidebarStore {
     /// The stored theme of a space whose theme an editor is previewing (`previewTheme`): what
     /// goes to disk until the editor saves, and what Cancel or Escape puts back.
     @ObservationIgnored private var storedThemes: [UUID: SpaceTheme] = [:]
+    /// This session's tab tree: each tab a link opened, to the tab it came from (TabLineage). New
+    /// links line up under the last one from the same tab; moving a tab takes it out of the tree.
+    /// Not saved: after a relaunch every tab starts its own line.
+    @ObservationIgnored private(set) var tabLineage: [UUID: UUID] = [:]
+
+    /// A link from `parent` opened `child`.
+    func noteOpened(_ child: UUID, from parent: UUID) { tabLineage[child] = parent }
     private(set) var spaceOrder: [UUID] = []
     /// Profiles besides Default, in the order they were made.
     private(set) var profiles: [BrowserProfile] = []
@@ -709,6 +716,15 @@ final class SidebarStore {
         revision &+= 1
     }
 
+    /// Tab ▸ Load on Start.
+    func setLoadOnStart(_ on: Bool, for id: UUID) {
+        guard var it = items[id], var t = it.tab, (t.loadOnStart == true) != on else { return }
+        t.loadOnStart = on ? true : nil
+        it.data = .tab(t)
+        items[id] = it
+        touch()
+    }
+
     func setMuted(_ id: UUID, _ muted: Bool) {
         guard var it = items[id], var t = it.tab else { return }
         t.muted = muted
@@ -884,6 +900,8 @@ final class SidebarStore {
     /// today list unpacks it.
     func moveItem(_ id: UUID, to newParent: UUID, index: Int?) {
         guard var it = items[id], items[newParent] != nil, id != newParent, !isDescendant(newParent, of: id) else { return }
+        // Moved by hand: the tab leaves the line it was opened in and starts its own.
+        tabLineage[id] = nil
         // A page can't change profile: nothing moves into or out of an incognito window.
         guard isIncognito(item: id) == isIncognito(item: newParent) else { return }
         // A Blank Window holds tabs only: nothing goes into its (hidden) favorites or pinned section.
@@ -1528,6 +1546,17 @@ final class SidebarStore {
     func setFolderIcon(_ style: FolderIconStyle?, for id: UUID) {
         guard var it = items[id], it.isFolder else { return }
         it.folderIcon = style
+        // Auto, White and Black take the place of a colour of its own.
+        it.folderColor = nil
+        items[id] = it
+        touch()
+    }
+
+    /// Icon Color's colours (FolderColor): the folder's glyph in `hex`; nil goes back to Auto.
+    func setFolderColor(_ hex: String?, for id: UUID) {
+        guard var it = items[id], it.isFolder, it.folderColor != hex || it.folderIcon != nil else { return }
+        it.folderColor = hex
+        it.folderIcon = nil
         items[id] = it
         touch()
     }
@@ -2220,7 +2249,8 @@ final class SidebarStore {
         items[favorites.id] = favorites
         items[pinned.id] = pinned
         items[today.id] = today
-        let t = theme ?? SpaceTheme.presets[spaceOrder.count % SpaceTheme.presets.count]
+        // A space made without a theme (a script, a move to a new space) starts on the new-space pastel.
+        let t = theme ?? SpaceColorPresets.newSpaceTheme(opacity: settings.defaultSpaceOpacity)
         let space = Space(id: id, title: title, emoji: emoji, theme: t, favoritesContainerID: favorites.id,
                           pinnedContainerID: pinned.id, todayContainerID: today.id, createdAt: clock.now, symbol: symbol)
         spaces[id] = space

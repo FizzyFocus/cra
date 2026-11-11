@@ -52,6 +52,29 @@ enum SidebarSymbols {
             .withSymbolConfiguration(.init(pointSize: size, weight: weight))
     }
 
+    /// A symbol drawn in a `box`-sized square with its glyph's own centre (its alignment rect's) on
+    /// the square's: an SF Symbol's image carries room for its baseline, so drawn by its bounds a
+    /// globe sat off the centre of the unloaded tab's ring round it. A template, tinted as before.
+    /// `fill`: the glyph scaled to that share of the box; nil keeps its own size.
+    static func centered(_ symbol: NSImage, box: CGFloat, fill: CGFloat? = nil) -> NSImage {
+        let image = NSImage(size: NSSize(width: box, height: box), flipped: false) { r in
+            let a = symbol.alignmentRect
+            let longest = max(a.width, a.height, 1)
+            let scale = fill.map { box * $0 / longest } ?? min(1, box / longest)
+            let size = NSSize(width: symbol.size.width * scale, height: symbol.size.height * scale)
+            let origin = NSPoint(x: r.midX - (a.midX * scale), y: r.midY - (a.midY * scale))
+            symbol.draw(in: NSRect(origin: origin, size: size))
+            return true
+        }
+        image.isTemplate = true
+        return image
+    }
+
+    /// Whether an image is an SF Symbol (its representation is one), not a bitmap favicon.
+    static func isSymbol(_ image: NSImage) -> Bool {
+        image.representations.contains { String(describing: type(of: $0)).contains("Symbol") }
+    }
+
     /// The tab row's ✕ (or − for a pinned tab that stays): Arc strokes two 2 pt round-capped lines
     /// 4.25 pt out from a centre on a whole point, crisp at 1x. No SF Symbol size matches it, and an
     /// NSImage drawn for it came out thinner and off-centre at 1x, so the button strokes this itself.
@@ -179,6 +202,51 @@ extension NSTextField {
 }
 
 /// SidebarIconButton for AppKit rows: a glyph with a rounded hover fill and an Arc tooltip.
+/// A view on a space's page that lights under the pointer from its own tracking area (a space
+/// header, its buttons, a row's ✕). When the pages slide under a resting pointer (another space
+/// shown by a shortcut, the dock or a swipe) AppKit sends it no exit, and coming back to the space
+/// found it still lit. The pager has it let go (SpacePagerView); it lights again when the pointer
+/// moves on it.
+@MainActor protocol PagedHover: NSView {
+    func dropHover()
+}
+
+/// A view that lights under the pointer and checks where the pointer really is, not only what its
+/// tracking area last said. A view that moves, is laid out again or changes window under a resting
+/// pointer (the Library's rail as it opens, the floating sidebar's panel taking the sidebar in and
+/// out) gets no mouseExited, so its fill stayed lit until the pointer crossed it again (the
+/// Library opened with "Archived Tabs" lit, 10 Nov 2026). Adopters call `trackPointer()` from
+/// updateTrackingAreas, `syncHover()` from viewDidMoveToWindow and mouseEntered, and set
+/// `hovering = false` in mouseExited.
+@MainActor protocol PointerHover: NSView {
+    var hovering: Bool { get set }
+}
+
+extension PointerHover {
+    /// The pointer is over the view's visible part now, in a window on screen.
+    var pointerIsInside: Bool {
+        guard let w = window, w.isVisible, !isHiddenOrHasHiddenAncestor else { return false }
+        return visibleRect.contains(convert(w.mouseLocationOutsideOfEventStream, from: nil))
+    }
+
+    /// The hover put right by the pointer's real position.
+    func syncHover() {
+        let inside = pointerIsInside
+        if hovering != inside { hovering = inside }
+    }
+
+    /// The view's tracking area made again where it is now. One made under the pointer gets no
+    /// mouseEntered, so without assumeInside it never sends the mouseExited either.
+    func trackPointer(_ options: NSTrackingArea.Options = [.mouseEnteredAndExited, .activeAlways, .inVisibleRect]) {
+        for t in trackingAreas where t.owner === self { removeTrackingArea(t) }
+        let inside = pointerIsInside
+        var o = options
+        if inside { o.insert(.assumeInside) }
+        addTrackingArea(NSTrackingArea(rect: .zero, options: o.union(.inVisibleRect), owner: self, userInfo: nil))
+        if hovering != inside { hovering = inside }
+    }
+}
+
 final class SidebarGlyphButton: NSView {
     var action: () -> Void
     let size: NSSize
@@ -410,7 +478,13 @@ final class SidebarFaviconView: NSImageView {
         if let s = shown, s.0 === icon, s.1 == flip, s.2 == colors.isDark { return }
         shown = (icon, flip, colors.isDark)
         let size = frame.width
-        if let icon {
+        if let icon, SidebarSymbols.isSymbol(icon) {
+            // A symbol (an easel's, an internal page's): centred by its glyph, as the globe below.
+            imageScaling = .scaleNone
+            image = SidebarSymbols.centered(icon, box: size, fill: 0.9)
+            contentTintColor = flip ? colors.monoGlyph : nil
+            layer?.masksToBounds = false
+        } else if let icon {
             imageScaling = .scaleProportionallyUpOrDown
             if flip {
                 let t = icon.copy() as! NSImage
@@ -425,7 +499,7 @@ final class SidebarFaviconView: NSImageView {
             layer?.masksToBounds = true
         } else {
             imageScaling = .scaleNone
-            image = SidebarSymbols.image("globe", size: size * 0.8)
+            image = SidebarSymbols.image("globe", size: size * 0.8).map { SidebarSymbols.centered($0, box: size) }
             contentTintColor = colors.textTertiary
             layer?.masksToBounds = false
         }
@@ -781,8 +855,12 @@ struct TabRowModel: Equatable {
     var homeFlipIcon: Bool
     /// The favicon of a Peek opened from this tab (Arc: modalIcon), in the close button's place.
     var peekIcon: NSImage?
+    /// Its page was unloaded (Unload Tab, tab sleeping): the name dims and a dashed ring circles the icon.
+    var unloaded: Bool = false
     /// Tidy Tab Titles just renamed it: the row plays Arc's rename once.
     var tidyRename: TidyTitlesService.Effect? = nil
+    /// Loading off screen (CraCore TabLoadingIndicator): an arc spins round the dimmed favicon.
+    var loading: Bool = false
 }
 
 final class TabRowView: SidebarRowView, ArcTooltipTarget, NSTextFieldDelegate {
@@ -839,7 +917,10 @@ final class TabRowView: SidebarRowView, ArcTooltipTarget, NSTextFieldDelegate {
         titleLabel.stringValue = m.title
         titleLabel.textColor = colors.textPrimary
         refreshSubtitle()
-        setAccessibilityLabel(m.title)
+        if m.unloaded != model?.unloaded || m.loading != model?.loading { needsLayout = true }
+        refreshUnloaded()
+        refreshLoading()
+        setAccessibilityLabel(m.unloaded ? "\(m.title), unloaded" : m.title)
         if m.editing != (renameField != nil) { m.editing ? beginRename(m.renameText) : endRename() }
         // The keyboard's ring wins over developer mode's; they differ in tone and dash length.
         let ring: Bool? = m.focusRing ? false : (m.developerMode && m.selected ? true : nil)
@@ -993,6 +1074,7 @@ final class TabRowView: SidebarRowView, ArcTooltipTarget, NSTextFieldDelegate {
     override func hoverChanged() {
         super.hoverChanged()
         if !isHovered { setOverIcon(false) }
+        watchShift(isHovered)
         refreshIcon()
         rebuildAccessories()
     }
@@ -1089,7 +1171,7 @@ final class TabRowView: SidebarRowView, ArcTooltipTarget, NSTextFieldDelegate {
 
     override func viewWillMove(toWindow newWindow: NSWindow?) {
         super.viewWillMove(toWindow: newWindow)
-        if newWindow == nil { stopWatchingFlags() }
+        if newWindow == nil { stopWatchingFlags(); watchShift(false) }
     }
 
     /// On the icon the pinned page's favicon stands in (⌘: the page's own, which separates);
@@ -1181,6 +1263,198 @@ final class TabRowView: SidebarRowView, ArcTooltipTarget, NSTextFieldDelegate {
     /// Arc's close button: a 24 pt square (TabCellView, GitHub #139).
     private static let closeSize: CGFloat = 24
     private var closeKind: SidebarClose.Button?
+    /// The close button is Unload Tab's minus right now (⇧ over a loaded tab off screen).
+    private var closeUnloads = false
+    /// ⇧ held while the pointer is on the row.
+    private var shiftHeld = false
+    private var shiftMonitor: Any?
+    /// The dashed ring round an unloaded tab's icon.
+    private lazy var unloadRing: CAShapeLayer = {
+        let l = CAShapeLayer()
+        l.fillColor = nil
+        l.lineWidth = 1
+        l.lineDashPattern = [2, 2]
+        return l
+    }()
+
+    private func watchShift(_ on: Bool) {
+        if on, shiftMonitor == nil {
+            shiftHeld = NSEvent.modifierFlags.contains(.shift)
+            shiftMonitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
+                if let self {
+                    let shift = event.modifierFlags.contains(.shift)
+                    if shift != self.shiftHeld { self.shiftHeld = shift; self.rebuildAccessories() }
+                }
+                return event
+            }
+        } else if !on, let m = shiftMonitor {
+            NSEvent.removeMonitor(m)
+            shiftMonitor = nil
+            shiftHeld = false
+        }
+    }
+
+    /// The 270° arc that spins clockwise round the favicon while the tab loads off screen, its
+    /// tail fading out behind the head (TabLoadingIndicator): a layer of segments, faintest at the
+    /// tail's end, turned as one.
+    private lazy var loadArc: CALayer = {
+        let l = CALayer()
+        for _ in 0..<TabLoadingIndicator.tailSegments {
+            let s = CAShapeLayer()
+            s.fillColor = nil
+            s.lineWidth = CGFloat(TabLoadingIndicator.stroke)
+            s.lineCap = .butt
+            l.addSublayer(s)
+        }
+        return l
+    }()
+    private var loadArcSize: CGSize = .zero
+    private var loadArcInk: CGColor?
+
+    /// The segments' paths for a ring `size` across. The row is flipped (y runs down), so growing
+    /// angles run clockwise on screen: the head, at the largest angle, leads the clockwise turn.
+    private func shapeLoadArc(_ size: CGSize, ink: CGColor) {
+        guard size != loadArcSize || ink != loadArcInk else { return }
+        loadArcSize = size
+        loadArcInk = ink
+        let r = (min(size.width, size.height) - CGFloat(TabLoadingIndicator.stroke)) / 2
+        let c = CGPoint(x: size.width / 2, y: size.height / 2)
+        for (i, layer) in (loadArc.sublayers ?? []).enumerated() {
+            guard let s = layer as? CAShapeLayer else { continue }
+            let seg = TabLoadingIndicator.segment(i)
+            let p = CGMutablePath()
+            // A hair of overlap so the steps meet without a seam.
+            p.addArc(center: c, radius: r, startAngle: CGFloat(seg.start) * 2 * .pi - 0.02,
+                     endAngle: CGFloat(seg.end) * 2 * .pi, clockwise: false)
+            s.frame = CGRect(origin: .zero, size: size)
+            s.path = p
+            s.strokeColor = ink
+            s.opacity = Float(seg.opacity)
+        }
+    }
+    private var shownLoading: (id: UUID, loading: Bool)?
+
+    /// Loading off screen: the arc spins round the dimmed favicon; loaded, it fades away and the
+    /// favicon comes back to full strength (11 Nov 2026).
+    private func refreshLoading() {
+        let loading = model?.loading == true
+        let changed = shownLoading.map { $0.id == model?.id && $0.loading != loading } == true
+        shownLoading = model.map { ($0.id, loading) }
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        if loading {
+            if loadArc.superlayer == nil { layer?.addSublayer(loadArc) }
+            let r = favicon.frame.insetBy(dx: -3, dy: -3)
+            loadArc.frame = r
+            shapeLoadArc(r.size, ink: colors.textPrimary.withAlphaComponent(0.6).cgColor)
+            loadArc.removeAnimation(forKey: "fadeOut")
+            loadArc.opacity = 1
+            if loadArc.animation(forKey: "spin") == nil {
+                // Clockwise: the row is flipped, so a growing angle turns clockwise on screen.
+                let spin = CABasicAnimation(keyPath: "transform.rotation.z")
+                spin.fromValue = 0
+                spin.toValue = 2 * CGFloat.pi
+                spin.duration = TabLoadingIndicator.turn
+                spin.repeatCount = .infinity
+                loadArc.add(spin, forKey: "spin")
+            }
+        }
+        CATransaction.commit()
+        if model?.unloaded != true {
+            let alpha = loading ? CGFloat(TabLoadingIndicator.faviconAlpha) : 1
+            if changed, !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+                NSAnimationContext.runAnimationGroup { $0.duration = TabLoadingIndicator.fadeOut; favicon.animator().alphaValue = alpha }
+            } else if !(favicon.alphaValue == alpha) {
+                favicon.alphaValue = alpha
+            }
+        }
+        guard !loading, loadArc.superlayer != nil, loadArc.animation(forKey: "fadeOut") == nil else { return }
+        guard changed else { loadArc.removeAllAnimations(); loadArc.removeFromSuperlayer(); return }
+        CATransaction.begin()
+        CATransaction.setCompletionBlock { [weak self] in
+            guard let self, self.shownLoading?.loading != true else { return }
+            self.loadArc.removeAllAnimations()
+            self.loadArc.removeFromSuperlayer()
+        }
+        let fade = CABasicAnimation(keyPath: "opacity")
+        fade.fromValue = 1
+        fade.toValue = 0
+        fade.duration = TabLoadingIndicator.fadeOut
+        fade.fillMode = .forwards
+        fade.isRemovedOnCompletion = false
+        loadArc.add(fade, forKey: "fadeOut")
+        CATransaction.commit()
+    }
+
+    /// What the row last showed, so only a change (Unload Tab, a page loading again) animates.
+    private var shownUnloaded: (id: UUID, unloaded: Bool)?
+    /// The ring is fading out; layout passes leave it be until it has gone.
+    private var ringFadingOut = false
+
+    /// Unloaded: the name at half strength and a dashed ring round the icon. Unloading a tab on
+    /// screen fades the name and draws the ring in (10 Nov 2026); a row made unloaded, or reused
+    /// for another tab, shows it at once.
+    private func refreshUnloaded() {
+        let unloaded = model?.unloaded == true
+        let animate = shownUnloaded.map { $0.id == model?.id && $0.unloaded != unloaded } == true && window != nil
+            && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        shownUnloaded = model.map { ($0.id, unloaded) }
+        let duration = 0.32
+        if animate {
+            NSAnimationContext.runAnimationGroup { ctx in
+                ctx.duration = duration
+                ctx.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                titleLabel.animator().alphaValue = unloaded ? 0.5 : 1
+                favicon.animator().alphaValue = unloaded ? 0.6 : 1
+            }
+        } else {
+            titleLabel.alphaValue = unloaded ? 0.5 : 1
+            favicon.alphaValue = unloaded ? 0.6 : 1
+        }
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        if unloaded {
+            if unloadRing.superlayer == nil { layer?.addSublayer(unloadRing) }
+            let r = favicon.frame.insetBy(dx: -3, dy: -3)
+            unloadRing.frame = r
+            unloadRing.path = CGPath(ellipseIn: CGRect(origin: .zero, size: r.size).insetBy(dx: 0.5, dy: 0.5), transform: nil)
+            unloadRing.strokeColor = colors.textPrimary.withAlphaComponent(0.4).cgColor
+            ringFadingOut = false
+            unloadRing.opacity = 1
+            unloadRing.strokeEnd = 1
+        }
+        CATransaction.commit()
+        if unloaded, animate {
+            // The ring draws round the icon as it fades in.
+            let draw = CABasicAnimation(keyPath: "strokeEnd")
+            draw.fromValue = 0
+            draw.toValue = 1
+            let fade = CABasicAnimation(keyPath: "opacity")
+            fade.fromValue = 0
+            fade.toValue = 1
+            let group = CAAnimationGroup()
+            group.animations = [draw, fade]
+            group.duration = duration + 0.1
+            group.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            unloadRing.add(group, forKey: "unload")
+        } else if !unloaded, unloadRing.superlayer != nil, !ringFadingOut {
+            guard animate else { unloadRing.removeFromSuperlayer(); return }
+            ringFadingOut = true
+            CATransaction.begin()
+            CATransaction.setAnimationDuration(duration * 0.7)
+            CATransaction.setCompletionBlock { [weak self] in
+                guard let self, self.ringFadingOut else { return }
+                self.ringFadingOut = false
+                CATransaction.begin()
+                CATransaction.setDisableActions(true)
+                self.unloadRing.removeFromSuperlayer()
+                self.unloadRing.opacity = 1
+                CATransaction.commit()
+            }
+            unloadRing.opacity = 0
+            CATransaction.commit()
+        }
+    }
 
     private func rebuildAccessories() {
         guard let m = model, list != nil else { return }
@@ -1209,7 +1483,23 @@ final class TabRowView: SidebarRowView, ArcTooltipTarget, NSTextFieldDelegate {
             // SidebarClose: a minus keeps the tab pinned (it unloads and goes back to its page), an
             // ✕ archives it. Either acts on this row only, picked tabs or not; ⌘W takes them all.
             let button = SidebarClose.tab(pinned: m.pinned, current: m.selected, navigatedAway: m.navigatedAway, peeked: m.peeked)
-            if button != closeKind {
+            // ⇧ turns the ✕ into Unload Tab's minus on a loaded tab that isn't on screen.
+            let unloads = shiftHeld && list?.ui.canUnload(id) == true
+            if unloads != closeUnloads {
+                closeUnloads = unloads
+                closeKind = nil
+            }
+            if unloads, closeKind == nil {
+                closeKind = button
+                closeButton.setCloseMark(minus: true, help: "Unload Tab")
+                closeButton.action = { [weak self] in
+                    guard let self, let list = self.list else { return }
+                    list.actions.unloadTab(id)
+                    self.closeUnloads = false
+                    self.closeKind = nil
+                    self.rebuildAccessories()
+                }
+            } else if !unloads, button != closeKind {
                 closeKind = button
                 closeButton.setCloseMark(minus: button.minus, help: button.help)
                 closeButton.action = { [weak self] in
@@ -1242,6 +1532,8 @@ final class TabRowView: SidebarRowView, ArcTooltipTarget, NSTextFieldDelegate {
         let h = bounds.height
         var x = CraMetrics.rowLeading + CGFloat(m.depth) * CraMetrics.indent
         favicon.frame = NSRect(x: x, y: (h - CraMetrics.favicon) / 2, width: CraMetrics.favicon, height: CraMetrics.favicon)
+        refreshUnloaded()
+        refreshLoading()
         if m.navigatedAway {
             // Arc: 4 pt, the slash, then the name 5 pt on (2 pt later than without it).
             x += CraMetrics.favicon + 4
@@ -2136,7 +2428,9 @@ final class NewTabRowView: SidebarRowView {
         refreshColors()
     }
 
-    override func baseFill() -> NSColor { isHovered || active ? colors.selectedFill : .clear }
+    /// Hovered, the same fill, inset and corners as a tab row's hover (the base row's fillRect);
+    /// the selected tab's fill only while the ⌘T bar is open.
+    override func baseFill() -> NSColor { active ? colors.selectedFill : (isHovered ? colors.hoverFill : .clear) }
 
     override func refreshBackground() {
         super.refreshBackground()
@@ -2805,4 +3099,12 @@ final class PinPlaceholderRowView: SidebarRowView {
         icon.frame = NSRect(x: x, y: 0, width: 14, height: bounds.height)
         label.frame = NSRect(x: x + 20, y: (bounds.height - ls.height) / 2, width: ls.width, height: ls.height)
     }
+}
+
+extension SidebarGlyphButton: PagedHover {
+    func dropHover() { hovering = false }
+}
+
+extension TidyButton: PagedHover {
+    func dropHover() { hovering = false }
 }

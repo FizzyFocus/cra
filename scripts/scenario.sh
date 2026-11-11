@@ -91,7 +91,7 @@ STARTED="$OUT/started"
 touch "$STARTED"
 # The scenario's own data files, environment and home folder.
 app_env=(env)
-while read -r _ seed json; do echo "$json" > "$DATA/$seed"; done < <(grep '^seed ' "$FILE")
+while read -r _ seed json; do mkdir -p "$(dirname "$DATA/$seed")"; echo "$json" > "$DATA/$seed"; done < <(grep '^seed ' "$FILE")
 while read -r _ kv; do app_env+=("$kv"); done < <(grep '^env ' "$FILE")
 if grep -q '^home$' "$FILE"; then
   mkdir -p "$DATA/home/Downloads"
@@ -184,8 +184,9 @@ app_args=()
 while read -r _ a; do app_args+=("$(expand "$a")"); done < <(grep '^arg ' "$FILE")
 while read -r _ f; do mkdir -p "$DATA/Extensions" && cp -R "$(expand "$f")" "$DATA/Extensions/"; done < <(grep '^extension ' "$FILE")
 
+# CRA_PERF=1: the recorder runs (it is off by default since 11 Nov 2026); stalls and memory come from it.
 CRA_DATA_DIR="$DATA" CRA_COMMAND_FILE="$CMD" CRA_HITCH_LOG="$HITCH" CRA_TEST_BACKGROUND=1 CRA_WEBKIT_HOSTS=localhost \
-  CRA_ARC_DIR="$FIXTURES/Arc" CRA_FLAGS="${CRA_FLAGS:-}" \
+  CRA_ARC_DIR="$FIXTURES/Arc" CRA_FLAGS="${CRA_FLAGS:-}" CRA_PERF=1 \
   "${app_env[@]}" "$APP/Contents/MacOS/Cra" ${app_args[@]+"${app_args[@]}"} >"$OUT/stdout.log" 2>&1 &
 PID=$!
 PIDS+=("$PID")

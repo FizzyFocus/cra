@@ -167,9 +167,33 @@ public struct TooltipTones: Equatable, Sendable {
     public var title: RGB
     public var badge: RGB
     public var ink: RGB
+    /// A light tip (`light(theme:)`): frosted under its fill, a dark hairline edge (`edgeAlpha`
+    /// of `edge`) instead of the dark tip's white ring.
+    public var light = false
+    public var edge = RGB.black
+    public var edgeAlpha = 0.0
 
     public init(fill: RGB, title: RGB, badge: RGB, ink: RGB) {
         (self.fill, self.title, self.badge, self.ink) = (fill, title, badge, ink)
+    }
+
+    /// A light space's tip (11 Nov 2026, as Arc draws it over a light sidebar): a pale fill with a
+    /// little of the space's colour, near-black title text in its hue (the "Double-click to
+    /// rename" line under it dimmer), white key caps and profile pill, a 0.5 pt dark hairline.
+    public static func light(theme: SpaceTheme) -> TooltipTones {
+        let sd = theme.shadedDark
+        let tint = HexColor.components(theme.paletteSource ?? "#F4F7F9").map { RGB($0.r, $0.g, $0.b) } ?? RGB.white
+        var t = TooltipTones(fill: RGB(0.957, 0.969, 0.976).mixed(with: tint, 0.18), title: RGB.black.mixed(with: sd, 0.45),
+                             badge: RGB.white, ink: RGB.black.mixed(with: sd, 0.6))
+        t.light = true
+        t.edge = RGB.black
+        t.edgeAlpha = 0.12
+        return t
+    }
+
+    /// The tip for a space as shown: a light space's light tip, a dark one's Arc palette slots.
+    public static func forSpace(_ theme: SpaceTheme) -> TooltipTones {
+        theme.isDark ? TooltipTones(theme: theme) : .light(theme: theme)
     }
 
     public init(shadedDark ink: RGB) {

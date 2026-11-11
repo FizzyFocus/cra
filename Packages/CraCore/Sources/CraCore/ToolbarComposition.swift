@@ -34,6 +34,8 @@ public struct ToolbarComposition: Equatable, Sendable {
         case inspect
         case pinnedExtension(String)
         case extensions
+        /// The bookmark star (Cra's, not Arc's): filled while the page is bookmarked.
+        case bookmark(on: Bool)
         case addSplit
         case splitOptions
         case closePane
@@ -43,8 +45,10 @@ public struct ToolbarComposition: Equatable, Sendable {
     public var right: [Item] = []
 
     /// `hovered`: the pointer is over this bar, which reveals an unfocused pane's controls.
+    /// `bookmarkStar`: the bookmark star beside the Extensions button, filled when true; nil leaves
+    /// it out (Arc's bar has none).
     public init(kind: Kind, inSplit: Bool, sidebarVisible: Bool, focusedPane: Bool, hovered: Bool = false, canGoBack: Bool,
-                canGoForward: Bool, isLoading: Bool, pinnedExtensions: [String]) {
+                canGoForward: Bool, isLoading: Bool, pinnedExtensions: [String], bookmarkStar: Bool? = nil) {
         // Arc's essential controls only: a split pane that neither has the focus nor the pointer.
         let essentialOnly = inSplit && !focusedPane && !hovered
         // Never in a split pane or an empty one.
@@ -64,7 +68,8 @@ public struct ToolbarComposition: Equatable, Sendable {
         // split); also on the no-tab bar. The developer bar has the Extensions button first.
         if !essentialOnly, kind != .emptyPane {
             let pins = pinnedExtensions.map(Item.pinnedExtension)
-            right += kind == .developer ? [.extensions] + pins : pins + [.extensions]
+            let star: [Item] = kind != .noTab ? bookmarkStar.map { [.bookmark(on: $0)] } ?? [] : []
+            right += kind == .developer ? [.extensions] + star + pins : pins + star + [.extensions]
             if !inSplit { right.append(.addSplit) }
         }
         if inSplit {
@@ -77,8 +82,9 @@ public struct ToolbarComposition: Equatable, Sendable {
     /// The sidebar's URL field while the toolbar is hidden, shown on hover over the header: the
     /// pinned extensions while they leave the address its room (else they go in the grid over the
     /// favorites), Copy Link, then the Site Control Center's sliders (Arc 1.171, GitHub #226).
-    public static func urlFieldAccessories(pinnedExtensions: [String], fieldWidth: CGFloat) -> [Item] {
+    public static func urlFieldAccessories(pinnedExtensions: [String], fieldWidth: CGFloat, bookmarkStar: Bool? = nil) -> [Item] {
         let pins = PinnedExtensionGrid.fitsInURLField(count: pinnedExtensions.count, fieldWidth: fieldWidth) ? pinnedExtensions : []
-        return pins.map(Item.pinnedExtension) + [.copyURL, .extensions]
+        let star: [Item] = bookmarkStar.map { [.bookmark(on: $0)] } ?? []
+        return pins.map(Item.pinnedExtension) + [.copyURL] + star + [.extensions]
     }
 }

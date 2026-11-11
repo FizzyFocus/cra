@@ -16,6 +16,16 @@ final class CommandTextField {
         field = Self.makeField(controller: controller, coordinator: coordinator)
     }
 
+    /// 18 pt in the palette, 14 in the address field's dropdown.
+    private var fontSize: CGFloat = 18
+
+    func setFontSize(_ size: CGFloat) {
+        guard size != fontSize else { return }
+        fontSize = size
+        field.font = .systemFont(ofSize: size, weight: .medium)
+        field.placeholderAttributedString = Self.placeholder(controller.placeholder, size: size)
+    }
+
     func update() {
         Self.update(field, controller: controller, coordinator: coordinator)
         // A completion needs the field's editor, which exists once the field is first responder
@@ -34,7 +44,10 @@ final class CommandTextField {
         field.focusRingType = .none
         field.font = .systemFont(ofSize: 18, weight: .medium)
         // Arc's typed text is (230,231,233) on its dark bar.
-        field.textColor = NSColor(name: nil) { $0.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? NSColor(white: 0.9, alpha: 1) : .labelColor }
+        // The reference's field text: #E4E5E9 in dark, #3C3D3F in light.
+        field.textColor = NSColor(name: nil) { $0.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            ? NSColor(srgbRed: 0xE4 / 255, green: 0xE5 / 255, blue: 0xE9 / 255, alpha: 1)
+            : NSColor(srgbRed: 0x3C / 255, green: 0x3D / 255, blue: 0x3F / 255, alpha: 1) }
         field.placeholderAttributedString = placeholder(controller.placeholder)
         field.delegate = coordinator
         field.lineBreakMode = .byTruncatingTail
@@ -45,18 +58,19 @@ final class CommandTextField {
         return field
     }
 
-    private static func placeholder(_ text: String) -> NSAttributedString {
+    private static func placeholder(_ text: String, size: CGFloat = 18) -> NSAttributedString {
         NSAttributedString(string: text, attributes: [
-            .font: NSFont.systemFont(ofSize: 18, weight: .medium),
-            // Arc 1.172.1 live: the placeholder's ink peaks at (163,162,162).
-            .foregroundColor: NSColor(white: 0.64, alpha: 1),
+            .font: NSFont.systemFont(ofSize: size, weight: .medium),
+            // The reference's placeholder: the field's ink at 30 %.
+            .foregroundColor: NSColor(name: nil) { ($0.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? NSColor.white : NSColor.black)
+                .withAlphaComponent(0.3) },
         ])
     }
 
     private static func update(_ field: NSTextField, controller: CommandBarController, coordinator coord: Coordinator) {
         // Runs on every keystroke: rebuild the placeholder only when its text changes.
         if field.placeholderAttributedString?.string != controller.placeholder {
-            field.placeholderAttributedString = placeholder(controller.placeholder)
+            field.placeholderAttributedString = placeholder(controller.placeholder, size: field.font?.pointSize ?? 18)
         }
         if coord.appliedVersion != controller.fieldTextVersion {
             coord.appliedVersion = controller.fieldTextVersion

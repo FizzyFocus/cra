@@ -9,6 +9,18 @@ public enum SidebarMotion {
     /// The cubic Bézier's control points (CAMediaTimingFunction), fitted to those frames.
     public static let curve: (Double, Double, Double, Double) = (0.3, 0.7, 0.5, 1)
 
+    /// Settings ▸ Appearance ▸ Sidebar ▸ "Animate sidebar docking" (11 Nov 2026, off by default):
+    /// docking the sidebar (⌘S, from floating too) and putting it away glide over a longer, softer
+    /// ease, the card easing into its inset frame like a damped spring settling, instead of Arc's
+    /// near-instant slide.
+    public static let smoothDuration: TimeInterval = 0.42
+    public static let smoothCurve: (Double, Double, Double, Double) = (0.16, 1, 0.3, 1)
+
+    /// The slide for docking and undocking: Arc's, or the smooth one when the setting is on.
+    public static func docking(animated: Bool) -> (duration: TimeInterval, curve: (Double, Double, Double, Double)) {
+        animated ? (smoothDuration, smoothCurve) : (duration, curve)
+    }
+
     /// The share of the travel done `t` seconds in.
     public static func progress(at t: TimeInterval, curve c: (Double, Double, Double, Double) = curve, duration: TimeInterval = duration) -> Double {
         let x = min(1, max(0, t / duration))

@@ -1,0 +1,24 @@
+# Create a Space keeps the sidebar's state: with the sidebar hidden it opens in the floating sidebar,
+# which stays out while the space is made, and the sidebar is never docked for it, whether the space
+# is made or the sheet cancelled. It was docked, and stayed docked after Create Space (10 Nov 2026;
+# MainWindowController.showCreateSpace).
+cra://debug?windowSize=1280x800
+wait 2
+cra://action/toggleSidebar
+wait 1
+cra://action/newSpace
+wait 1
+cra://debug?windowState=creating
+expect-log window state creating: main0 .*docked=0 floating=1
+cra://debug?createSpace=Fresh
+wait 1
+cra://debug?windowState=created
+expect-log window state created: main0 .*docked=0
+cra://action/newSpace
+wait 1
+cra://debug?windowState=again
+expect-log window state again: main0 .*docked=0 floating=1
+cra://debug?createSpace=cancel
+wait 1
+cra://debug?windowState=cancelled
+expect-log window state cancelled: main0 .*docked=0

@@ -156,6 +156,9 @@ final class LittleWindowController: NSWindowController, NSWindowDelegate, @preco
     private var transition: PeekTransition?
     /// The link the Peek grew out of, which it closes back into (nil: the whole area).
     private var peekSource: PeekSource?
+    /// What the card grew from when no link was found: a link-sized rect at the click
+    /// (PeekLayout.clickSource), which it closes back into too.
+    private var peekOrigin: NSRect?
     private var commandPanel: CommandBarPanel!
     private var commandHost: CommandBarView!
     private var commandBarOpenedAt = Date.distantPast
@@ -445,6 +448,9 @@ final class LittleWindowController: NSWindowController, NSWindowDelegate, @preco
     /// lands.
     func showAsPeek(fromTab tabID: UUID?) {
         guard let window, let parent = peekParent, let pw = parent.window else { return }
+        // Where the click was, before anything else moves: the card grows out of it when the page
+        // has no link to show for it.
+        let click = pw.convertPoint(fromScreen: NSEvent.mouseLocation)
         let dim = PeekDimPanel(covering: parent.peekDismissArea(), of: pw) { [weak self] in self?.closeWindow() }
         self.dim = dim
         pw.addChildWindow(dim, ordered: .above)
@@ -486,9 +492,11 @@ final class LittleWindowController: NSWindowController, NSWindowDelegate, @preco
         parent.peekSource(fromTab: tabID) { [weak self] source in
             guard let self, let window = self.window, let controls = self.controls, self.openingPeek, !self.closingPeek else { return }
             self.peekSource = source
+            let origin = source?.rect ?? PeekLayout.clickSource(pointer: click, in: pw.convertFromScreen(parent.peekArea()))
+            if source == nil { self.peekOrigin = origin }
             let t = PeekTransition(over: pw, card: pw.convertFromScreen(window.frame), cardImage: PeekTransition.picture(of: self.shell),
                                    column: pw.convertFromScreen(controls.frame), columnImage: controls.contentView.flatMap { PeekTransition.picture(of: $0) },
-                                   source: source?.rect ?? pw.convertFromScreen(parent.peekArea()), sourceImage: source?.image)
+                                   source: origin, sourceImage: source?.image)
             self.transition = t
             // Next turn, with the panel on its way to the screen.
             DispatchQueue.main.async { [weak self, weak t] in
@@ -626,7 +634,8 @@ final class LittleWindowController: NSWindowController, NSWindowDelegate, @preco
             let back: (rect: NSRect, image: CGImage?) = switch linkNow {
             case .none: (self.peekSource?.rect ?? area, self.peekSource?.image)
             case .some(.some(let r)): (r, self.peekSource?.image)
-            case .some(.none): (area, nil)
+            // It grew from the click (no link): back into it.
+            case .some(.none): (self.peekSource == nil ? self.peekOrigin ?? area : area, nil)
             }
             let t = PeekTransition(over: pw, card: card,
                                    cardImage: PeekTransition.picture(of: self.shell, page: page, pageRect: pageRect),

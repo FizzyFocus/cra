@@ -85,7 +85,10 @@ final class SuggestionEngine {
         // Incognito: the window's own tabs, search and commands; nothing from the normal profile.
         if !incognito {
             items.append(contentsOf: archiveSuggestions(q))
-            items.append(contentsOf: historySuggestions(q, openURLs: searchIndex.openURLs))
+            // A bookmark (BookmarkStore) beats the same page's history row, and takes its place.
+            let bookmarks = bookmarkSuggestions(q, openURLs: searchIndex.openURLs)
+            items.append(contentsOf: bookmarks)
+            items.append(contentsOf: historySuggestions(q, openURLs: searchIndex.openURLs.union(bookmarks.compactMap(\.url))))
             items.append(contentsOf: topDomainSuggestions(q))
         }
         items.append(contentsOf: commandSuggestions(q, currentTabID: currentTabID))
@@ -125,7 +128,8 @@ final class SuggestionEngine {
         result.items = Array(items.prefix(Self.maxRows))
         result.inlineCompletion = completion?.text
         result.scope = TabSearchScope.isOffered(by: query) ? .tabs
-            : SiteSearch.match(q, completion: completion?.text, keywords: engines.keywords).map(CommandBarScope.site)
+            : SiteSearch.match(q, completion: completion?.text, keywords: engines.keywords,
+                               custom: store.settings.customSiteSearches, hidden: store.settings.hiddenSiteSearches).map(CommandBarScope.site)
         return result
     }
 
@@ -328,6 +332,22 @@ final class SuggestionEngine {
                                   subtitle: ["Archived \(Self.relative(entry.archivedAt))", spaceName, Self.humanURL(t.url)].filter { !$0.isEmpty }.joined(separator: " · "),
                                   url: t.url, faviconKey: t.faviconKey, symbol: nil, trailing: "Restore", score: score,
                                   loose: text < Self.looseBelow))
+        }
+        return out
+    }
+
+    /// Real bookmarks matching what was typed (title, address), marked Bookmark at the row's end
+    /// where an open tab says Switch to Tab; opening one goes to its page as a history row does.
+    private func bookmarkSuggestions(_ q: String, openURLs: Set<String>) -> [Suggestion] {
+        var out: [Suggestion] = []
+        for b in BookmarkStore.shared.library.bookmarks where !openURLs.contains(b.url) {
+            let text = Self.score(q, Searchable(title: b.title, url: b.url))
+            // Kept on purpose: a little ahead of a page only visited.
+            let score = text * 0.9 + 12
+            if text * 0.9 < 30 { continue }
+            out.append(Suggestion(id: "book:\(b.id)", kind: .history, title: b.title.isEmpty ? Self.humanURL(b.url) : b.title,
+                                  subtitle: Self.humanURL(b.url), url: b.url, faviconKey: FaviconKey.key(for: b.url),
+                                  symbol: "bookmark", trailing: "Bookmark", score: score, loose: text < Self.looseBelow))
         }
         return out
     }

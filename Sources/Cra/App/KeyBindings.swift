@@ -192,7 +192,8 @@ final class KeyBindingRegistry {
             KeyAction(id: "jumpToSelection", name: "Jump to Selection", section: .edit, shortcuts: [Shortcut("j", cmd)], inCommandBar: false),
             // View
             KeyAction(id: "toggleSidebar", name: "Hide Sidebar", section: .view, shortcuts: [Shortcut("s", cmd)], triggers: ["sidebar", "hide sidebar", "show sidebar"]),
-            KeyAction(id: "toggleToolbar", name: "Hide Toolbar", section: .view, shortcuts: [Shortcut("d", cmdShift)], triggers: ["toolbar"]),
+            // Arc's ⇧⌘D; Cra gives that key to bookmarks (bookmarkTab). Rebindable in Settings ▸ Shortcuts.
+            KeyAction(id: "toggleToolbar", name: "Hide Toolbar", section: .view, shortcuts: [], triggers: ["toolbar"]),
             // Arc: View ▸ Appearance, what websites see (Websites, Easels, and Notes will use:).
             KeyAction(id: "appearanceAutomatic", name: "Website Appearance: Automatic", section: .none, shortcuts: [], triggers: ["website appearance", "system appearance"], symbol: "circle.lefthalf.filled"),
             KeyAction(id: "appearanceLight", name: "Website Appearance: Light", section: .none, shortcuts: [], triggers: ["light mode", "light websites"], symbol: "sun.max"),
@@ -238,6 +239,9 @@ final class KeyBindingRegistry {
             KeyAction(id: "manageSpaces", name: "Manage Spaces…", section: .spaces, shortcuts: [], triggers: ["manage spaces", "reorder spaces"]),
             // Tabs
             KeyAction(id: "pinTab", name: "Pin/Unpin Tab", section: .tabs, shortcuts: [Shortcut("d", cmd)], triggers: ["pin", "unpin"]),
+            // A real bookmark (BookmarkStore), apart from pinned tabs: its card under the address bar.
+            KeyAction(id: "bookmarkTab", name: "Bookmark This Page…", section: .tabs, shortcuts: [Shortcut("d", cmdShift)],
+                      triggers: ["bookmark", "add bookmark", "star"], symbol: "star"),
             // Arc: Next Tab ⌥⌘↓ and ⌘}, Previous Tab ⌥⌘↑ and ⌘{ (Settings ▸ Shortcuts).
             KeyAction(id: "nextTab", name: "Next Tab", section: .tabs, shortcuts: [Shortcut(Shortcut.down, cmdOpt), Shortcut("]", cmdShift)], inCommandBar: false),
             KeyAction(id: "previousTab", name: "Previous Tab", section: .tabs, shortcuts: [Shortcut(Shortcut.up, cmdOpt), Shortcut("[", cmdShift)], inCommandBar: false),
@@ -264,7 +268,8 @@ final class KeyBindingRegistry {
             // Archive
             KeyAction(id: "goBack", name: "Go Back", section: .archive, shortcuts: [Shortcut("[", cmd), Shortcut(Shortcut.left, cmd)]),
             KeyAction(id: "goForward", name: "Go Forward", section: .archive, shortcuts: [Shortcut("]", cmd), Shortcut(Shortcut.right, cmd)]),
-            KeyAction(id: "viewArchive", name: "View History", section: .archive, shortcuts: [Shortcut("y", cmd)], triggers: ["archive", "history", "closed tabs"]),
+            // ⌘Y opens the history page; the archive of closed tabs is View Archive… (the Library).
+            KeyAction(id: "viewArchive", name: "View History", section: .archive, shortcuts: [Shortcut("y", cmd)], triggers: ["history", "browsing history"]),
             // Arc: Archive ▸ View Archive…, Clear Archive.
             KeyAction(id: "showArchive", name: "View Archive…", section: .archive, shortcuts: [], triggers: ["archive", "archived tabs"]),
             KeyAction(id: "clearArchive", name: "Clear Archive", section: .archive, shortcuts: [], triggers: ["clear archive"], symbol: "trash"),
@@ -273,6 +278,8 @@ final class KeyBindingRegistry {
             KeyAction(id: "viewDownloads", name: "View Downloads…", section: .window, shortcuts: [Shortcut("j", cmdShift)], triggers: ["downloads"]),
             // Arc: Window ▸ View Boosts….
             KeyAction(id: "viewBoosts", name: "View Boosts…", section: .window, shortcuts: [], triggers: ["boosts"]),
+            // Cra's real bookmarks (BookmarkStore), on the Library's Bookmarks page.
+            KeyAction(id: "viewBookmarks", name: "View Bookmarks…", section: .window, shortcuts: [], triggers: ["bookmarks", "favorites list"]),
             // Arc: Window ▸ View Easels….
             KeyAction(id: "viewEasels", name: "View Easels…", section: .window, shortcuts: [], triggers: ["easels"]),
             // Arc: Window ▸ View Media….

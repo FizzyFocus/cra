@@ -4,7 +4,7 @@ import UniformTypeIdentifiers
 
 /// The Library's pages Cra has, in the order of Arc's rail (which also lists Easels and Boosts).
 enum LibraryPage: String, CaseIterable {
-    case media, downloads, easels, spaces, boosts, archive
+    case media, downloads, easels, spaces, boosts, bookmarks, archive
 
     var title: String {
         switch self {
@@ -13,6 +13,7 @@ enum LibraryPage: String, CaseIterable {
         case .easels: "Easels"
         case .spaces: "Spaces"
         case .boosts: "Boosts"
+        case .bookmarks: "Bookmarks"
         case .archive: "Archived Tabs"
         }
     }
@@ -23,6 +24,7 @@ enum LibraryPage: String, CaseIterable {
         case .easels: "pencil.and.scribble"
         case .spaces: "square.on.square"
         case .boosts: "paintbrush.pointed"
+        case .bookmarks: "bookmark"
         case .archive: "archivebox"
         }
     }
@@ -40,6 +42,7 @@ enum LibraryPage: String, CaseIterable {
         case .downloads: "Search Downloads…"
         case .easels: "Search Easels…"
         case .boosts: "Search Boosts…"
+        case .bookmarks: "Search Bookmarks…"
         default: "Search Archive…"
         }
     }
@@ -80,6 +83,9 @@ final class LibraryView: NSView {
     private var spaces: SpacesManagerView?
     var page: LibraryPage { didSet { if page != oldValue { pageChanged() } } }
     var palette: SpacePalette { didSet { apply() } }
+    /// While ⇧⌘L closes it: laid out at this width and cut off at its own edge, so the drawer
+    /// narrows over it instead of squeezing it.
+    var heldWidth: CGFloat? { didSet { if heldWidth != oldValue { needsLayout = true } } }
 
     init(page: LibraryPage, palette: SpacePalette, store: SidebarStore, ui: SidebarUIState, actions: SidebarActions, favicons: FaviconCache) {
         self.page = page
@@ -94,6 +100,8 @@ final class LibraryView: NSView {
         rail.onBack = { actions.closeLibrary() }
         rail.pageMenu = { [store, weak self] p in LibraryListView.pageMenu(p, store: store, profile: (self?.window?.windowController as? MainWindowController)?.profileDirectoryName) }
         list.onEscape = { actions.closeLibrary() }
+        wantsLayer = true
+        layer?.masksToBounds = true
         addSubview(rail)
         addSubview(list)
         apply()
@@ -136,6 +144,7 @@ final class LibraryView: NSView {
         list.switchTint = palette.isDark ? NSColor.white.withAlphaComponent(0.85) : NSColor(palette.folderTint)
         list.switchKnob = palette.isDark ? NSColor(white: 0.15, alpha: 1) : NSColor(palette.folderFill)
         list.colors = SidebarColors(palette)
+        list.palette = palette
     }
 
     override func viewDidMoveToWindow() {
@@ -151,7 +160,8 @@ final class LibraryView: NSView {
     override func layout() {
         super.layout()
         rail.frame = NSRect(x: 0, y: 0, width: LibraryMetrics.rail, height: bounds.height)
-        list.frame = NSRect(x: LibraryMetrics.rail, y: 0, width: max(0, bounds.width - LibraryMetrics.rail), height: bounds.height)
+        let w = max(bounds.width, heldWidth ?? 0)
+        list.frame = NSRect(x: LibraryMetrics.rail, y: 0, width: max(0, w - LibraryMetrics.rail), height: bounds.height)
         spaces?.frame = list.frame
     }
 }
@@ -223,18 +233,24 @@ private final class LibraryRailView: NSView {
         wash.frame = NSRect(x: 0, y: 0, width: w, height: h)
         hairline.frame = NSRect(x: w, y: 0, width: 1, height: h)
         CATransaction.commit()
-        // Spacer(minLength: title area), the buttons 20 apart, Spacer, the back arrow 8 pt in.
-        let group = CGFloat(buttons.count) * 80 + CGFloat(max(0, buttons.count - 1)) * 20
+        // Spacer(minLength: title area), the buttons 20 apart, Spacer, the back arrow 8 pt in. With
+        // Bookmarks there are seven: on a short window they close up (to 4 pt apart) rather than run
+        // under the back arrow.
+        let room = h - 48 - CraMetrics.titleAreaHeight
+        let pitch = buttons.count > 1 ? max(84, min(100, (room - 80) / CGFloat(buttons.count - 1))) : 100
+        let group = CGFloat(max(0, buttons.count - 1)) * pitch + 80
         let free = max(0, h - group - 40)
         let top = max(CraMetrics.titleAreaHeight, free / 2)
         for (i, b) in buttons.enumerated() {
-            b.frame = NSRect(x: (w - 97) / 2, y: top + CGFloat(i) * 100, width: 97, height: 80)
+            b.frame = NSRect(x: (w - 97) / 2, y: top + CGFloat(i) * pitch, width: 97, height: 80)
+            // Placed again (the Library opening, the window resized): lit only under the pointer.
+            b.syncHover()
         }
         back?.frame = NSRect(x: 8, y: h - 8 - 32, width: 32, height: 32)
     }
 }
 
-private final class LibraryRailButton: NSView {
+private final class LibraryRailButton: NSView, PointerHover {
     let page: LibraryPage
     var onPress: () -> Void = {}
     var menuProvider: (() -> NSMenu?)?
@@ -244,7 +260,7 @@ private final class LibraryRailButton: NSView {
     private let label = NSTextField.sidebarLabel(size: 12, weight: .semibold)
     private var selected = false
     private var ink = NSColor.white
-    private var hovering = false { didSet { if hovering != oldValue { refresh() } } }
+    var hovering = false { didSet { if hovering != oldValue { refresh() } } }
 
     init(page: LibraryPage) {
         self.page = page
@@ -298,11 +314,15 @@ private final class LibraryRailButton: NSView {
 
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
-        for t in trackingAreas where t.owner === self { removeTrackingArea(t) }
-        addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self, userInfo: nil))
+        trackPointer()
     }
 
-    override func mouseEntered(with event: NSEvent) { hovering = true }
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        syncHover()
+    }
+
+    override func mouseEntered(with event: NSEvent) { syncHover() }
     override func mouseExited(with event: NSEvent) { hovering = false }
     override func mouseDown(with event: NSEvent) {}
     override func mouseUp(with event: NSEvent) {
@@ -326,11 +346,15 @@ private final class LibraryListView: NSView, NSTextFieldDelegate, NSTableViewDat
     private let favicons: FaviconCache
     var onEscape: () -> Void = {}
     var page: LibraryPage { didSet { if page != oldValue { field.stringValue = ""; query = ""; field.placeholderString = page.searchPrompt; if filtering { filtering = false }; reload(); needsLayout = true } } }
-    var colors = SidebarColors() { didSet { if colors != oldValue { refresh(); table.reloadData() } } }
+    var colors = SidebarColors() { didSet { if colors != oldValue { refresh(); table.reloadData(); outline.colors = colors } } }
+    /// The space's palette, for the bookmark folders' glyphs.
+    var palette: SpacePalette? { didSet { outline.palette = palette } }
     /// A boost's switch (Arc: the theme's dark shade, a light knob).
     var switchTint = NSColor.controlAccentColor
     var switchKnob = NSColor.white
     private var query = ""
+    /// The search the outline was last shown for: a new one shows it at once.
+    private var outlineQuery = ""
     private var rows: [Row] = []
     private var mediaHiddenObserver: NSObjectProtocol?
     /// The width the grid rows were last sized for.
@@ -343,6 +367,9 @@ private final class LibraryListView: NSView, NSTextFieldDelegate, NSTableViewDat
     private let filterLabel = NSTextField.sidebarLabel(size: 14, weight: .medium)
     private let scroll = SidebarListScrollView()
     private let table = LibraryTable()
+    /// Library ▸ Bookmarks: drawn and folded like the sidebar's pinned list, not as table rows.
+    private let outlineScroll = SidebarListScrollView()
+    private let outline = BookmarkOutlineView()
     private let empty = LibraryEmptyView()
     private var mediaCard: NSHostingView<MediaOptInCard>?
 
@@ -403,6 +430,18 @@ private final class LibraryListView: NSView, NSTextFieldDelegate, NSTableViewDat
         scroll.contentInsets = NSEdgeInsets(top: 0, left: 0, bottom: 12, right: 0)
         scroll.automaticallyAdjustsContentInsets = false
         addSubview(scroll)
+        outlineScroll.documentView = outline
+        outlineScroll.drawsBackground = false
+        outlineScroll.hasVerticalScroller = false
+        outlineScroll.hasHorizontalScroller = false
+        outlineScroll.contentInsets = NSEdgeInsets(top: 0, left: 0, bottom: 12, right: 0)
+        outlineScroll.automaticallyAdjustsContentInsets = false
+        outlineScroll.isHidden = true
+        outline.favicon = { [favicons] in favicons.image(for: $0) }
+        outline.toggle = { f, open in BookmarkStore.shared.setExpanded(f.id, open) }
+        outline.open = { [actions] in actions.openBookmark($0) }
+        outline.menuFor = { [weak self] row, cell in self?.bookmarkMenu(row, cell: cell) }
+        addSubview(outlineScroll)
         addSubview(empty)
         observe()
     }
@@ -426,6 +465,7 @@ private final class LibraryListView: NSView, NSTextFieldDelegate, NSTableViewDat
             _ = DownloadHistory.shared.thumbnails.count
             _ = MediaScanner.shared.files
             _ = BoostStore.shared.boosts
+            _ = BookmarkStore.shared.library
             _ = store.settings.mediaLibraryEnabled
             _ = store.settings.mediaFolders
         } onChange: { [weak self] in
@@ -491,6 +531,16 @@ private final class LibraryListView: NSView, NSTextFieldDelegate, NSTableViewDat
                        detail: all.isEmpty ? "Type “New Boost” in the command bar on any site to make your own." : nil)
         case .spaces:
             break
+        case .bookmarks:
+            // The folders open and close like the sidebar's pinned folders (BookmarkOutlineView).
+            let lib = BookmarkStore.shared.library
+            let shown = lib.outline(matching: needle)
+            // A folder opened or closed folds; a search, or the page coming up, shows the rows at once.
+            outline.apply(shown, animated: !outlineScroll.isHidden && needle == outlineQuery)
+            outlineQuery = needle
+            let none = lib.bookmarks.isEmpty && lib.folders.isEmpty
+            empty.show(symbol: "bookmark", title: none ? "No Bookmarks Yet" : "No matches",
+                       detail: none ? "Press ⇧⌘D, or the star in the Extensions menu, to bookmark a page." : nil)
         case .archive:
             let filter = archiveFilter
             let shown = (needle.isEmpty ? store.archive : store.archive.filter {
@@ -505,8 +555,12 @@ private final class LibraryListView: NSView, NSTextFieldDelegate, NSTableViewDat
         }
         rows = out
         needsLayout = true
-        empty.isHidden = !out.isEmpty || (page == .media && !store.settings.mediaLibraryEnabled)
-        scroll.isHidden = out.isEmpty
+        let outlined = page == .bookmarks
+        let nothing = outlined ? outline.rows.isEmpty : out.isEmpty
+        empty.isHidden = !nothing || (page == .media && !store.settings.mediaLibraryEnabled)
+        scroll.isHidden = outlined || out.isEmpty
+        outlineScroll.isHidden = !outlined || outline.rows.isEmpty
+        if !outlined, !outline.rows.isEmpty { outline.apply([], animated: false); outlineQuery = "" }
         table.reloadData()
         refresh()
     }
@@ -518,6 +572,11 @@ private final class LibraryListView: NSView, NSTextFieldDelegate, NSTableViewDat
         field.textColor = colors.textPrimary
         // Picked chips show on the button: Arc's dark pill.
         menuButton.layer?.backgroundColor = (filterActive ? ink.withAlphaComponent(colors.isDark ? 0.85 : 0.68) : ink.withAlphaComponent(0.08)).cgColor
+        let importing = page == .bookmarks
+        filterLabel.stringValue = importing ? "Import" : "Filter"
+        menuGlyph.image = SidebarSymbols.image(importing ? "square.and.arrow.down" : "line.3.horizontal.decrease.circle", size: 14, weight: .medium)
+        menuButton.setAccessibilityLabel(importing ? "Import Bookmarks HTML…" : "Filter")
+        menuButton.toolTip = importing ? "Import Bookmarks HTML…" : nil
         let label = filterActive ? (colors.isDark ? NSColor.black : NSColor.white) : ink.withAlphaComponent(0.7)
         menuGlyph.contentTintColor = label
         filterLabel.textColor = label
@@ -571,6 +630,7 @@ private final class LibraryListView: NSView, NSTextFieldDelegate, NSTableViewDat
         // 10.5 pt to a boost's card, 15 pt to the first media tile's; a day header brings its own.
         let gap: CGFloat
         switch rows.first {
+        case _ where page == .bookmarks: gap = 10
         case .media?, .easels?: gap = 15
         case .header?, nil: gap = 0
         default: gap = 10
@@ -589,6 +649,8 @@ private final class LibraryListView: NSView, NSTextFieldDelegate, NSTableViewDat
             table.noteHeightOfRows(withIndexesChanged: IndexSet(integersIn: 0..<rows.count))
         }
         empty.frame = scroll.frame
+        outlineScroll.frame = scroll.frame
+        outline.fit(width: w)
         if let card = mediaCard {
             let size = card.fittingSize
             card.frame = NSRect(x: ((w - size.width) / 2).rounded(), y: max(56, ((bounds.height - size.height) / 2).rounded()),
@@ -657,7 +719,8 @@ private final class LibraryListView: NSView, NSTextFieldDelegate, NSTableViewDat
     private var filtering = false { didSet { showFilterPanel() } }
     private var filterHost: NSHostingView<LibraryFilterPanel>?
 
-    private var hasFilter: Bool { page == .archive || page == .downloads }
+    /// The button beside the search: Filter on Archived Tabs and Downloads, Import on Bookmarks.
+    private var hasFilter: Bool { page == .archive || page == .downloads || page == .bookmarks }
     private var filterActive: Bool { page == .archive ? !archiveFilter.isEmpty : page == .downloads ? !downloadFilter.isEmpty : false }
 
     private func filterPanel() -> LibraryFilterPanel {
@@ -723,7 +786,34 @@ private final class LibraryListView: NSView, NSTextFieldDelegate, NSTableViewDat
     override func mouseDown(with event: NSEvent) {
         let p = convert(event.locationInWindow, from: nil)
         guard hasFilter, !filtering, menuButton.frame.contains(p) else { return super.mouseDown(with: event) }
+        if page == .bookmarks { return importBookmarksHTML() }
         filtering = true
+    }
+
+    /// Library ▸ Bookmarks ▸ Import: a bookmarks.html (Chrome, Safari, Firefox, Arc export it) into
+    /// the library, folders and all; says what came in.
+    fileprivate func importBookmarksHTML() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.html]
+        panel.allowsMultipleSelection = false
+        panel.message = "Choose a bookmarks file exported from a browser (bookmarks.html)."
+        panel.prompt = "Import"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard let r = BookmarkStore.shared.importHTML(url) else {
+            let alert = NSAlert()
+            alert.messageText = "No Bookmarks in That File"
+            alert.informativeText = "Choose a bookmarks.html file a browser exported."
+            alert.runModal()
+            return
+        }
+        let what = r.bookmarks == 1 ? "1 bookmark" : "\(r.bookmarks) bookmarks"
+        let folders = r.folders == 0 ? "" : (r.folders == 1 ? " in 1 new folder" : " in \(r.folders) new folders")
+        (window?.windowController as? MainWindowController)?.showToast(r.bookmarks == 0 && r.folders == 0 ? "Already Up to Date" : "Imported \(what)\(folders)")
+    }
+
+    /// Library ▸ Bookmarks with nothing in it yet (the empty page): New Folder… still.
+    override func menu(for event: NSEvent) -> NSMenu? {
+        page == .bookmarks ? bookmarkMenu(nil, cell: nil) : super.menu(for: event)
     }
 
     // MARK: Table
@@ -776,7 +866,8 @@ private final class LibraryListView: NSView, NSTextFieldDelegate, NSTableViewDat
                 // Arc previews the pick over the dimmed window; the Library and the space stay as they were.
                 guard let self, let window = v?.window else { return }
                 let files = self.rows.flatMap { row -> [MediaLibrary.File] in if case .media(let f) = row { return f } else { return [] } }
-                MediaPreviewController.shared.show(files, at: files.firstIndex(of: file) ?? 0, from: thumbnail, over: window)
+                MediaPreviewController.shared.show(files, at: files.firstIndex(of: file) ?? 0, from: thumbnail, over: window,
+                                                   origin: { [weak self] in self?.thumbnailOnScreen(for: $0) })
             }
             v.fileMenu = { [weak self, store] file in MediaMenu.make(for: file, store: store) { if $0 == .hide { self?.reload() } } }
             v.show(files, ink: colors.isDark ? .white : .black)
@@ -785,6 +876,7 @@ private final class LibraryListView: NSView, NSTextFieldDelegate, NSTableViewDat
             let v = tableView.makeView(withIdentifier: .init("item"), owner: nil) as? LibraryItemCell ?? LibraryItemCell()
             v.identifier = .init("item")
             v.showDownload(e, colors: colors)
+            v.openDownload = { [weak self, weak v] path, thumbnail in self?.openDownload(path, from: thumbnail, in: v?.window) }
             return v
         case .archived(let e):
             let v = tableView.makeView(withIdentifier: .init("item"), owner: nil) as? LibraryItemCell ?? LibraryItemCell()
@@ -799,6 +891,32 @@ private final class LibraryListView: NSView, NSTextFieldDelegate, NSTableViewDat
     func tableView(_ tableView: NSTableView, shouldSelectRow row: Int) -> Bool { false }
 
     /// Library ▸ Easels ▸ Delete: asked first (its drawing and pictures go), its tabs close.
+    /// Library ▸ Downloads: a finished download clicked opens Arc's preview, stepping through the
+    /// page's other files (11 Nov 2026); one it can't show (an archive, a disk image) opens in its app.
+    private func openDownload(_ path: String, from thumbnail: NSRect?, in window: NSWindow?) {
+        let list = rows.compactMap { row -> DownloadHistory.Listed? in if case .download(let l) = row { return l } else { return nil } }
+        guard let window, MediaPreviewController.shared.showDownload(path, in: list, from: thumbnail, over: window,
+                                                                     origin: { [weak self] in self?.thumbnailOnScreen(for: $0) }) else {
+            NSWorkspace.shared.open(URL(fileURLWithPath: path))
+            return
+        }
+    }
+
+    /// Where a download's or a media file's picture is on screen in the page shown (nil scrolled out
+    /// of sight), for the preview to shrink back into.
+    private func thumbnailOnScreen(for path: String) -> NSRect? {
+        for (i, row) in rows.enumerated() {
+            switch row {
+            case .download(.finished(let e)) where e.path == path:
+                return (table.view(atColumn: 0, row: i, makeIfNecessary: false) as? LibraryItemCell)?.thumbnailOnScreen
+            case .media(let files) where files.contains(where: { $0.path == path }):
+                return (table.view(atColumn: 0, row: i, makeIfNecessary: false) as? MediaRowCell)?.thumbnailOnScreen(for: path)
+            default: continue
+            }
+        }
+        return nil
+    }
+
     private func deleteEasel(_ e: EaselEntry) {
         guard let window = window ?? AppDialog.parentWindow else { return }
         let dialog = AppDialog.easelDeletion()
@@ -824,6 +942,52 @@ private final class LibraryListView: NSView, NSTextFieldDelegate, NSTableViewDat
         // Never shown in a tab here: fetch the site's own icon, then draw the row again.
         SiteIconLoader.shared.load(host: b.host, into: favicons) { [weak self] in self?.table.reloadData() }
         return nil
+    }
+}
+
+extension LibraryListView {
+    // MARK: Bookmark folders (Library ▸ Bookmarks)
+
+    /// New Folder / New Subfolder: named first, then made (and its parent opened to show it).
+    fileprivate func newBookmarkFolder(in parent: UUID?) {
+        guard let name = Self.askName(title: parent == nil ? "New Folder" : "New Subfolder", initial: "", confirm: "Create") else { return }
+        if let parent { BookmarkStore.shared.setExpanded(parent, true) }
+        BookmarkStore.shared.addFolder(title: name, parentId: parent)
+    }
+
+    fileprivate func renameBookmarkFolder(_ f: BookmarkFolder) {
+        guard let name = Self.askName(title: "Rename Folder", initial: f.title, confirm: "Rename") else { return }
+        BookmarkStore.shared.renameFolder(f.id, to: name)
+    }
+
+    /// Delete Folder: at once when empty; otherwise asked, as its bookmarks go with it.
+    fileprivate func deleteBookmarkFolder(_ f: BookmarkFolder) {
+        let lib = BookmarkStore.shared.library
+        let count = lib.bookmarkCount(in: f.id)
+        guard count > 0 || !lib.descendants(of: f.id).isEmpty else { return BookmarkStore.shared.removeFolder(f.id) }
+        let alert = NSAlert()
+        alert.messageText = "Delete “\(f.title)”?"
+        alert.informativeText = count == 1 ? "The bookmark in it is deleted too." : "The \(count) bookmarks in it are deleted too."
+        alert.addButton(withTitle: "Delete")
+        alert.addButton(withTitle: "Cancel")
+        alert.buttons.first?.hasDestructiveAction = true
+        if alert.runModal() == .alertFirstButtonReturn { BookmarkStore.shared.removeFolder(f.id) }
+    }
+
+    /// A name typed into a small sheet-less alert; nil when cancelled or left empty.
+    private static func askName(title: String, initial: String, confirm: String) -> String? {
+        let alert = NSAlert()
+        alert.messageText = title
+        let field = NSTextField(string: initial)
+        field.placeholderString = "Folder name"
+        field.frame = NSRect(x: 0, y: 0, width: 240, height: 22)
+        alert.accessoryView = field
+        alert.addButton(withTitle: confirm)
+        alert.addButton(withTitle: "Cancel")
+        alert.window.initialFirstResponder = field
+        guard alert.runModal() == .alertFirstButtonReturn else { return nil }
+        let name = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        return name.isEmpty ? nil : name
     }
 }
 
@@ -853,6 +1017,43 @@ extension LibraryListView: NSMenuDelegate {
             // Arc's Download Context Menu, the tray's too (#272).
             DownloadRowMenu.fill(menu, for: d)
         }
+    }
+
+    /// Library ▸ Bookmarks' menus: a folder's (like a pinned folder's, with Icon Color), a
+    /// bookmark's, and the blank space's.
+    fileprivate func bookmarkMenu(_ row: BookmarkLibrary.OutlineRow?, cell: NSView?) -> NSMenu? {
+        let menu = NSMenu()
+        switch row {
+        case .folder(let f, _, _, _)?:
+            MenuItems.add(menu, "New Subfolder…") { [weak self] in self?.newBookmarkFolder(in: f.id) }
+            MenuItems.add(menu, "Rename…") { [weak self] in self?.renameBookmarkFolder(f) }
+            let colours = NSMenu()
+            let item = NSMenuItem(title: "Icon Color", action: nil, keyEquivalent: "")
+            item.submenu = colours
+            menu.addItem(item)
+            MenuItems.add(colours, "Auto", on: f.color == nil) { BookmarkStore.shared.setColor(f.id, nil) }
+            FolderColorMenu.add(to: colours, current: f.color) { BookmarkStore.shared.setColor(f.id, $0) }
+            menu.addItem(.separator())
+            MenuItems.add(menu, "Delete Folder") { [weak self] in self?.deleteBookmarkFolder(f) }
+        case .bookmark(let b, _)?:
+            let actions = actions
+            MenuItems.add(menu, "Open in New Tab") { actions.openBookmark(b) }
+            MenuItems.add(menu, "Copy Link") {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(b.url, forType: .string)
+            }
+            MenuItems.add(menu, "Edit…") { [weak cell] in if let cell { actions.editBookmark(b, cell) } }
+            menu.addItem(.separator())
+            MenuItems.add(menu, "Delete Bookmark") { BookmarkStore.shared.remove(b.id) }
+        case .emptyFolder(let id, _)?:
+            MenuItems.add(menu, "New Subfolder…") { [weak self] in self?.newBookmarkFolder(in: id) }
+            MenuItems.add(menu, "New Folder…") { [weak self] in self?.newBookmarkFolder(in: nil) }
+        case nil:
+            // The page's blank space: a folder at the top of the tree, or an import.
+            MenuItems.add(menu, "New Folder…") { [weak self] in self?.newBookmarkFolder(in: nil) }
+            MenuItems.add(menu, "Import Bookmarks HTML…") { [weak self] in self?.importBookmarksHTML() }
+        }
+        return menu
     }
 }
 
@@ -894,7 +1095,7 @@ private final class LibraryHeaderCell: NSView {
 
 /// An archived tab (24 pt icon tile, title over URL) or a download (32 pt thumbnail, name over
 /// age): 52 pt tall inside 4 × 2 pt of padding, the space's hover fill under the pointer.
-private final class LibraryItemCell: NSView, NSDraggingSource {
+private final class LibraryItemCell: NSView, NSDraggingSource, PointerHover {
     private let card = FlippedView()
     private let tile = NSView()
     private let icon = NSImageView()
@@ -912,7 +1113,14 @@ private final class LibraryItemCell: NSView, NSDraggingSource {
     private let binButton = NSImageView()
     private let restoreButton = NSImageView()
     private var downAt: NSPoint?
-    private var hovering = false { didSet { if hovering != oldValue { refreshHover(); needsLayout = true } } }
+    var hovering = false { didSet { if hovering != oldValue { refreshHover(); needsLayout = true } } }
+    /// A finished download clicked: the Library opens it (the preview, or its app).
+    var openDownload: ((String, NSRect?) -> Void)?
+    /// The thumbnail's square on screen, visible or not.
+    var thumbnailOnScreen: NSRect? {
+        guard let window, !isHiddenOrHasHiddenAncestor, visibleRect.width > 0 else { return nil }
+        return window.convertToScreen(card.convert(tile.frame, to: nil))
+    }
 
     private static let age: RelativeDateTimeFormatter = {
         let f = RelativeDateTimeFormatter()
@@ -1049,11 +1257,15 @@ private final class LibraryItemCell: NSView, NSDraggingSource {
 
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
-        for t in trackingAreas where t.owner === self { removeTrackingArea(t) }
-        addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self, userInfo: nil))
+        trackPointer()
     }
 
-    override func mouseEntered(with event: NSEvent) { hovering = true }
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        syncHover()
+    }
+
+    override func mouseEntered(with event: NSEvent) { syncHover() }
     override func mouseExited(with event: NSEvent) { hovering = false }
 
     override func mouseDown(with event: NSEvent) { downAt = event.locationInWindow }
@@ -1073,7 +1285,10 @@ private final class LibraryItemCell: NSView, NSDraggingSource {
         guard downAt != nil, bounds.contains(convert(event.locationInWindow, from: nil)) else { return }
         let p = card.convert(event.locationInWindow, from: nil)
         if !binButton.isHidden, binButton.frame.insetBy(dx: -4, dy: -4).contains(p) { remove?(); return }
-        if let download { NSWorkspace.shared.open(URL(fileURLWithPath: download.path)) } else if !isDownloadRow { restore?() }
+        if let download {
+            let thumbnail = window.map { $0.convertToScreen(card.convert(tile.frame, to: nil)) }
+            if let openDownload { openDownload(download.path, thumbnail) } else { NSWorkspace.shared.open(URL(fileURLWithPath: download.path)) }
+        } else if !isDownloadRow { restore?() }
     }
 
     func draggingSession(_ session: NSDraggingSession, sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation {

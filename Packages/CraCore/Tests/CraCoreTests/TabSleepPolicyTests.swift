@@ -74,6 +74,24 @@ struct TabSleepPolicyTests {
         #expect(TabSleepPolicy.memoryPressure(.warning).candidates(p, visible: [visible, split.id], now: now) == [])
     }
 
+    /// Tab ▸ Load on Start (10 Nov 2026): the page stays in memory under every policy.
+    @Test func loadOnStartStays() {
+        var p = pages(hiddenMinutesAgo: [9 * 60, 10 * 60])
+        p[2].loadOnStart = true
+        #expect(TabSleepPolicy.memoryPressure(.critical).candidates(p, visible: [visible], now: now) == [p[1].id])
+        #expect(TabSleepPolicy.timer(.fifteenMinutes).candidates(p, visible: [visible], now: now) == [p[1].id])
+    }
+
+    /// Saved in sidebar.json only when on, so files from before it read the same.
+    @Test func loadOnStartIsSaved() throws {
+        var t = TabData(url: "https://example.com")
+        let off = String(decoding: try JSONEncoder().encode(t), as: UTF8.self)
+        #expect(!off.contains("loadOnStart"))
+        t.loadOnStart = true
+        let back = try JSONDecoder().decode(TabData.self, from: try JSONEncoder().encode(t))
+        #expect(back.loadOnStart == true)
+    }
+
     /// A page that played sound waits as long after it went quiet as after it went out of sight.
     @Test(.bug("https://github.com/VictorKildahl/cra/issues/153")) func recentlyAudibleStays() {
         let id = UUID()

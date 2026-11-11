@@ -11,16 +11,29 @@ import SwiftUI
 /// the intensity, the grain and Auto / Light / Dark, and builds the theme from them
 /// (SpaceThemeVariants): one colour is Arc's one-dot fill, two or three a gradient, and Auto
 /// always gets a light and a dark half (#155).
+///
+/// Below Arc's controls Cra adds an Opacity slider (ThemeOpacity): from a mostly see-through window
+/// over the blurred desktop to a solid one, saved with the theme. Under the pointer the pad's handle
+/// is drawn to the cardinal hues, the neutral centre and the Pastel colours, and the sliders tick
+/// every tenth, each with a haptic tap (ThemePickerSnap).
+///
+/// The card follows the look being picked (CreateSpaceTones.pickerIsLight): in Light, and before
+/// any colour is picked on a light Mac, black ink on a light card (the colours lifted toward white);
+/// otherwise white ink on the space's colours darkened ~58%. `arrowY` points a popover arrow from
+/// the card's leading edge at what opened it (Create a Space's "Choose a Theme" row).
 struct SpaceStyleEditor: View {
     @State private var theme: SpaceTheme
     @State private var pad: PadState
     let onChange: (SpaceTheme) -> Void
+    var arrowY: CGFloat? = nil
 
-    init(theme: SpaceTheme, onChange: @escaping (SpaceTheme) -> Void) {
+    init(theme: SpaceTheme, arrowY: CGFloat? = nil, onChange: @escaping (SpaceTheme) -> Void) {
+        self.arrowY = arrowY
         _theme = State(initialValue: theme)
         // A one-colour theme stores its colour twice (a flat fill): one handle on the pad.
         let key = theme.key ?? (theme.solid || Set(theme.colors).count == 1 ? Array(theme.colors.prefix(1)) : theme.colors)
-        _pad = State(initialValue: PadState(key: key, intensity: theme.intensity, noise: theme.noise, appearance: theme.appearance))
+        _pad = State(initialValue: PadState(key: key, intensity: theme.intensity, noise: theme.noise, appearance: theme.appearance,
+                                            opacity: theme.opacity))
         // The page with the space's colour, else the one shown last (Arc: currentThemeEditorPresetPage).
         let last = UserDefaults.standard.integer(forKey: Self.pageKey)
         _swatchPage = State(initialValue: SpaceColorPresets.page(of: key)
@@ -30,6 +43,8 @@ struct SpaceStyleEditor: View {
 
     private static let pageKey = "themeEditorPresetPage"
     @State private var swatchPage: Int
+    /// The card: Arc's 355 × 503 pt, and the Opacity row under it.
+    static let cardSize = CGSize(width: 355, height: 541)
 
     var body: some View {
         VStack(spacing: 0) {
@@ -64,22 +79,46 @@ struct SpaceStyleEditor: View {
             .padding(.leading, 17)
             .padding(.trailing, 23)
             .padding(.top, 22)
+            OpacitySlider(value: Binding(get: { pad.opacity ?? ThemeOpacity.shown(theme.shown) }, set: { pad.opacity = $0 }))
+                .frame(height: 30)
+                .padding(.horizontal, 17)
+                .padding(.top, 8)
             Spacer(minLength: 0)
         }
-        .frame(width: 355, height: 503)
-        // The space's own theme, darkened ~58% (Arc: #CDC2A5 behind → #554F37).
-        .background(
-            ZStack {
-                SpaceBackground(palette: theme.palette)
-                Color.black.opacity(0.58)
-            }
-            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-        )
-        .environment(\.colorScheme, .dark)
+        .frame(width: Self.cardSize.width, height: Self.cardSize.height)
+        // The card's fill reaches the arrow's depth past its leading edge, so the arrow has
+        // something to show: clipped to the card's own frame it was all but gone.
+        .background(alignment: .leading) {
+            let d = arrowY == nil ? 0 : PickerCardShape.arrowDepth
+            card.frame(width: Self.cardSize.width + d, height: Self.cardSize.height)
+                .clipShape(PickerCardShape(arrowY: arrowY, leading: d))
+                .offset(x: -d)
+        }
+        .environment(\.colorScheme, light ? .light : .dark)
+        .environment(\.pickerInk, light ? .black : .white)
+        .animation(.easeOut(duration: 0.18), value: light)
         // Opening the editor leaves the theme as it is; the first change rebuilds it from the pad.
         .onChange(of: pad) { _, p in
-            theme = SpaceThemeVariants.theme(key: p.key, intensity: p.intensity, noise: p.noise, appearance: p.appearance)
+            theme = SpaceThemeVariants.theme(key: p.key, intensity: p.intensity, noise: p.noise, appearance: p.appearance, opacity: p.opacity)
             onChange(theme)
+        }
+    }
+
+    /// Light or dark, from what is on the pad (CreateSpaceTones.pickerIsLight).
+    private var light: Bool {
+        CreateSpaceTones.pickerIsLight(key: pad.key, appearance: pad.appearance, systemDark: SystemAppearance.shared.isDark)
+    }
+
+    /// The card: the space's own theme, darkened ~58% (Arc: #CDC2A5 behind → #554F37), or lifted
+    /// halfway to white for a light look; a near-white card before any colour is picked.
+    @ViewBuilder private var card: some View {
+        if pad.key.isEmpty, light {
+            Color(white: 0.975)
+        } else {
+            ZStack {
+                SpaceBackground(palette: theme.palette)
+                light ? Color.white.opacity(0.55) : Color.black.opacity(0.58)
+            }
         }
     }
 
@@ -89,6 +128,57 @@ struct SpaceStyleEditor: View {
             swatchPage = page
             UserDefaults.standard.set(page, forKey: Self.pageKey)
         }
+    }
+}
+
+/// The ink the picker draws in: white on its dark card, black on its light one.
+private struct PickerInkKey: EnvironmentKey {
+    static let defaultValue = Color.white
+}
+
+extension EnvironmentValues {
+    var pickerInk: Color {
+        get { self[PickerInkKey.self] }
+        set { self[PickerInkKey.self] = newValue }
+    }
+}
+
+/// The picker's card, 22 pt continuous corners, with a popover arrow on its leading edge at
+/// `arrowY` (from the top) pointing at what opened it.
+struct PickerCardShape: Shape {
+    var radius: CGFloat = 22
+    var arrowY: CGFloat?
+    /// How far the shape's rect reaches past the card's leading edge, for the arrow.
+    var leading: CGFloat = 0
+    /// The arrow: NSPopover's (the Extensions popover's) turned to point left from the card's edge.
+    static let arrowDepth: CGFloat = 10.5
+    static let arrowHalf: CGFloat = 14
+
+    func path(in r: CGRect) -> Path {
+        let card = CGRect(x: r.minX + leading, y: r.minY, width: max(0, r.width - leading), height: r.height)
+        let body = Path(roundedRect: card, cornerRadius: radius, style: .continuous)
+        guard let arrowY else { return body }
+        let y = min(max(card.minY + arrowY, card.minY + radius + Self.arrowHalf), card.maxY - radius - Self.arrowHalf)
+        return body.union(Self.arrow(edgeX: card.minX, y: y))
+    }
+
+    /// The popover arrow's outline: shoulders that leave the card's edge along it (concave), sides
+    /// that run toward the tip, and a tip rounded over, as NSPopover draws its own (10 Nov 2026).
+    /// It starts 1 pt inside the card, so the union has no seam.
+    static func arrow(edgeX x0: CGFloat, y: CGFloat) -> Path {
+        let d = arrowDepth, h = arrowHalf
+        var a = Path()
+        a.move(to: CGPoint(x: x0 + 1, y: y - h))
+        a.addLine(to: CGPoint(x: x0, y: y - h))
+        a.addCurve(to: CGPoint(x: x0 - d * 0.76, y: y - h * 0.17),
+                   control1: CGPoint(x: x0, y: y - h * 0.55), control2: CGPoint(x: x0 - d * 0.56, y: y - h * 0.31))
+        a.addCurve(to: CGPoint(x: x0 - d * 0.76, y: y + h * 0.17),
+                   control1: CGPoint(x: x0 - d * 1.03, y: y - h * 0.09), control2: CGPoint(x: x0 - d * 1.03, y: y + h * 0.09))
+        a.addCurve(to: CGPoint(x: x0, y: y + h),
+                   control1: CGPoint(x: x0 - d * 0.56, y: y + h * 0.31), control2: CGPoint(x: x0, y: y + h * 0.55))
+        a.addLine(to: CGPoint(x: x0 + 1, y: y + h))
+        a.closeSubpath()
+        return a
     }
 }
 
@@ -102,12 +192,13 @@ private struct PageArrow: View {
     let action: () -> Void
     @State private var isHovered = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.pickerInk) private var ink
 
     var body: some View {
         let hot = enabled && isHovered
         Image(systemName: symbol).font(.system(size: 15, weight: .medium)).frame(width: 36, height: 30)
             .contentShape(Rectangle())
-            .foregroundStyle(.white.opacity(enabled ? (hot ? 0.85 : 0.55) : 0.2))
+            .foregroundStyle(ink.opacity(enabled ? (hot ? 0.85 : 0.55) : 0.2))
             .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: hot)
             .onHover { isHovered = $0 }
             .onTapGesture { if enabled { action() } }
@@ -126,6 +217,14 @@ struct PadState: Equatable {
     var noise: Double
     /// "auto", "light" or "dark".
     var appearance: String
+    /// The Opacity slider's value once moved; nil keeps the look's own (ThemeOpacity).
+    var opacity: Double? = nil
+}
+
+/// The picker's tap under the fingers: a snap or a slider's tick (ThemePickerSnap).
+@MainActor
+enum PickerHaptics {
+    static func tick() { NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .default) }
 }
 
 /// The dotted pad, a colour wheel: a handle's angle (clockwise from three o'clock) is its hue and its
@@ -135,7 +234,10 @@ private struct ColorPad: View {
     @Binding var pad: PadState
     @State private var hoveredKnob: Int?
     @State private var draggingKnob: Int?
+    /// What the main handle is held by right now (ThemePickerSnap), so each new snap taps once.
+    @State private var snappedTo: ThemePickerSnap.Target?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.pickerInk) private var ink
     private static let reach: CGFloat = 153
 
     var body: some View {
@@ -143,22 +245,24 @@ private struct ColorPad: View {
             let size = geo.size
             let centre = CGPoint(x: size.width / 2, y: size.height / 2)
             ZStack {
-                RoundedRectangle(cornerRadius: 8, style: .continuous).fill(.white.opacity(0.04))
+                RoundedRectangle(cornerRadius: 8, style: .continuous).fill(ink.opacity(0.04))
                 Canvas { ctx, s in
                     var p = Path()
                     for x in stride(from: 4.0, to: s.width, by: 4) {
                         for y in stride(from: 4.0, to: s.height, by: 4) { p.addEllipse(in: CGRect(x: x - 0.5, y: y - 0.5, width: 1, height: 1)) }
                     }
-                    ctx.fill(p, with: .color(.white.opacity(0.12)))
+                    ctx.fill(p, with: .color(ink.opacity(0.12)))
                 }
                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                 .contentShape(Rectangle())
                 // Arc: pressing anywhere on the pad brings the main colour there, and it follows the drag.
-                .gesture(DragGesture(minimumDistance: 0).onChanged { g in place(handle: 0, at: g.location, centre: centre) })
+                .gesture(DragGesture(minimumDistance: 0)
+                    .onChanged { g in place(handle: 0, at: g.location, centre: centre) }
+                    .onEnded { _ in snappedTo = nil })
                 if pad.key.isEmpty {
                     Text("Tap to pick a color for this space")
                         .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.85))
+                        .foregroundStyle(ink.opacity(0.78))
                         .allowsHitTesting(false)
                 }
                 ForEach(Array(pad.key.prefix(3).enumerated()), id: \.offset) { i, hex in
@@ -186,14 +290,18 @@ private struct ColorPad: View {
                                 draggingKnob = i
                                 place(handle: i, at: g.location, centre: centre)
                             }
-                            .onEnded { _ in draggingKnob = nil })
+                            .onEnded { _ in
+                                draggingKnob = nil
+                                snappedTo = nil
+                            })
                 }
                 VStack {
                     AppearanceToggles(appearance: $pad.appearance).padding(.top, 24)
                     Spacer()
                     HStack(spacing: 16) {
-                        padButton("minus", enabled: pad.key.count > 1) { pad.key.removeLast() }
-                        padButton("plus", enabled: !pad.key.isEmpty && pad.key.count < 3) { addColor() }
+                        // Down to none (the unthemed look) and up to three; a new space starts on none.
+                        padButton("minus", enabled: !pad.key.isEmpty) { pad.key.removeLast() }
+                        padButton("plus", enabled: pad.key.count < 3) { addColor() }
                     }
                     .padding(.bottom, 20)
                 }
@@ -210,18 +318,36 @@ private struct ColorPad: View {
         .disabled(!enabled)
     }
 
-    /// Handle `i` goes under the pointer; the others keep their place around it.
+    /// Handle `i` goes under the pointer; the others keep their place around it. The main handle is
+    /// drawn to a cardinal hue, the neutral centre or a Pastel colour near it, with a tap as it lands.
     private func place(handle i: Int, at p: CGPoint, centre c: CGPoint) {
         let dx = p.x - c.x, dy = p.y - c.y
         var angle = atan2(dy, dx) * 180 / .pi - Self.offset(i)
         angle = (angle.truncatingRemainder(dividingBy: 360) + 360).truncatingRemainder(dividingBy: 360)
-        let sat = min(1, hypot(dx, dy) / Self.reach)
+        var sat = min(1, hypot(dx, dy) / Self.reach)
+        var exact: String?
+        if i == 0 {
+            let snap = ThemePickerSnap.snap(hue: Double(angle), saturation: Double(sat))
+            if snap.target != snappedTo {
+                if snap.target != nil { PickerHaptics.tick() }
+                snappedTo = snap.target
+            }
+            angle = CGFloat(snap.hue)
+            sat = CGFloat(snap.saturation)
+            if case .swatch(let hex)? = snap.target { exact = hex }
+        }
         let count = max(1, pad.key.count)
-        pad.key = (0..<count).map { Self.hex(hue: angle + Self.offset($0), saturation: sat) }
+        pad.key = (0..<count).map { n in n == 0 && exact != nil ? exact! : Self.hex(hue: angle + Self.offset(n), saturation: sat) }
     }
 
+    /// The next colour beside the first; on an empty pad the first one, at the default colour's place
+    /// (Pastel's sky blue), spawned there.
     private func addColor() {
-        guard let first = pad.key.first else { return }
+        guard let first = pad.key.first else {
+            pad.key = [SpaceColorPresets.firstPadColour]
+            PickerHaptics.tick()
+            return
+        }
         let (h, s) = Self.wheel(first)
         pad.key.append(Self.hex(hue: h + Self.offset(pad.key.count), saturation: s))
     }
@@ -247,6 +373,7 @@ private struct ColorPad: View {
 /// Auto (sparkles), Light (sun) and Dark (moon) over the pad; the chosen one on a 32 pt tile.
 private struct AppearanceToggles: View {
     @Binding var appearance: String
+    @Environment(\.pickerInk) private var ink
 
     var body: some View {
         HStack(spacing: 7.5) {
@@ -261,7 +388,7 @@ private struct AppearanceToggles: View {
             Image(systemName: symbol)
                 .font(.system(size: 15, weight: .medium))
                 .frame(width: 32, height: 32)
-                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(.white.opacity(appearance == value ? 0.12 : 0)))
+                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(ink.opacity(appearance == value ? 0.12 : 0)))
                 .contentShape(Rectangle())
         }
         .buttonStyle(SpaceStyleButtonStyle(opacity: appearance == value ? 0.8 : 0.55, enabled: appearance != value))
@@ -272,6 +399,7 @@ private struct AppearanceToggles: View {
 /// value and is bright up to the thumb, faint after it.
 private struct WaveSlider: View {
     @Binding var value: Double
+    @Environment(\.pickerInk) private var ink
 
     var body: some View {
         GeometryReader { geo in
@@ -286,21 +414,26 @@ private struct WaveSlider: View {
             }
             let style = StrokeStyle(lineWidth: 4.5, lineCap: .round, lineJoin: .round)
             ZStack(alignment: .leading) {
-                Capsule().fill(.white.opacity(0.1)).frame(height: 15)
-                wave.stroke(.white.opacity(0.25), style: style)
-                wave.stroke(.white.opacity(0.75), style: style).mask(Rectangle().frame(width: x).frame(maxWidth: .infinity, alignment: .leading))
-                Capsule().fill(.white).frame(width: 16, height: 46.5).position(x: x, y: h / 2)
+                Capsule().fill(ink.opacity(0.1)).frame(height: 15)
+                wave.stroke(ink.opacity(0.25), style: style)
+                wave.stroke(ink.opacity(0.75), style: style).mask(Rectangle().frame(width: x).frame(maxWidth: .infinity, alignment: .leading))
+                Capsule().fill(ink).frame(width: 16, height: 46.5).position(x: x, y: h / 2)
             }
             .contentShape(Rectangle())
-            .gesture(DragGesture(minimumDistance: 0).onChanged { g in value = min(max((g.location.x - 8) / (w - 16), 0), 1) })
+            .gesture(DragGesture(minimumDistance: 0).onChanged { g in
+                let new = Double(min(max((g.location.x - 8) / (w - 16), 0), 1))
+                if ThemePickerSnap.crossesDetent(from: value, to: new) { PickerHaptics.tick() }
+                value = new
+            })
         }
     }
 }
 
 /// The grain: a dark disc showing it, a ring of dots lit from twelve o'clock round to a white knob;
-/// turning the knob sets the value.
+/// turning the knob sets the value one dot (a 24th) at a time, with a haptic tap at each.
 private struct GrainDial: View {
     @Binding var value: Double
+    @Environment(\.pickerInk) private var ink
     private let count = 24
 
     var body: some View {
@@ -311,14 +444,14 @@ private struct GrainDial: View {
                 ForEach(0..<count, id: \.self) { i in
                     let a = Double(i) / Double(count) * 2 * .pi - .pi / 2
                     Circle()
-                        .fill(.white.opacity(Double(i) / Double(count) <= value ? 0.55 : 0.18))
+                        .fill(ink.opacity(Double(i) / Double(count) <= value ? 0.55 : 0.18))
                         .frame(width: 3.5, height: 3.5)
                         .position(x: c.x + 34 * cos(a), y: c.y + 34 * sin(a))
                 }
                 Circle().fill(.black.opacity(0.12)).overlay(NoiseDisc(amount: value)).clipShape(Circle())
-                    .overlay(Circle().strokeBorder(.white.opacity(0.12), lineWidth: 1))
+                    .overlay(Circle().strokeBorder(ink.opacity(0.12), lineWidth: 1))
                     .frame(width: 41, height: 41)
-                Capsule().fill(.white).frame(width: 4.5, height: 12)
+                Capsule().fill(ink).frame(width: 4.5, height: 12)
                     .rotationEffect(.radians(knob + .pi / 2))
                     .position(x: c.x + 31 * cos(knob), y: c.y + 31 * sin(knob))
             }
@@ -326,10 +459,65 @@ private struct GrainDial: View {
             .gesture(DragGesture(minimumDistance: 0).onChanged { g in
                 var a = atan2(g.location.y - c.y, g.location.x - c.x) + .pi / 2
                 if a < 0 { a += 2 * .pi }
-                value = a / (2 * .pi)
+                // The grain moves dot by dot round the dial (`count` steps), a tap at each.
+                let new = Double((a / (2 * .pi) * CGFloat(count)).rounded()) / Double(count)
+                guard new != value else { return }
+                // A turn past twelve o'clock jumps to the other end without a tap.
+                if abs(new - value) < 0.5 { PickerHaptics.tick() }
+                value = new
             })
         }
     }
+}
+
+/// Opacity: a track that runs from the checks of a see-through window to solid ink, with the
+/// sliders' white thumb; it ticks every tenth and lands on opaque at its end (ThemeOpacity).
+private struct OpacitySlider: View {
+    @Binding var value: Double
+    @Environment(\.pickerInk) private var ink
+    private let range = ThemeOpacity.range
+
+    var body: some View {
+        GeometryReader { geo in
+            let w = geo.size.width, h = geo.size.height
+            let share = (value - range.lowerBound) / (range.upperBound - range.lowerBound)
+            let x = 8 + (w - 16) * CGFloat(share)
+            ZStack(alignment: .leading) {
+                Capsule().fill(ImagePaint(image: Image(nsImage: Self.checks), scale: 0.5)).opacity(0.5).frame(height: 15)
+                Capsule().fill(LinearGradient(colors: [ink.opacity(0.05), ink.opacity(0.7)], startPoint: .leading, endPoint: .trailing))
+                    .frame(height: 15)
+                Capsule().fill(ink).frame(width: 16, height: 28).position(x: x, y: h / 2)
+            }
+            .contentShape(Rectangle())
+            .gesture(DragGesture(minimumDistance: 0).onChanged { g in
+                let t = Double(min(max((g.location.x - 8) / (w - 16), 0), 1))
+                let new = ThemeOpacity.clamped(range.lowerBound + t * (range.upperBound - range.lowerBound))
+                if new != value, ThemePickerSnap.crossesDetent(from: value, to: new) || new == range.upperBound { PickerHaptics.tick() }
+                value = new
+            })
+        }
+        .help("Opacity")
+        .accessibilityElement()
+        .accessibilityLabel("Opacity")
+        .accessibilityValue("\(Int((value * 100).rounded())) percent")
+        .accessibilityAdjustableAction { direction in
+            let step = direction == .increment ? 0.1 : -0.1
+            value = ThemeOpacity.clamped(value + step)
+        }
+    }
+
+    /// A 2 pt checkerboard, drawn once.
+    private static let checks: NSImage = {
+        let image = NSImage(size: NSSize(width: 8, height: 8), flipped: false) { r in
+            NSColor(white: 0.85, alpha: 1).setFill()
+            r.fill()
+            NSColor(white: 0.55, alpha: 1).setFill()
+            NSRect(x: 0, y: 0, width: 4, height: 4).fill()
+            NSRect(x: 4, y: 4, width: 4, height: 4).fill()
+            return true
+        }
+        return image
+    }()
 }
 
 /// The dial's face: the theme's grain texture at the chosen strength.
@@ -365,11 +553,12 @@ struct SpaceStyleButtonStyle: ButtonStyle {
     var enabled = true
     @State private var isHovered = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.pickerInk) private var ink
 
     func makeBody(configuration: Configuration) -> some View {
         let hot = enabled && isHovered
         return configuration.label
-            .foregroundStyle(.white.opacity(hot ? min(1, opacity + 0.3) : opacity))
+            .foregroundStyle(ink.opacity(hot ? min(1, opacity + 0.3) : opacity))
             .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: hot)
             .onHover { isHovered = $0 }
     }

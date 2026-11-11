@@ -144,6 +144,7 @@ enum BrowserManagerLifecycleTests {
         await nowPlayingResumeWithinHoldCase()
         await nowPlayingPictureInPictureCase()
         nowPlayingSkipsPictureInPictureCase()
+        nowPlayingFollowsPictureInPicturePlaybackCase()
         await leaveVideoTabPictureInPictureCase()
         await splitCopySleepsPinnedTabCase()
         await coveredWindowPictureInPictureCase()
@@ -1103,6 +1104,59 @@ enum BrowserManagerLifecycleTests {
         manager.closeAll()
     }
 
+    /// The card follows the video while it is in Picture in Picture: paused from the floating
+    /// window, or by its close button (which pauses it, as Arc's does), the card comes back paused.
+    /// Before, it came back showing the video playing until the engine's 2 s audible hold ran out,
+    /// and its button paused nothing (10 Nov 2026).
+    @MainActor
+    private static func nowPlayingFollowsPictureInPicturePlaybackCase() {
+        let store = SidebarStore()
+        let manager = BrowserManager(store: store, favicons: FaviconCache(), container: NSView())
+        let np = NowPlaying()
+        manager.nowPlaying = np
+        let a = store.createTab(url: "https://example.test/video").id, b = store.createTab(url: "https://example.test/other").id
+        let ra = manager.ensureRuntime(for: a)!
+        manager.show(b, focus: false)
+        ra.browser.isAudible = true
+        manager.browser(ra.browser, didChangeAudible: true)
+        let enter = {
+            ra.browser.isInPictureInPicture = true
+            manager.browser(ra.browser, didChangePictureInPicture: true)
+        }
+        let leave = {
+            ra.browser.isInPictureInPicture = false
+            manager.browser(ra.browser, didChangePictureInPicture: false)
+        }
+        let playback = { (on: Bool) in
+            ra.browser.isPictureInPicturePlaying = on && ra.browser.isInPictureInPicture
+            manager.browser(ra.browser, didChangePictureInPicturePlayback: on)
+        }
+
+        enter()
+        playback(false)
+        leave()
+        expect(np.shown.first?.playing == false, "paused in the floating window, the card comes back paused")
+
+        enter()
+        playback(true)
+        expect(np.entries.first?.playing == true, "played from the floating window, the card plays too")
+        PictureInPictureChrome.shared.actions?.close()
+        playback(false)
+        leave()
+        expect(ra.browser.isAudible && np.shown.first?.playing == false,
+               "closed (which pauses the video), the card comes back paused while the tab is still held audible")
+
+        manager.browser(ra.browser, didChangeSoundPlaying: true)
+        enter()
+        playback(true)
+        PictureInPictureChrome.shared.isPlaying = true
+        leave()
+        playback(false)
+        expect(np.shown.first?.playing == false, "the video's state reported as it leaves the window reaches the card")
+        expect(PictureInPictureChrome.shared.isPlaying, "and leaves the closed window's controls alone")
+        manager.closeAll()
+    }
+
     /// The player's Picture in Picture button asks the off-screen page through the protocol, as a
     /// user gesture; only a page with no video of its own (a player in an iframe) gets the
     /// context menu's request.
@@ -1618,6 +1672,8 @@ private final class Observer: BrowserManagerDelegate {
         openedLinks.append((url, kind, space, fromIncognito))
     }
     func browserManagerCaptureImage(at point: NSPoint, tabID: UUID) { capturedImages.append((point, tabID)) }
+    func browserManagerPreviewImage(_ url: String?, at point: NSPoint, tabID: UUID) {}
     var splitLinks: [(url: String, tab: UUID)] = []
     func browserManagerOpenLinkInSplit(_ url: String, fromTab tabID: UUID) { splitLinks.append((url, tabID)) }
+    func browserManagerOpenLinkInPeek(_ url: String, fromTab tabID: UUID) {}
 }

@@ -1,0 +1,14 @@
+# A Settings tab (Chromium's own page) shown again after a relaunch opens fresh at its address:
+# putting its saved back/forward list back crashed Cra as the page was made (Cra.restoreHistory).
+cra://open?url=chrome://settings/searchEngines
+wait 4
+expect-log opens a page for settings
+cra://open?url=${PAGE}?n=other
+wait 4
+relaunch
+wait 3
+cra://action/nextTab
+wait 2
+cra://action/previousTab
+wait 4
+expect-log loaded settings

@@ -13,6 +13,9 @@ enum DownloadDestinations {
         self.store = store
         CraCEFRuntime.setDownloadDestinationHandler { profilePath, name, completion in
             MainActor.assumeIsolated {
+                // Chrome's download-started animation plays as soon as the file has somewhere to go,
+                // before Cra hears the download's first update: watch for it from here.
+                ChromeDownloadAnimation.suppress()
                 destination(profilePath: profilePath, suggestedName: name) { completion($0?.path) }
             }
         }

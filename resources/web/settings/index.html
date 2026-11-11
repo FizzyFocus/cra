@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Settings</title>
+<link rel="stylesheet" href="cra://settings/settings.css">
+</head>
+<body>
+<div class="app">
+  <aside class="nav" aria-label="Settings sections">
+    <div class="nav-title">Settings</div>
+    <div class="search">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.6"/><path d="M10.4 10.4 14 14"/></svg>
+      <input id="search" type="search" placeholder="Search settings" autocomplete="off" spellcheck="false">
+    </div>
+    <nav id="sections"></nav>
+    <div class="nav-more">
+      <div class="nav-more-title">More</div>
+      <div id="more"></div>
+    </div>
+  </aside>
+  <main id="main" tabindex="-1">
+    <div class="content" id="content"></div>
+  </main>
+</div>
+
+<dialog id="site-dialog">
+  <form method="dialog" id="site-form">
+    <h2 id="site-dialog-title">Add Site Search</h2>
+    <label class="field"><span>Name</span><input name="name" placeholder="YouTube" required autocomplete="off"></label>
+    <label class="field"><span>Shortcut</span><input name="shortcut" placeholder="yt" required autocomplete="off" spellcheck="false"></label>
+    <label class="field"><span>Query URL</span><input name="url" placeholder="https://www.youtube.com/results?search_query=%s" required autocomplete="off" spellcheck="false"></label>
+    <div class="field color-field">
+      <span>Badge color</span>
+      <div class="color-row">
+        <label class="check"><input type="checkbox" name="ownColor"> Its own color</label>
+        <input type="color" name="color" value="#5E5CE6">
+        <span class="badge-preview" id="badge-preview">yt</span>
+      </div>
+    </div>
+    <p class="hint" id="site-hint">Put %s where the search goes. Without a color of its own, the badge takes the site icon's.</p>
+    <div class="dialog-buttons">
+      <button type="button" class="btn" value="cancel" id="site-cancel">Cancel</button>
+      <button type="submit" class="btn primary" id="site-save">Add</button>
+    </div>
+  </form>
+</dialog>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script src="cra://settings/settings.js"></script>
+</body>
+</html>

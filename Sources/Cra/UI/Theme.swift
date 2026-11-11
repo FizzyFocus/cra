@@ -41,10 +41,17 @@ struct SpacePalette {
     /// undoing the display's P3): out = α·colour + (1 − α)·(66 + 0.52·backdrop) while active,
     /// α·colour + (1 − α)·212 while inactive, with α = 0.19 + 0.55·intensity (fits 0.191,
     /// 0.459, 0.742 at 0, 0.5, 1; within 3/255). isVibrant and the text appearance don't matter.
-    static func solidAlpha(intensity: Double) -> Double { 0.19 + 0.55 * max(0, min(1, intensity)) }
+    static func solidAlpha(intensity: Double) -> Double { ThemeOpacity.solidAlpha(intensity: intensity) }
 
     var gradient: LinearGradient {
         LinearGradient(colors: gradientColors, startPoint: .top, endPoint: .bottom)
+    }
+
+    /// A folder's glyph: its own colour (FolderColor) when it has one, else its icon style.
+    func folderColors(_ style: FolderIconStyle?, color hex: String?) -> (tint: Color, fill: Color, back: Color) {
+        guard let hex, let t = FolderColor.tones(hex, dark: isDark) else { return folderColors(style) }
+        func c(_ v: RGB) -> Color { Color(.sRGB, red: v.r, green: v.g, blue: v.b, opacity: 1) }
+        return (c(t.outline), c(t.front), c(t.back))
     }
 
     /// Outline and fill for a folder glyph; nil (Auto) is the theme's pair.
@@ -96,7 +103,11 @@ extension SpaceTheme {
 
     /// The theme as macOS shows it now: an Auto theme's light or dark half. Read under
     /// observation tracking, a switch of macOS' appearance redraws whatever showed the old half.
-    var shown: SpaceTheme { resolved(systemDark: SystemAppearance.shared.isDark) }
+    /// A space with no colour of its own shows Settings ▸ Appearance ▸ Default color (read under
+    /// observation too: changing it repaints every such space).
+    var shown: SpaceTheme {
+        resolved(systemDark: SystemAppearance.shared.isDark).paintingUnthemed(with: ThemeDefaults.shared.unthemedTint)
+    }
 
     var palette: SpacePalette { shown.fixedPalette }
 
@@ -111,10 +122,9 @@ extension SpaceTheme {
         if stops.count == 1 { stops.append(SpaceTheme.mix(base[0], towardWhite: !dark, amount: pull + 0.15)) }
 
         let folder = FolderTones(themeColor: self.accent ?? base[0], dark: dark)
-        let alphaTop = solid ? SpacePalette.solidAlpha(intensity: intensity)
-            : vibrant ? (dark ? max(0.35, min(0.9, intensity * 2.2)) : min(0.95, intensity * 1.70)) : 1
-        let alphaBottom = solid ? SpacePalette.solidAlpha(intensity: intensity)
-            : vibrant ? (dark ? max(0.35, min(0.9, intensity * 2.2)) : min(0.95, intensity * 2.35)) : 1
+        // How much desktop shows through: the theme's own look or the picker's Opacity (ThemeOpacity).
+        let alphas = ThemeOpacity.alphas(self)
+        let alphaTop = alphas.top, alphaBottom = alphas.bottom
         // Dark themes: Arc's palette tones (shadedDark front, midTone back) read wrong next to Cra's
         // dark sidebar (Victor, 4 Nov), so the folder keeps the earlier white-over-sidebar look, made
         // opaque. Under a translucent theme the sidebar is the top colour over the dark material
@@ -152,10 +162,19 @@ extension SpaceTheme {
             // opacity 0.43 top / 0.59 bottom then matches Arc within ±5 over white and black.
             gradientAlpha: alphaTop,
             gradientAlphaBottom: alphaBottom,
-            vibrant: vibrant || solid,
-            solid: solid
+            vibrant: alphas.seeThrough,
+            solid: solid && alphas.seeThrough
         )
     }
+}
+
+/// Settings ▸ Appearance ▸ Default color, where every view that draws a theme reads it
+/// (AppDelegate keeps it to the setting).
+@Observable
+final class ThemeDefaults: @unchecked Sendable {
+    static let shared = ThemeDefaults()
+    /// Written on the main thread only.
+    var unthemedTint = SpaceColorPresets.defaultTint
 }
 
 /// macOS' light or dark appearance, which an Auto space theme follows (Arc: appearanceBased).

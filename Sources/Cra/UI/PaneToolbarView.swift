@@ -226,6 +226,12 @@ final class PaneToolbarView: NSView {
     /// A pinned extension's button (screen rect), for popups opened from the menu bar or a shortcut.
     func extensionButtonFrameOnScreen(_ id: String) -> NSRect? { buttonFrameOnScreen("ext:" + id) }
 
+    /// The address field (screen rect), for the command bar's list to hang under.
+    func urlFieldFrameOnScreen() -> NSRect? {
+        guard !urlButton.isHiddenOrHasHiddenAncestor, urlButton.frame.width > 0, let window else { return nil }
+        return window.convertToScreen(urlButton.convert(urlButton.bounds, to: nil))
+    }
+
     /// The sliders button (screen rect), for the Site Control Center opened from elsewhere (a toast's Why?).
     func siteControlsButtonFrameOnScreen() -> NSRect? { buttonFrameOnScreen("extensions") }
 
@@ -315,6 +321,9 @@ final class PaneToolbarView: NSView {
                 }
                 b.menuProvider = { ExtensionStore.shared.entries.first { $0.extensionID == id }.map(ExtensionsMenu.iconMenu) }
                 return b
+            case .bookmark:
+                // The star lives in the Extensions popover (SiteControlCenter), not on the bar.
+                return NSView()
             case .extensions:
                 return glyph("extensions", "slider.horizontal.2.square", help: "Extensions", width: rightBox, iconSize: 16) {
                     if let pane = $0.paneTabID { $0.actions.paneExtensionsMenu(pane) } else { $0.actions.showExtensionsMenu() }

@@ -7,7 +7,7 @@ public enum SpaceThemeVariants {
     /// Auto always gets both halves, one colour too (#155): Arc saves a swatch picked on Auto as one
     /// `single` theme that never changes with macOS, and copying that (0.1.30–0.1.32) left a space set
     /// to Auto stuck on one side. An imported Arc `single` stays on its side (ArcThemeImport, #171).
-    public static func theme(key: [String], intensity: Double, noise: Double, appearance: String) -> SpaceTheme {
+    public static func theme(key: [String], intensity: Double, noise: Double, appearance: String, opacity: Double? = nil) -> SpaceTheme {
         var t: SpaceTheme
         switch appearance {
         case "light": t = light(key: key, intensity: intensity, noise: noise)
@@ -15,6 +15,7 @@ public enum SpaceThemeVariants {
         default: t = SpaceTheme(light: light(key: key, intensity: intensity, noise: noise), dark: dark(key: key, intensity: intensity, noise: noise))
         }
         t.key = key
+        t.opacity = opacity.map(ThemeOpacity.clamped)
         return t
     }
 
@@ -71,5 +72,19 @@ public enum SpaceThemeVariants {
         }
         func byte(_ v: Double) -> Int { Int((max(0, min(1, v + m)) * 255).rounded()) }
         return String(format: "#%02X%02X%02X", byte(r), byte(g), byte(b))
+    }
+}
+
+extension SpaceTheme {
+    /// A resolved theme with nothing on its pad, painted `tint` (Settings ▸ Appearance ▸ Default
+    /// color) the way one colour alone on the pad is: flat in Light, Arc's dark shade of it in Dark.
+    /// Its opacity stays its own. A theme with colours is returned as it is.
+    public func paintingUnthemed(with tint: String) -> SpaceTheme {
+        guard colors.isEmpty, let hex = SpaceColorPresets.validTint(tint) else { return self }
+        var t = isDark ? SpaceThemeVariants.dark(key: [hex], intensity: intensity, noise: noise)
+                       : SpaceThemeVariants.light(key: [hex], intensity: intensity, noise: noise)
+        t.key = key
+        t.opacity = opacity
+        return t
     }
 }

@@ -14,3 +14,5 @@ cra://debug?previewDismiss=1
 cra://debug?calendarPreview=1
 expect-log preview card shown: 238x255$
 cra://debug?previewDismiss=1
+# The card takes the sidebar's light or dark: on this light space a light card, not Arc's black one (11 Nov 2026).
+expect-log favorite preview shown \(light\)

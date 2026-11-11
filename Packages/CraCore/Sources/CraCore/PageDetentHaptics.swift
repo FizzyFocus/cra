@@ -40,3 +40,46 @@ public struct PageDetentHaptics: Sendable, Equatable {
         return true
     }
 }
+
+/// Which space a swipe between spaces lands on, decided as the fingers move, not only at the
+/// release: past half way, or moving faster than a flick (pages a second), it is the next or
+/// previous space. A commit made by speed holds while the fingers keep moving that way at half a
+/// flick's speed or more, so a swipe near the flick speed doesn't flip back and forth; it lets
+/// go when they slow down short of half way. The release lands where this says, and the trackpad
+/// taps each time it changes (`changed`): exactly once per page crossed, while the fingers are
+/// still on the glass, where a Force Touch tap is felt. A flick used to tap only after the
+/// fingers had lifted, so it was felt only some of the time.
+public struct SpaceSwipeCommit: Sendable, Equatable {
+    /// Pages a second that commit a swipe to the next or previous space (the release's rule).
+    public static let flick: CGFloat = 0.8
+    /// Below this a commit made by speed lets go (unless the strip is past half way).
+    public static let hold: CGFloat = 0.4
+
+    /// -1, 0 or +1: the space before, the one the swipe began on, or the next.
+    public private(set) var step = 0
+    /// The pages the swipe can land on, from where it began (0).
+    public let pages: ClosedRange<Int>
+
+    public init(pages: ClosedRange<Int> = -1...1) {
+        self.pages = pages.clamped(to: -1...1)
+    }
+
+    /// One sample: where the strip is (pages from the start, + toward the next space) and how fast
+    /// it moves (pages a second). Returns whether the landing space changed: the tap.
+    public mutating func update(position: CGFloat, velocity: CGFloat) -> Bool {
+        guard position.isFinite, velocity.isFinite else { return false }
+        let byPosition = abs(position) > 0.5 ? (position > 0 ? 1 : -1) : 0
+        var next: Int
+        if abs(velocity) > Self.flick {
+            next = velocity > 0 ? 1 : -1
+        } else if step != 0, abs(velocity) >= Self.hold, (velocity > 0) == (step > 0) {
+            next = step
+        } else {
+            next = byPosition
+        }
+        if !pages.contains(next) { next = 0 }
+        guard next != step else { return false }
+        step = next
+        return true
+    }
+}

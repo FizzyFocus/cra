@@ -1,0 +1,23 @@
+# The latest download's bin sits over the Library button. Hovering opens the downloads list: the bin
+# rises into it as its newest row, leaving the button and its "View Library" tip clear, and comes
+# back down as the list closes. It stayed put over the tip (10 Nov 2026; LibraryButtonView.setTucked).
+home
+seed settings.json {"hasSeenImportPrompt": true, "toolbarDefaultMigrated": true}
+cra://open?url=file://${FIXTURES}/Pages/downloads.html
+expect-log loaded file:
+cra://debug?cdp=Input.dispatchMouseEvent&params={"type":"mousePressed","x":36,"y":24,"button":"left","clickCount":1}
+cra://debug?cdp=Input.dispatchMouseEvent&params={"type":"mouseReleased","x":36,"y":24,"button":"left","clickCount":1}
+wait 4
+cra://debug?downloads=1
+wait 1
+expect-log library bin rises into the downloads list
+# The rows sit right above the dock (Arc's 56 pt rows), and the list's hover area runs down into it:
+# moving up from the Library button never crosses a dead strip that closed the list (11 Nov 2026).
+cra://debug?downloadsGeometry=open
+expect-log downloads list open: rows=[1-9][0-9]* gapToDock=(8|9|10|11|12) reachesButton=1 open=1
+# While the list is open the tab list behind it takes no hover (and so no tooltip of its own).
+cra://debug?hover=TabRowView,0
+expect-log hover: TabRowView,0 lit=0
+cra://debug?downloads=0
+wait 1
+expect-log library bin comes back to the Library button

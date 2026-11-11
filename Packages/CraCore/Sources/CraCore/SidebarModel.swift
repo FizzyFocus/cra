@@ -3,8 +3,8 @@ import Foundation
 // Cra's sidebar model. Shape follows what Arc persists in StorableSidebar.json
 // (see docs/arc-reverse-engineering.md): spaces own a favorites, a pinned and a
 // "today" container, tabs/folders are items in a tree keyed by id with explicit
-// child ordering. Unlike Arc, favorites are not shared between spaces unless
-// AppSettings.sharedFavorites is on (FavoritesSharing).
+// child ordering. As in Arc, favorites are one list per profile that every space of that
+// profile shows (AppSettings.sharedFavorites, on by default; FavoritesSharing).
 
 public typealias ItemID = UUID
 
@@ -85,6 +85,9 @@ public struct TabData: Codable, Equatable {
     /// A pinned tab's own page title (Arc: resetTabTitle), last reported while the tab was on it.
     /// Going back to the pinned page shows it again before the page loads (GitHub #139).
     public var homeTitle: String?
+    /// Tab ▸ Load on Start: its page loads when Cra opens, behind the one on screen, and tab
+    /// sleeping leaves it alone. nil is off (and keeps older files as they were).
+    public var loadOnStart: Bool?
 
     public var iconKey: String? { customIconKey ?? faviconKey }
 
@@ -177,6 +180,9 @@ public struct SidebarItem: Identifiable, Codable, Equatable {
     public var data: ItemData
     /// A folder's glyph colour; nil is Auto (it follows the theme).
     public var folderIcon: FolderIconStyle? = nil
+    /// A folder's own colour from Icon Color (FolderColor, a hex), ahead of `folderIcon`. A key of
+    /// its own, so a Cra that predates it still reads the file (its folder follows the theme).
+    public var folderColor: String? = nil
     /// The symbol picked with Change Icon… (Arc's folder icon picker). A key of its own, beside
     /// `folderIcon`, so a Cra that predates symbols still reads the file.
     public var folderSymbol: FolderSymbol? = nil
@@ -202,7 +208,7 @@ public struct SidebarItem: Identifiable, Codable, Equatable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, parentID, title, children, isUnread, createdAt, data, folderIcon, folderSymbol, liveFolder, pluginFolder, tabGroup
+        case id, parentID, title, children, isUnread, createdAt, data, folderIcon, folderColor, folderSymbol, liveFolder, pluginFolder, tabGroup
     }
 
     public init(from decoder: Decoder) throws {
@@ -215,6 +221,7 @@ public struct SidebarItem: Identifiable, Codable, Equatable {
         createdAt = try c.decode(Date.self, forKey: .createdAt)
         data = try c.decode(ItemData.self, forKey: .data)
         folderIcon = try c.decodeIfPresent(FolderIconStyle.self, forKey: .folderIcon)
+        folderColor = try? c.decodeIfPresent(String.self, forKey: .folderColor)
         folderSymbol = try c.decodeIfPresent(FolderSymbol.self, forKey: .folderSymbol)
         liveFolder = try c.decodeIfPresent(LiveFolderData.self, forKey: .pluginFolder)
             ?? c.decodeIfPresent(LiveFolderData.self, forKey: .liveFolder)
@@ -234,6 +241,7 @@ public struct SidebarItem: Identifiable, Codable, Equatable {
         try c.encode(createdAt, forKey: .createdAt)
         try c.encode(data, forKey: .data)
         try c.encodeIfPresent(folderIcon, forKey: .folderIcon)
+        try c.encodeIfPresent(folderColor, forKey: .folderColor)
         try c.encodeIfPresent(folderSymbol, forKey: .folderSymbol)
         try c.encodeIfPresent(liveFolder, forKey: liveFolder?.source == .plugin ? .pluginFolder : .liveFolder)
         try c.encodeIfPresent(tabGroup, forKey: .tabGroup)
@@ -389,7 +397,7 @@ public struct SidebarDocument: Codable, Equatable {
         let fav = SidebarItem.container(.favorites(spaceID: spaceID))
         let pinned = SidebarItem.container(.pinned(spaceID: spaceID))
         let today = SidebarItem.container(.today(spaceID: spaceID))
-        let space = Space(id: spaceID, title: "Personal", emoji: "🌱", theme: SpaceTheme.presets[0], favoritesContainerID: fav.id,
+        let space = Space(id: spaceID, title: "Personal", emoji: "🌱", theme: SpaceColorPresets.firstSpaceTheme(), favoritesContainerID: fav.id,
                           pinnedContainerID: pinned.id, todayContainerID: today.id, createdAt: Date())
         return SidebarDocument(spaceOrder: [spaceID], spaces: [space], items: [fav, pinned, today])
     }
@@ -575,6 +583,9 @@ public struct AppSettings: Codable, Equatable {
     public var blockAdsAndTrackers: Bool = true
     /// Dia's Tabs ▸ "Haptic feedback when reordering tabs" (tabReorderingHapticsEnabled).
     public var hapticFeedbackOnReorder: Bool = true
+    /// Settings ▸ Tabs: a middle click on a tab unloads it (its page leaves memory, the tab stays
+    /// and loads again when shown) instead of closing it as Arc and Chrome do.
+    public var middleClickUnloadsTab: Bool = true
     /// Dia's Advanced ▸ "Warn before quitting" (shouldWarnBeforeQuitting, off by default).
     public var warnBeforeQuitting: Bool = false
     /// GitHub #231, not in Arc (Arc quits on ⌘Q): ⌘Q puts the pages away and Cra stays in the menu
@@ -640,16 +651,26 @@ public struct AppSettings: Codable, Equatable {
     /// dock's lone space icon) can be hidden, for people who don't use spaces.
     public var showSpaceHeaderOnSingleSpace: Bool = true
     /// GitHub #154: the spaces of one profile show one set of favorites, as Arc's do (a topApps
-    /// container per profile). Off by default: Cra keeps favorites per space (FavoritesSharing).
-    public var sharedFavorites: Bool = false
+    /// container per profile, FavoritesSharing). On by default: favorites are global, pinned in the
+    /// sidebar's chrome under the URL field and still while the spaces change under them. Off, each
+    /// space keeps its own.
+    public var sharedFavorites: Bool = true
+    /// Cra up to 0.1.x kept favorites per space by default and saved `sharedFavorites` off for
+    /// everyone; settings without this mark share them, once.
+    public var favoritesDefaultMigrated: Bool = true
     /// GitHub #24, not in Arc: the page fills the window with no margin and no rounded
     /// card, like a traditional browser. Off by default.
     public var edgeToEdgeContent: Bool = false
     /// GitHub #91, Settings ▸ Performance: Cra records its own performance on this Mac (stalls,
-    /// CPU and memory per process, tab timings) for Help ▸ Export Diagnostics. On by default in
-    /// early releases; nothing leaves the Mac. Changing the default needs no migration.
+    /// CPU and memory per process, tab timings) for Help ▸ Export Diagnostics; nothing leaves the
+    /// Mac. Off by default since 11 Nov 2026 (macOS flagged Cra as using significant energy: its 5 s
+    /// process samples and 2 Hz watchdog ran all day): it runs while Settings ▸ Performance is on
+    /// screen, and all the time only when switched on there.
     public var perfRecording: Bool = AppSettings.perfRecordingDefault
-    public static let perfRecordingDefault = true
+    public static let perfRecordingDefault = false
+    /// Set once a settings file from before 11 Nov 2026 (which saved recording on, the old default)
+    /// has had it turned off; one switched on after that stays on.
+    public var perfRecordingOffMigrated: Bool = true
     /// Settings ▸ Performance ▸ "Hide site names": every site in the diagnostics zip becomes site-N.
     public var perfHidesSiteNames: Bool = false
     /// Arc Max's Tidy Tabs (tidyTabsEnabled), done by the Mac's Apple Intelligence model: the Today
@@ -672,6 +693,27 @@ public struct AppSettings: Codable, Equatable {
     public mutating func setDownloadLocation(_ location: DownloadLocation, profileID: UUID?) {
         downloadLocations[DownloadLocation.key(profileID: profileID)] = location == DownloadLocation() ? nil : location
     }
+
+    /// Settings ▸ Appearance: how see-through a new space starts (SpaceTheme.opacity), a subtle
+    /// frosted look by default; 1 is opaque.
+    public var defaultSpaceOpacity: Double = AppSettings.defaultSpaceOpacityDefault
+    public static let defaultSpaceOpacityDefault = 0.88
+    /// Settings ▸ Appearance ▸ Default color: what a space with no colour of its own is painted
+    /// (11 Nov 2026), Arc's pastel sky blue unless changed; it was a neutral grey that read as white.
+    public var defaultSpaceTint: String = SpaceColorPresets.defaultTint
+    /// Settings ▸ Appearance ▸ Sidebar ▸ "Animate sidebar docking": docking and undocking glide
+    /// (SidebarMotion.smoothDuration); off, they snap as in Arc.
+    public var animateSidebarDocking: Bool = false
+    /// Settings ▸ Search Engines: the site searches the user added.
+    public var customSiteSearches: [CustomSiteSearch] = []
+    /// A pill colour picked for a site search (its keyword or host, lower case → "#RRGGBB").
+    public var siteSearchColors: [String: String] = [:]
+    /// Settings ▸ Privacy & Advanced: Chromium draws on the GPU; off takes effect after a relaunch.
+    public var hardwareAcceleration: Bool = true
+    /// Settings ▸ Search Engines: the built-in site searches (Arc's sites, Chromium's keywords) taken
+    /// off the list, by key (SiteSearch.host, lower case). Tab no longer offers them. Editing one
+    /// hides it and adds the edited copy to `customSiteSearches`.
+    public var hiddenSiteSearches: Set<String> = []
 
     public init() {}
 
@@ -853,6 +895,7 @@ extension AppSettings {
         openLinksInForeground = try c.decodeIfPresent(Bool.self, forKey: .openLinksInForeground) ?? false
         folderPreviews = try c.decodeIfPresent(Bool.self, forKey: .folderPreviews) ?? true
         hapticFeedbackOnReorder = try c.decodeIfPresent(Bool.self, forKey: .hapticFeedbackOnReorder) ?? true
+        middleClickUnloadsTab = try c.decodeIfPresent(Bool.self, forKey: .middleClickUnloadsTab) ?? true
         warnBeforeQuitting = try c.decodeIfPresent(Bool.self, forKey: .warnBeforeQuitting) ?? false
         keepInMenuBar = try c.decodeIfPresent(Bool.self, forKey: .keepInMenuBar) ?? false
         autoArchiveEnabled = try c.decodeIfPresent(Bool.self, forKey: .autoArchiveEnabled) ?? true
@@ -881,14 +924,28 @@ extension AppSettings {
         calendarMeetingLink = (try? c.decodeIfPresent(CalendarPreview.LinkTiming.self, forKey: .calendarMeetingLink)) ?? .twoMinutes
         searchSuggestions = try c.decodeIfPresent(Bool.self, forKey: .searchSuggestions) ?? true
         showSpaceHeaderOnSingleSpace = try c.decodeIfPresent(Bool.self, forKey: .showSpaceHeaderOnSingleSpace) ?? true
-        sharedFavorites = try c.decodeIfPresent(Bool.self, forKey: .sharedFavorites) ?? false
+        // Without the mark the file predates global favorites: they become shared, once.
+        if try c.decodeIfPresent(Bool.self, forKey: .favoritesDefaultMigrated) == true {
+            sharedFavorites = try c.decodeIfPresent(Bool.self, forKey: .sharedFavorites) ?? true
+        }
         edgeToEdgeContent = try c.decodeIfPresent(Bool.self, forKey: .edgeToEdgeContent) ?? false
         perfRecording = try c.decodeIfPresent(Bool.self, forKey: .perfRecording) ?? Self.perfRecordingDefault
+        // Files that predate the off default saved it on without anyone choosing it: off, once.
+        if (try? c.decodeIfPresent(Bool.self, forKey: .perfRecordingOffMigrated)) == nil { perfRecording = false }
+        perfRecordingOffMigrated = true
         perfHidesSiteNames = try c.decodeIfPresent(Bool.self, forKey: .perfHidesSiteNames) ?? false
         tidyTabs = try c.decodeIfPresent(Bool.self, forKey: .tidyTabs) ?? true
         tidyTabTitles = try c.decodeIfPresent(Bool.self, forKey: .tidyTabTitles) ?? false
         tidyDownloads = try c.decodeIfPresent(Bool.self, forKey: .tidyDownloads) ?? false
         downloadLocations = (try? c.decodeIfPresent([String: DownloadLocation].self, forKey: .downloadLocations)) ?? [:]
+        defaultSpaceOpacity = ThemeOpacity.clamped((try? c.decodeIfPresent(Double.self, forKey: .defaultSpaceOpacity)) ?? Self.defaultSpaceOpacityDefault)
+        defaultSpaceTint = (try? c.decodeIfPresent(String.self, forKey: .defaultSpaceTint)).flatMap { $0 }.flatMap(SpaceColorPresets.validTint)
+            ?? SpaceColorPresets.defaultTint
+        customSiteSearches = (try? c.decodeIfPresent([CustomSiteSearch].self, forKey: .customSiteSearches)) ?? []
+        siteSearchColors = (try? c.decodeIfPresent([String: String].self, forKey: .siteSearchColors)) ?? [:]
+        hardwareAcceleration = try c.decodeIfPresent(Bool.self, forKey: .hardwareAcceleration) ?? true
+        animateSidebarDocking = (try? c.decodeIfPresent(Bool.self, forKey: .animateSidebarDocking)) ?? false
+        hiddenSiteSearches = (try? c.decodeIfPresent(Set<String>.self, forKey: .hiddenSiteSearches)) ?? []
     }
 }
 
@@ -966,6 +1023,7 @@ extension TabData {
         liveGoneAt = try c.decodeIfPresent(Date.self, forKey: .liveGoneAt)
         themeColor = try c.decodeIfPresent(String.self, forKey: .themeColor)
         homeTitle = try c.decodeIfPresent(String.self, forKey: .homeTitle)
+        loadOnStart = try c.decodeIfPresent(Bool.self, forKey: .loadOnStart)
     }
 }
 

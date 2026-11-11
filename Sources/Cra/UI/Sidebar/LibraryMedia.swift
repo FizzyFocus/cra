@@ -101,6 +101,12 @@ final class MediaRowCell: NSView {
 
     override var isFlipped: Bool { true }
 
+    /// Where `path`'s picture is drawn on screen, if it is one of this row's.
+    func thumbnailOnScreen(for path: String) -> NSRect? {
+        guard let window, visibleRect.width > 0, let t = tiles.first(where: { !$0.isHidden && $0.path == path }) else { return nil }
+        return window.convertToScreen(t.convert(t.pictureFrame, to: nil))
+    }
+
     func show(_ files: [MediaLibrary.File], ink: NSColor) {
         while tiles.count < 2 {
             let t = MediaTile()
@@ -126,17 +132,19 @@ final class MediaRowCell: NSView {
     }
 }
 
-final class MediaTile: NSView, NSDraggingSource {
+final class MediaTile: NSView, NSDraggingSource, PointerHover {
     var open: (MediaLibrary.File, NSRect?) -> Void = { _, _ in }
     var contextMenu: (MediaLibrary.File) -> NSMenu? = { _ in nil }
 
     override func menu(for event: NSEvent) -> NSMenu? { file.flatMap(contextMenu) }
     private var file: MediaLibrary.File?
+    var path: String? { file?.path }
+    var pictureFrame: NSRect { picture.frame }
     private var ink: NSColor = .white
     private let picture = CALayer()
     /// Arc marks a video with a white ▶ over its picture.
     private let play = NSImageView()
-    private var hovering = false { didSet { refresh() } }
+    var hovering = false { didSet { if hovering != oldValue { refresh() } } }
     private var downAt: NSPoint?
 
     override init(frame: NSRect) {
@@ -207,11 +215,15 @@ final class MediaTile: NSView, NSDraggingSource {
 
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
-        trackingAreas.forEach(removeTrackingArea)
-        addTrackingArea(NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeInActiveApp, .inVisibleRect], owner: self))
+        trackPointer([.mouseEnteredAndExited, .activeInActiveApp])
     }
 
-    override func mouseEntered(with event: NSEvent) { hovering = true }
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        syncHover()
+    }
+
+    override func mouseEntered(with event: NSEvent) { syncHover() }
     override func mouseExited(with event: NSEvent) { hovering = false }
     override func mouseDown(with event: NSEvent) { downAt = event.locationInWindow }
 

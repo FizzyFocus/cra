@@ -63,6 +63,8 @@ final class TabRuntime {
 @MainActor
 protocol BrowserManagerDelegate: AnyObject {
     func browserManagerDidUpdate(_ tabID: UUID)
+    /// A page opened a tab (a link, a pop-up); `background` when it stayed behind the open one.
+    func browserManagerOpenedTab(_ tabID: UUID, background: Bool)
     func browserManager(statusMessage: String)
     /// Find in page results for the visible tab; -1 = no new value.
     func browserManager(findMatches count: Int, activeMatch: Int)
@@ -90,8 +92,16 @@ protocol BrowserManagerDelegate: AnyObject {
     func browserManagerOpenLink(_ url: String, in kind: CraLinkWindow, space: UUID?, fromIncognito: Bool)
     /// The page's context menu: Open Link in Split View, a pane beside `tabID`'s (#257).
     func browserManagerOpenLinkInSplit(_ url: String, fromTab tabID: UUID)
+    /// The page's context menu: Open Link in Peek, over the window, whatever the Peek settings say.
+    func browserManagerOpenLinkInPeek(_ url: String, fromTab tabID: UUID)
     /// The page's context menu on an image: Capture Image… (page points from the top left).
     func browserManagerCaptureImage(at point: NSPoint, tabID: UUID)
+    /// Open Image in Preview: the image at `url`, shown at `point` (page points from the top left).
+    func browserManagerPreviewImage(_ url: String?, at point: NSPoint, tabID: UUID)
+}
+
+extension BrowserManagerDelegate {
+    func browserManagerOpenedTab(_ tabID: UUID, background: Bool) {}
 }
 
 /// A page's permission request on its way to Cra's sheet; `completion` answers it in Chromium.
@@ -494,6 +504,28 @@ final class BrowserManager: NSObject, @preconcurrency CraBrowserDelegate {
         delegate?.browserManagerPageWindowsChanged(focus: false)
     }
 
+    /// Unload Tab (the tab's menu, a middle click, ⇧ on its close button): the page leaves memory
+    /// now, discarded in place as tab sleeping does it, so Chromium keeps its back/forward list and
+    /// scroll position and the tab its title and icon; a page Chromium won't discard closes and its
+    /// tab loads the address again. Showing the tab loads it (wake). Not a page on screen.
+    func unloadTab(_ id: UUID) {
+        guard let rt = runtimes[id], !rt.discarded, !visibleTabIDs.contains(id) else { return }
+        log(id, "unloads its page")
+        rt.browser.sendDevToolsMethod("Cra.discard", params: "{}") { [weak self, weak rt] result, error in
+            DispatchQueue.main.async {
+                guard let self, let rt, self.runtimes[id] === rt, !self.visibleTabIDs.contains(id) else { return }
+                let discarded = error == nil && Self.jsonObject(result)?["discarded"] as? Bool == true
+                self.sleptTabs.insert(id)
+                guard discarded else { return self.unload(id) }
+                rt.discarded = true
+                rt.sleepRefusal = nil
+                self.nowPlaying?.remove(id)
+                if rt.freezeVoted { self.setFreezingVote(rt, false) }
+                self.delegate?.browserManagerDidUpdate(id)
+            }
+        }
+    }
+
     // MARK: Tab sleeping
 
     /// The pages `policy` picks (by default Arc's: out of sight 4 hours, not one of the 10 tabs
@@ -687,7 +719,10 @@ final class BrowserManager: NSObject, @preconcurrency CraBrowserDelegate {
 
     private var sleepPages: [TabSleepPolicy.Page] {
         // A discarded page has given its memory back, like a closed one: it holds none of the 10 places.
-        runtimes.values.filter { !$0.discarded }.map { TabSleepPolicy.Page(id: $0.tabID, hiddenAt: $0.hiddenAt, audibleAt: $0.audibleAt) }
+        runtimes.values.filter { !$0.discarded }.map {
+            TabSleepPolicy.Page(id: $0.tabID, hiddenAt: $0.hiddenAt, audibleAt: $0.audibleAt,
+                                loadOnStart: store.item($0.tabID)?.tab?.loadOnStart == true)
+        }
     }
 
     /// The tabs on screen now, then the ones hidden most recently, up to `protectedRecentTabs`.
@@ -897,8 +932,15 @@ final class BrowserManager: NSObject, @preconcurrency CraBrowserDelegate {
         }
     }
 
+    /// The video in Picture in Picture played or paused: from the floating window's controls, its
+    /// close button (which pauses it), the page, or the state it left the window in. The sidebar's
+    /// card follows at once rather than after the engine's 2 s audible hold, so it doesn't come
+    /// back from Picture in Picture showing a paused video playing.
     func browser(_ browser: CraBrowser, didChangePictureInPicturePlayback playing: Bool) {
-        PictureInPictureChrome.shared.isPlaying = playing
+        if browser.isInPictureInPicture { PictureInPictureChrome.shared.isPlaying = playing }
+        guard let id = tabID(of: browser), nowPlaying?.entries.contains(where: { $0.id == id && $0.playing != playing }) == true else { return }
+        nowPlaying?.update(id) { $0.playing = playing }
+        delegate?.browserManagerDidUpdate(id)
     }
 
     /// Picture in Picture's "back to tab": select the tab, bring its window up
@@ -1353,6 +1395,11 @@ final class BrowserManager: NSObject, @preconcurrency CraBrowserDelegate {
         delegate?.browserManagerCaptureImage(at: point, tabID: id)
     }
 
+    func browser(_ browser: CraBrowser, requestsPreviewOfImageURL url: String, at point: NSPoint) {
+        guard let id = tabID(of: browser) else { return }
+        delegate?.browserManagerPreviewImage(url.isEmpty ? nil : url, at: point, tabID: id)
+    }
+
     func browser(_ browser: CraBrowser, requestsWindowWithURL url: String, kind: CraLinkWindow) {
         guard let id = tabID(of: browser) else { return }
         delegate?.browserManagerOpenLink(url, in: kind, space: store.spaceID(ofItem: id), fromIncognito: browser.isIncognito)
@@ -1361,6 +1408,11 @@ final class BrowserManager: NSObject, @preconcurrency CraBrowserDelegate {
     func browser(_ browser: CraBrowser, requestsSplitPaneWithURL url: String) {
         guard let id = tabID(of: browser) else { return }
         delegate?.browserManagerOpenLinkInSplit(url, fromTab: id)
+    }
+
+    func browser(_ browser: CraBrowser, requestsPeekWithURL url: String) {
+        guard let id = tabID(of: browser), !browser.isIncognito else { return }
+        delegate?.browserManagerOpenLinkInPeek(url, fromTab: id)
     }
 
     /// An Option-clicked link, which Chromium downloads, opens in Split View as in Arc (#298).
@@ -1378,27 +1430,40 @@ final class BrowserManager: NSObject, @preconcurrency CraBrowserDelegate {
         // cra:// is Cra's scripting scheme (DevTools Protocol, key presses); a page must not drive it.
         if url.lowercased().hasPrefix("cra:") { return }
         let sourceSpace = source.flatMap { store.spaceID(ofItem: $0) }
-        let parentIndex = source.flatMap { id -> Int? in
-            guard let it = store.item(id), let p = it.parentID, store.rootContainer(of: id) != nil,
-                  case .today = store.rootContainer(of: id)! else { return nil }
-            return (store.item(p)?.children.firstIndex(of: id) ?? -1) + 1
-        }
-        // Links from a today tab open right below it (Arc); otherwise at the top. Back on the new
-        // tab, with no page behind, closes it and shows `source` again (#273).
+        let parentIndex = linkTabIndex(from: source)
+        // Links from a today tab open below it, each under the last one it opened (TabLineage);
+        // otherwise at the top. Back on the new tab, with no page behind, closes it and shows
+        // `source` again (#273).
         let tab = store.createTab(url: url, in: sourceSpace, select: !background,
                                   parent: parentIndex != nil ? source.flatMap { store.item($0)?.parentID } : nil,
                                   index: parentIndex, window: windowID, referrer: source)
+        if parentIndex != nil, let source { store.noteOpened(tab.id, from: source) }
+        delegate?.browserManagerOpenedTab(tab.id, background: background)
         if background {
             store.markUnread(tab.id, true)
             ensureRuntime(for: tab.id)  // load it so the title and favicon fill in
         }
     }
 
+    /// Where a link from `source` opens among its list: under the run of tabs it opened, while it
+    /// is a Today tab (TabLineage); nil for the list's own place (the top).
+    private func linkTabIndex(from source: UUID?) -> Int? {
+        guard let id = source, let it = store.item(id), let p = it.parentID, let root = store.rootContainer(of: id),
+              case .today = root, let siblings = store.item(p)?.children else { return nil }
+        return TabLineage.insertionIndex(after: id, in: siblings, lineage: store.tabLineage)
+    }
+
     func browser(_ browser: CraBrowser, popupHostForURL url: String, inBackground background: Bool) -> CraBrowser? {
         if url.lowercased().hasPrefix("cra:") { return nil }
         let source = tabID(of: browser)
         let sourceSpace = source.flatMap { store.spaceID(ofItem: $0) }
-        let tab = store.createTab(url: url, in: sourceSpace, select: !background, window: windowID, referrer: source)
+        // A target=_blank link with an opener lines up under its tab like any other link.
+        let parentIndex = linkTabIndex(from: source)
+        let tab = store.createTab(url: url, in: sourceSpace, select: !background,
+                                  parent: parentIndex != nil ? source.flatMap { store.item($0)?.parentID } : nil,
+                                  index: parentIndex, window: windowID, referrer: source)
+        if parentIndex != nil, let source { store.noteOpened(tab.id, from: source) }
+        delegate?.browserManagerOpenedTab(tab.id, background: background)
         if background { store.markUnread(tab.id, true) }
         let host = makePopupHost(for: tab.id, opener: browser)
         if !background { show(tab.id, focus: true) }

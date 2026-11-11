@@ -1,0 +1,127 @@
+# A download clicked in the tray over the Library button or on Library ▸ Downloads opens Arc's preview
+# over the window instead of its app (11 Nov 2026): a picture drawn, a PDF, a text file and a CSV in
+# Quick Look, a video playing with Arc's round button (Space pauses it). ‹ › and the arrow keys step
+# through the list's other files it shows, in the list's order, and stop at its ends; Esc or a click
+# on the dimmed window closes it. A ZIP still opens in its app. Chrome's own download animation (a
+# white 64 pt glyph, a window of its own since Chromium 156) is hidden beside Arc's.
+home
+# Quick Look's first view (about 0.2 s), the first video and the 80 KB fixture page stall the main thread once each.
+budget rss=700 stalls50=10
+cra://open?url=file://${FIXTURES}/Pages/previews.html
+expect-log loaded file:
+# Swatch.png
+cra://debug?cdp=Input.dispatchMouseEvent&params={"type":"mousePressed","x":36,"y":16,"button":"left","clickCount":1}
+cra://debug?cdp=Input.dispatchMouseEvent&params={"type":"mouseReleased","x":36,"y":16,"button":"left","clickCount":1}
+wait 1.5
+# notes.txt
+cra://debug?cdp=Input.dispatchMouseEvent&params={"type":"mousePressed","x":36,"y":48,"button":"left","clickCount":1}
+cra://debug?cdp=Input.dispatchMouseEvent&params={"type":"mouseReleased","x":36,"y":48,"button":"left","clickCount":1}
+wait 1.5
+# Report.pdf
+cra://debug?cdp=Input.dispatchMouseEvent&params={"type":"mousePressed","x":36,"y":80,"button":"left","clickCount":1}
+cra://debug?cdp=Input.dispatchMouseEvent&params={"type":"mouseReleased","x":36,"y":80,"button":"left","clickCount":1}
+wait 1.5
+# table.csv
+cra://debug?cdp=Input.dispatchMouseEvent&params={"type":"mousePressed","x":36,"y":112,"button":"left","clickCount":1}
+cra://debug?cdp=Input.dispatchMouseEvent&params={"type":"mouseReleased","x":36,"y":112,"button":"left","clickCount":1}
+wait 1.5
+# clip.mp4
+cra://debug?cdp=Input.dispatchMouseEvent&params={"type":"mousePressed","x":36,"y":144,"button":"left","clickCount":1}
+cra://debug?cdp=Input.dispatchMouseEvent&params={"type":"mouseReleased","x":36,"y":144,"button":"left","clickCount":1}
+wait 1.5
+# archive.zip
+cra://debug?cdp=Input.dispatchMouseEvent&params={"type":"mousePressed","x":36,"y":176,"button":"left","clickCount":1}
+cra://debug?cdp=Input.dispatchMouseEvent&params={"type":"mouseReleased","x":36,"y":176,"button":"left","clickCount":1}
+wait 1.5
+expect-log chrome download animation hidden \(64x64\)
+# The tray lists the newest five, oldest first: notes.txt, Report.pdf, table.csv, clip.mp4, archive.zip.
+cra://debug?previewDownload=notes.txt
+expect-log media preview opens notes.txt \(document, downloads\)
+cra://debug?previewState=first
+expect-log media preview first: shown name=notes.txt kind=document index=1/4 source=downloads open="Open( in [^"]+)?" back=0 forward=1
+cra://debug?previewKey=left
+cra://debug?previewState=start
+expect-log media preview start: shown name=notes.txt kind=document index=1/4
+cra://debug?previewKey=right
+expect-log media preview shows Report.pdf \(document\)
+cra://debug?previewKey=right
+expect-log media preview shows table.csv \(document\)
+cra://debug?previewKey=right
+expect-log media preview shows clip.mp4 \(video\)
+cra://debug?previewState=video
+expect-log media preview video: shown name=clip.mp4 kind=video index=4/4 .*forward=0 .*playing=1
+cra://debug?previewKey=space
+expect-log media preview video pauses
+cra://debug?previewKey=right
+cra://debug?previewState=end
+expect-log media preview end: shown name=clip.mp4 kind=video index=4/4 .*playing=0
+cra://debug?previewKey=escape
+expect-log media preview closes
+wait 0.5
+cra://debug?previewState=closed
+expect-log media preview closed: closed
+# Library ▸ Downloads lists newest first, the picture too: clip.mp4, table.csv, Report.pdf, notes.txt, Swatch.png.
+cra://debug?previewDownload=Swatch.png&from=library
+expect-log media preview opens Swatch.png \(image, downloads\)
+cra://debug?previewState=library
+expect-log media preview library: shown name=Swatch.png kind=image index=5/5 source=downloads .*back=1 forward=0 .*zoom=fit
+# A double-click zooms the picture to 100 % and back to fitting the panel (pinch and drag do the rest).
+cra://debug?previewZoom=1
+expect-log media preview zooms to 100%
+wait 0.5
+cra://debug?previewState=zoomed
+expect-log media preview zoomed: .*zoom=100%
+cra://debug?previewZoom=1
+expect-log media preview zooms to fit
+wait 0.5
+cra://debug?previewState=fitted
+expect-log media preview fitted: .*zoom=fit
+cra://debug?previewBackdrop=1
+wait 0.5
+cra://debug?previewState=backdrop
+expect-log media preview backdrop: closed
+cra://debug?previewDownload=archive.zip
+expect-log media preview: archive.zip opens in its app
+reject-log media preview opens archive.zip
+# From the tray: the tray stays out behind the preview, which closes back into the row's thumbnail;
+# closed, the tray waits 3 s for the pointer before it goes, and a preview opened from it meanwhile
+# grows out of its row (11 Nov 2026).
+cra://debug?previewDownload=table.csv
+expect-log media preview opens table.csv
+wait 1
+cra://debug?downloadsGeometry=held
+expect-log downloads list held: .*open=1
+# A click between two rows lands on the list and does nothing; below the last row it reaches the
+# Library button (11 Nov 2026: it went through to the tab under the list).
+cra://debug?downloadsHit=held
+expect-log downloads list hit held: gap=DownloadsTrayView below=[A-Za-z]+
+reject-log downloads list hit held: .*below=DownloadsTrayView
+cra://debug?previewKey=escape
+expect-log media preview closes into its item \(table.csv\)
+expect-log downloads list waits 3 s after the preview
+wait 0.5
+cra://debug?previewDownload=Report.pdf
+expect-log media preview grows from its item \(Report.pdf\)
+cra://debug?previewKey=escape
+wait 1
+cra://debug?downloadsGeometry=grace
+expect-log downloads list grace: .*open=1
+wait 3.5
+cra://debug?downloadsGeometry=gone
+expect-log downloads list gone: .*open=0
+# In the floating sidebar: the sidebar stays out while the preview is up; once it slides away (here
+# during the tray's 3 s wait) the open tray goes with it as it is and closes out of sight, one motion.
+cra://action/toggleSidebar
+wait 1
+cra://debug?floatingSidebar=1
+wait 1
+cra://debug?previewDownload=notes.txt
+expect-log media preview opens notes.txt
+wait 1
+cra://debug?previewKey=escape
+wait 0.5
+cra://debug?floatingSidebar=0
+expect-log downloads list leaves with the floating sidebar
+wait 1
+cra://debug?downloadsGeometry=after-slide
+expect-log downloads list after-slide: .*open=0

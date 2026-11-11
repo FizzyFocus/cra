@@ -1,10 +1,32 @@
 import AppKit
 import SwiftUI
 
-/// Arc's dialog card (measured against Arc 1.172.1's Quit and Delete Space sheets, 7 Nov 2026: #161C2F).
+/// The open dialog's colours (CraCore DialogTones, 11 Nov 2026): from the space of the window it
+/// opens over, a light space's frosted pastel with dark text or a dark space's own dark tone with
+/// light text. Arc's navy (#161C2F, Arc 1.172.1's Quit and Delete Space sheets) before any space.
+/// DialogPanel sets them as a dialog opens; the shapes, type and buttons' places stay Arc's.
+@MainActor
 enum DialogTheme {
-    static let card = Color(hex: "#161C2F")
-    static let body = Color(hex: "#B8B9C4")
+    static var tones = DialogTones.arc
+    /// The tones for a dialog over a window: the app answers with that window's space's
+    /// (AppDelegate sets it at launch; a test harness without one gets Arc's navy).
+    static var resolve: ((NSWindow?) -> DialogTones)?
+
+    static func follow(_ parent: NSWindow?) { tones = resolve?(parent) ?? .arc }
+
+    static func color(_ t: DialogTones.Tone) -> Color { Color(hex: t.hex).opacity(t.alpha) }
+    static var card: Color { color(tones.card) }
+    static var edge: Color { color(tones.edge) }
+    static var title: Color { color(tones.title) }
+    static var body: Color { color(tones.body) }
+    static var muted: Color { color(tones.muted) }
+    static var placeholder: Color { color(tones.placeholder) }
+    static var fieldFill: Color { color(tones.fieldFill) }
+    static var fieldStroke: Color { color(tones.fieldStroke) }
+    static var avatarFace: Color { color(tones.avatarFace) }
+    static var avatarRim: Color { color(tones.avatarRim) }
+    static var avatarInk: Color { color(tones.avatarInk) }
+    static var colorScheme: ColorScheme { tones.dark ? .dark : .light }
 }
 
 /// The card a dialog draws on. The sheet it sits in already has macOS's 1 pt light edge, as Arc's does,
@@ -13,9 +35,13 @@ struct DialogSurface: ViewModifier {
     var cornerRadius: CGFloat = 24
 
     func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
         content
-            .background(DialogTheme.card, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-            .environment(\.colorScheme, .dark)
+            .background(DialogTheme.card, in: shape)
+            // Light: the pastel over a frost of what is behind (the card is a little see-through).
+            .background { if !DialogTheme.tones.dark { shape.fill(.regularMaterial) } }
+            .overlay(shape.strokeBorder(DialogTheme.edge, lineWidth: 1).allowsHitTesting(false))
+            .environment(\.colorScheme, DialogTheme.colorScheme)
     }
 }
 
@@ -25,7 +51,7 @@ struct DialogButton: View {
 
         /// Arc 1.172.1's Quit sheet under the pointer: 10 % white over Cancel (#302F60 → #454470, its key
         /// badge too), 10 % black over Quit (#3339F1 → #2D33D9).
-        var hoverTint: Color { self == .secondary ? .white : .black }
+        @MainActor var hoverTint: Color { self == .secondary && DialogTheme.tones.dark ? .white : .black }
     }
     let title: String
     let key: String
@@ -55,17 +81,23 @@ struct DialogButton: View {
     private var primary: Bool { style != .secondary }
 
     var body: some View {
-        Button(action: action) {
+        let t = DialogTheme.tones
+        return Button(action: action) {
             HStack(spacing: 9) {
                 Text(title).font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(accent || destructive ? .white : enabled ? Color(hex: "#EBEBEF") : Color(hex: "#5B5C7F"))
+                    .foregroundStyle(accent || destructive ? .white
+                                     : primary && !DialogTheme.tones.dark ? (enabled ? .white : .white.opacity(0.6))
+                                     : enabled ? DialogTheme.color(t.secondaryText) : DialogTheme.color(t.secondaryText).opacity(0.4))
                 if !key.isEmpty {
                     Text(key).font(.system(size: key == "↩" ? 13 : 11, weight: .bold))
-                        .foregroundStyle(destructive ? .white : accent ? Color(hex: "#EDEDFF") : enabled ? Color(hex: "#B7B7DD") : Color(hex: "#5F6193"))
+                        .foregroundStyle(destructive ? .white : accent ? Color(hex: "#EDEDFF")
+                                         : primary && !DialogTheme.tones.dark ? .white.opacity(enabled ? 0.85 : 0.5)
+                                         : DialogTheme.color(t.keyText).opacity(enabled ? 1 : 0.5))
                         .frame(minWidth: badge?.width ?? 27, maxWidth: badge?.width, minHeight: badge?.height ?? 19, maxHeight: badge?.height)
                         .padding(.horizontal, badge != nil || key == "↩" ? 0 : 2)
                         .background(RoundedRectangle(cornerRadius: badge == nil ? 5 : 3, style: .continuous)
-                            .fill(destructive ? Color(hex: "#F74C31") : accent ? Color(hex: "#464DFB") : primary ? Color(hex: enabled ? "#4E4C9A" : "#222469") : Color(hex: "#4E4C77")))
+                            .fill(destructive ? Color(hex: "#F74C31") : accent ? Color(hex: "#464DFB")
+                                  : primary ? DialogTheme.color(t.primaryKeyFill).opacity(enabled ? 1 : 0.5) : DialogTheme.color(t.keyFill)))
                         .overlay(RoundedRectangle(cornerRadius: badge == nil ? 5 : 3, style: .continuous)
                             .strokeBorder(destructive ? Color(hex: "#FA624C") : accent ? Color(hex: "#6B71FE") : .clear, lineWidth: 1))
                 }
@@ -75,11 +107,13 @@ struct DialogButton: View {
             .frame(height: 37)
             .background(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(destructive ? Color(hex: "#F53516") : accent ? Color(hex: "#3239FB") : primary ? Color(hex: enabled ? "#3B3C8F" : "#1C1D4C") : Color(hex: "#302F60"))
+                    .fill(destructive ? Color(hex: "#F53516") : accent ? Color(hex: "#3239FB")
+                          : primary ? DialogTheme.color(t.primaryFill).opacity(enabled ? 1 : 0.45) : DialogTheme.color(t.secondaryFill))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .strokeBorder(destructive ? Color(hex: "#F53516") : accent ? Color(hex: "#5B61FD") : primary ? (enabled ? Color(hex: "#6362A9") : .clear) : Color(hex: "#6362A9"), lineWidth: 1)
+                    .strokeBorder(destructive ? Color(hex: "#F53516") : accent ? Color(hex: "#5B61FD")
+                                  : primary ? (enabled ? DialogTheme.color(t.primaryStroke) : .clear) : DialogTheme.color(t.secondaryStroke), lineWidth: 1)
             )
             .background(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -156,6 +190,9 @@ final class DialogPanel: NSPanel {
 
     convenience init<Content: View>(over parent: NSWindow?, content: Content) {
         self.init(contentRect: .zero, styleMask: [.titled], backing: .buffered, defer: false)
+        // The dialog's colours from the space it opens over, before its view is made (DialogTheme).
+        DialogTheme.follow(parent)
+        appearance = NSAppearance(named: DialogTheme.tones.dark ? .darkAqua : .aqua)
         isReleasedWhenClosed = false
         isOpaque = false
         backgroundColor = .clear

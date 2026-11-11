@@ -73,3 +73,42 @@ struct PageDetentHapticsTests {
         #expect(haptics.page == 0)
     }
 }
+
+@Suite struct SpaceSwipeCommitTests {
+    /// A slow drag taps once at half way, and once more if it comes back.
+    @Test func aSlowDragTapsAtHalfWay() {
+        var c = SpaceSwipeCommit()
+        let taps = [0.1, 0.3, 0.49, 0.51, 0.7].map { c.update(position: $0, velocity: 0.2) }
+        #expect(taps == [false, false, false, true, false] && c.step == 1)
+        let back = c.update(position: 0.4, velocity: -0.2)
+        #expect(back && c.step == 0, "back short of half way")
+    }
+
+    /// A flick commits early, with the fingers still down: the tap comes then, not after the lift.
+    @Test func aFlickTapsWhileTheFingersAreDown() {
+        var c = SpaceSwipeCommit()
+        let slow = c.update(position: 0.05, velocity: 0.5)
+        let flick = c.update(position: 0.12, velocity: 1.6)
+        let on = c.update(position: 0.2, velocity: 1.9)
+        #expect(!slow && flick && !on && c.step == 1)
+    }
+
+    /// Hovering near the flick speed taps once, not on every sample that crosses it.
+    @Test func nearTheFlickSpeedItDoesNotBuzz() {
+        var c = SpaceSwipeCommit()
+        var taps = 0
+        for (i, v) in [0.85, 0.75, 0.82, 0.6, 0.9, 0.45].enumerated() where c.update(position: 0.1 + 0.03 * CGFloat(i), velocity: v) { taps += 1 }
+        #expect(taps == 1 && c.step == 1)
+        let letGo = c.update(position: 0.3, velocity: 0.1)
+        #expect(letGo && c.step == 0, "slowing down short of half way lets go")
+    }
+
+    /// No space past the ends: nothing to commit to, nothing to tap.
+    @Test func noTapPastTheEnds() {
+        var c = SpaceSwipeCommit(pages: 0...1)
+        let past = c.update(position: -0.8, velocity: -2)
+        #expect(!past && c.step == 0)
+        let next = c.update(position: 0.6, velocity: 0)
+        #expect(next && c.step == 1)
+    }
+}

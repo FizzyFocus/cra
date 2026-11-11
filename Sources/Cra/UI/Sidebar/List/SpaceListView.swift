@@ -97,6 +97,41 @@ final class SpaceListView: NSView, NSDraggingSource {
         for l in all.allObjects where l.ui === ui { l.refreshHover() }
     }
 
+    /// The space shown changed (a shortcut, the dock, a swipe settling on another space): the lists
+    /// slid under a resting pointer, and AppKit sends a view that moves away no exit. Every row lets
+    /// go of its hover and every list forgets the pointer, so coming back to a space shows no row
+    /// still lit; one lights again only when the pointer moves on it.
+    static func spaceChanged(for ui: SidebarUIState) {
+        for l in all.allObjects where l.ui === ui {
+            l.hoverAt(nil)
+            for v in l.views.values where v.isHovered { v.isHovered = false }
+            l.document.forgetPointer()
+        }
+    }
+
+    /// The pages came to rest: the lists' tracking areas are rebuilt where the lists are now (they
+    /// went stale while the strip moved), then the hover follows the pointer as before.
+    static func pagesSettled(for ui: SidebarUIState) {
+        for l in all.allObjects where l.ui === ui {
+            l.document.updateTrackingAreas()
+            l.sweepHover()
+            l.refreshHover()
+        }
+    }
+
+    /// Every row still lit with the pointer not physically on it (its screen position now, not the
+    /// last event) lets go: a row's hover can't outlive the pointer leaving it.
+    private func sweepHover() {
+        guard let w = window else { return }
+        let mouse = NSEvent.mouseLocation
+        for v in views.values where v.isHovered {
+            let onScreen = w.convertToScreen(v.convert(v.visibleRect, to: nil))
+            guard !(w.isVisible && !v.visibleRect.isEmpty && onScreen.contains(mouse)) else { continue }
+            v.isHovered = false
+            if hovered === v { hovered = nil }
+        }
+    }
+
     /// Arc's Spaces page lists a space's tabs without the New Tab row.
     var showsNewTab = true { didSet { if showsNewTab != oldValue { scheduleSync() } } }
 
@@ -218,6 +253,8 @@ final class SpaceListView: NSView, NSDraggingSource {
         let focusID = ui.keyboardFocusID
         let capturing = ui.capturingTabIDs
         let audible = ui.audibleTabIDs
+        // Read under observation, so rows follow pages loading and unloading (showsUnloaded).
+        _ = (ui.unloadedTabIDs, ui.loadedTabIDs, ui.onScreenTabIDs)
         let refreshing = LiveFolderManager.shared.refreshing
         let tidyEffects = TidyTitlesService.shared.effects
         // The ⌘T bar's New Tab row takes the selection's fill while it is open.
@@ -258,7 +295,7 @@ final class SpaceListView: NSView, NSDraggingSource {
             } else if item.isFolder {
                 let expanded = store.isExpanded(item.id)
                 let peeked = expanded ? [] : store.peekedTabs(in: item.id)
-                let glyph = palette.folderColors(item.folderIcon)
+                let glyph = palette.folderColors(item.folderIcon, color: item.folderColor)
                 row.content = .folder(FolderRowModel(
                     id: item.id, depth: depth, title: item.title ?? "Folder", renameText: item.title ?? "",
                     editing: renaming == item.id, expanded: expanded, peeked: !peeked.isEmpty, live: item.isLiveFolder,
@@ -310,7 +347,9 @@ final class SpaceListView: NSView, NSDraggingSource {
                     focusRing: focusID == item.id, developerMode: developerMode, peeked: peeked,
                     homeIcon: homeImg, homeFlipIcon: homeFlip,
                     peekIcon: ui.peekBadges[item.id].flatMap { icon($0.iconKey).0 },
-                    tidyRename: tidyRename))
+                    unloaded: ui.showsUnloaded(item.id, selected: selected), tidyRename: tidyRename,
+                    loading: TabLoadingIndicator.shows(loading: ui.loadingTabIDs.contains(item.id), onScreen: ui.onScreenTabIDs.contains(item.id),
+                                                       unloaded: ui.showsUnloaded(item.id, selected: selected))))
                 out.append(row)
             } else if item.isSplit {
                 let children = store.children(of: item.id).filter(\.isTab)
@@ -399,6 +438,13 @@ final class SpaceListView: NSView, NSDraggingSource {
         let recolor = newColors != colors
         colors = newColors
         let oldFrames = Dictionary(rows.map { ($0.key, $0.frame) }, uniquingKeysWith: { a, _ in a })
+        goneParents = Dictionary(rows.compactMap { r in r.depth > 0 ? r.parent.map { (r.key, $0) } : nil }, uniquingKeysWith: { a, _ in a })
+        oldParents = Dictionary(rows.compactMap { r in r.depth > 0 ? r.itemID.flatMap { id in r.parent.map { (id, $0) } } : nil },
+                                uniquingKeysWith: { a, _ in a })
+        foldersOpen = Dictionary(rows.compactMap { r in
+            if case .folder(let m) = r.content { return (m.id, m.expanded) }
+            return nil
+        }, uniquingKeysWith: { a, _ in a })
         rows = b.rows
         pinnedCount = b.pinnedCount
         highlightPinned = b.highlightPinned
@@ -569,32 +615,164 @@ final class SpaceListView: NSView, NSDraggingSource {
 
     private func placed(_ row: Row) -> NSRect { row.frame.offsetBy(dx: 0, dy: row.decor.nudge) }
 
+    /// Before a rebuild: each nested row's folder, so a row leaving with its folder's close can
+    /// fold back under that folder's row.
+    private var goneParents: [RowKey: UUID] = [:]
+    /// Before a rebuild: whether each folder was open. Only a folder opening or closing folds its
+    /// rows; a tab opened or closed inside an open folder comes and goes in place.
+    private var foldersOpen: [UUID: Bool] = [:]
+    /// Before a rebuild: each nested item's folder, so a row inside a closing subfolder folds with
+    /// the folder that closed.
+    private var oldParents: [UUID: UUID] = [:]
+    /// Folds in flight: the clips a folder's rows are moving in (FoldClipView).
+    private var folds: [FoldClipView] = []
+
+    /// Rows come and go on the list's own curve (SidebarListMetrics, as the pinned tabs do under
+    /// the space header). A folder opens and closes like an accordion: its rows move inside a clip
+    /// that starts at the folder row's bottom edge and grows from nothing to their height as the rows
+    /// below are pushed down, so they slide down from directly under the folder's row, fading in, and
+    /// never show above it. Closing,
+    /// they slide back up into it as the clip's height goes to nothing, fading out a little ahead of
+    /// it. The rows have no fill of their own, so tucked under the folder's row (as they were) they
+    /// showed through its title. Other rows fade in place.
     private func placeViews(animated: Bool, fresh: [SidebarRowView], gone: [SidebarRowView]) {
+        settleFolds()
         guard animated else {
             for row in rows { views[row.key]?.frame = placed(row) }
             gone.forEach { $0.removeFromSuperview() }
+            goneParents = [:]
+            foldersOpen = [:]
+            oldParents = [:]
             return
         }
         let freshSet = Set(fresh.map(ObjectIdentifier.init))
+        let parentRows = Dictionary(rows.compactMap { r in r.itemID.map { ($0, r) } }, uniquingKeysWith: { a, _ in a })
+        /// Where a folder's row will be, and its view: the fold its rows come out of (`opening`) or go
+        /// back into, while that folder is the one opening or closing.
+        func fold(_ parent: UUID?, opening: Bool) -> (frame: NSRect, view: SidebarRowView)? {
+            guard let parent, let row = parentRows[parent], case .folder(let m) = row.content, let v = views[row.key],
+                  m.expanded == opening, foldersOpen[parent].map({ $0 != opening }) ?? opening else { return nil }
+            return (placed(row), v)
+        }
+        /// The outermost folder opening (or closing) above an item: its rows, nested ones too, fold with it.
+        func root(from parent: UUID?, opening: Bool, up: (UUID) -> UUID?) -> (id: UUID, frame: NSRect, view: SidebarRowView)? {
+            var found: (id: UUID, frame: NSRect, view: SidebarRowView)?
+            var next = parent, guardCount = 0
+            while let id = next, guardCount < 64 {
+                if let f = fold(id, opening: opening) { found = (id, f.frame, f.view) }
+                next = up(id)
+                guardCount += 1
+            }
+            return found
+        }
+        struct Group { var folder: NSRect; var folderView: SidebarRowView; var rows: [(SidebarRowView, NSRect)] }
+        var opening: [UUID: Group] = [:]
         for row in rows {
             guard let v = views[row.key], freshSet.contains(ObjectIdentifier(v)) else { continue }
-            // Rows opening inside a folder drop in from just above; others fade in place.
-            v.frame = placed(row).offsetBy(dx: 0, dy: row.depth > 0 ? -6 : 0)
-            v.alphaValue = 0
+            let target = placed(row)
+            if row.depth > 0, let r = root(from: row.parent, opening: true, up: { parentRows[$0]?.parent }) {
+                opening[r.id, default: Group(folder: r.frame, folderView: r.view, rows: [])].rows.append((v, target))
+            } else {
+                v.frame = target
+                v.alphaValue = 0
+            }
         }
+        var closing: [UUID: Group] = [:]
+        for v in gone {
+            guard let r = root(from: goneParents[v.key], opening: false, up: { parentRows[$0]?.parent ?? self.oldParents[$0] }) else { continue }
+            closing[r.id, default: Group(folder: r.frame, folderView: r.view, rows: [])].rows.append((v, v.frame))
+        }
+        goneParents = [:]
+        foldersOpen = [:]
+        oldParents = [:]
+        let width = document.bounds.width
+        var clipped = Set<ObjectIdentifier>()
+        var moves: [(NSView, NSRect)] = []
+        var fadingIn: [NSView] = []
+        // Opening: the clip grows from the folder row's bottom edge; the rows inside start a clip's
+        // height up, so their bottom rides its edge down.
+        for g in opening.values {
+            let top = g.folder.maxY, from = g.folderView.frame.maxY
+            let height = max(0, (g.rows.map(\.1.maxY).max() ?? top) - top)
+            let clip = FoldClipView(frame: NSRect(x: 0, y: from, width: width, height: 0))
+            document.addSubview(clip, positioned: .below, relativeTo: g.folderView)
+            folds.append(clip)
+            for (v, target) in g.rows {
+                clip.addSubview(v)
+                // Fading in as they come out from under the row.
+                v.alphaValue = 0
+                fadingIn.append(v)
+                v.frame = NSRect(x: target.minX, y: target.minY - top - height, width: target.width, height: target.height)
+                moves.append((v, NSRect(x: target.minX, y: target.minY - top, width: target.width, height: target.height)))
+                clipped.insert(ObjectIdentifier(v))
+            }
+            moves.append((clip, NSRect(x: 0, y: top, width: width, height: height)))
+        }
+        // Closing: the rows slide up by the clip's height while it shrinks to the folder row's edge.
+        var closingClips: [FoldClipView] = []
+        for g in closing.values {
+            let from = g.folderView.frame.maxY, to = g.folder.maxY
+            let height = max(0, (g.rows.map(\.1.maxY).max() ?? from) - from)
+            let clip = FoldClipView(frame: NSRect(x: 0, y: from, width: width, height: height))
+            document.addSubview(clip, positioned: .below, relativeTo: g.folderView)
+            folds.append(clip)
+            closingClips.append(clip)
+            for (v, f) in g.rows {
+                clip.addSubview(v)
+                let inside = NSRect(x: f.minX, y: f.minY - from, width: f.width, height: f.height)
+                v.frame = inside
+                moves.append((v, inside.offsetBy(dx: 0, dy: -height)))
+                clipped.insert(ObjectIdentifier(v))
+            }
+            moves.append((clip, NSRect(x: 0, y: to, width: width, height: 0)))
+        }
+        let opened = folds.filter { !closingClips.contains($0) }
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = SidebarListMetrics.duration
             ctx.timingFunction = SidebarListMetrics.timing
             ctx.allowsImplicitAnimation = true
             for row in rows {
-                guard let v = views[row.key] else { continue }
+                guard let v = views[row.key], !clipped.contains(ObjectIdentifier(v)) else { continue }
                 if v.frame != placed(row) { v.animator().frame = placed(row) }
                 if freshSet.contains(ObjectIdentifier(v)) { v.animator().alphaValue = 1 }
             }
-            for v in gone { v.animator().alphaValue = 0 }
-        } completionHandler: {
+            for (v, f) in moves { v.animator().frame = f }
+            for v in fadingIn { v.animator().alphaValue = 1 }
+            for v in gone where !clipped.contains(ObjectIdentifier(v)) { v.animator().alphaValue = 0 }
+        } completionHandler: { [weak self] in
             gone.forEach { $0.removeFromSuperview() }
+            for clip in opened + closingClips { self?.settle(clip) }
         }
+        // Closing rows are gone a little before the fold shuts.
+        let folded = gone.filter { clipped.contains(ObjectIdentifier($0)) }
+        if !folded.isEmpty {
+            NSAnimationContext.runAnimationGroup { ctx in
+                ctx.duration = SidebarListMetrics.duration * 0.7
+                ctx.timingFunction = CAMediaTimingFunction(name: .easeIn)
+                for v in folded { v.animator().alphaValue = 0 }
+            }
+        }
+    }
+
+    /// Every fold in flight lands at once (a rebuild or a resize while one runs).
+    private func settleFolds() {
+        for clip in folds { settle(clip) }
+    }
+
+    /// A fold's rows go back into the list where they belong; rows that left go for good.
+    private func settle(_ clip: FoldClipView) {
+        guard let i = folds.firstIndex(where: { $0 === clip }) else { return }
+        folds.remove(at: i)
+        let live = Set(views.values.map(ObjectIdentifier.init))
+        let placedByView = Dictionary(rows.compactMap { r in views[r.key].map { (ObjectIdentifier($0), placed(r)) } }, uniquingKeysWith: { a, _ in a })
+        for v in clip.subviews {
+            guard live.contains(ObjectIdentifier(v)), let row = v as? SidebarRowView else { v.removeFromSuperview(); continue }
+            document.addSubview(row, positioned: .below, relativeTo: clip)
+            row.layer?.removeAllAnimations()
+            row.frame = placedByView[ObjectIdentifier(row)] ?? row.frame.offsetBy(dx: clip.frame.minX, dy: clip.frame.minY)
+            row.alphaValue = 1
+        }
+        clip.removeFromSuperview()
     }
 
     private func updateDropChrome() {
@@ -826,8 +1004,10 @@ final class SpaceListView: NSView, NSDraggingSource {
     private func hoverAt(_ windowPoint: NSPoint?) {
         var target: SidebarRowView?
         var local = NSPoint.zero
-        // A swipe slides the strip under the pointer: no hover until it settles.
-        if let wp = windowPoint, ui.spaceSwipe == 0, ui.libraryPage == nil {
+        // A swipe slides the strip under the pointer: no hover until it settles. The downloads list
+        // open over the list's bottom: the rows behind it (faded out) take no hover and no tooltip
+        // (11 Nov 2026: a tab's tip showed through a download row).
+        if let wp = windowPoint, ui.spaceSwipe == 0, ui.libraryPage == nil, !ui.downloadsListOpen {
             let p = document.convert(wp, from: nil)
             if document.visibleRect.contains(p), let row = rows.first(where: { placed($0).contains(p) }), let v = views[row.key] {
                 target = v
@@ -856,6 +1036,13 @@ final class SpaceListView: NSView, NSDraggingSource {
         let root = content.superview ?? content
         guard let hit = root.hitTest(root.convert(event.locationInWindow, from: nil)) else { return nil }
         return sequence(first: hit, next: \.superview).lazy.compactMap { ($0 as? TabRowView)?.model?.id }.first
+    }
+
+    /// A click on the list's empty space: the picks go (11 Nov 2026), as in Finder.
+    func clickEmptySpace() {
+        guard !ui.multiSelection.isEmpty else { return }
+        ui.clearPicks()
+        CraLog.note("tab picks cleared: a click on the list's empty space")
     }
 
     func clickTab(_ id: UUID, event: NSEvent) {
@@ -992,7 +1179,9 @@ final class SpaceListView: NSView, NSDraggingSource {
         if store.selectedTabID(window: ui.windowID) != before { window?.makeKeyAndOrderFront(nil) }
         // A click whose pointer slipped 3 pt became a drag; let go on its own row it is still a
         // click, so the tab opens (GitHub #7: "a single click on a tab sometimes did nothing").
-        if drop.target == nil, store.item(id)?.isTab == true, ui.multiSelection.count <= 1,
+        // Also when several tabs were picked: a plain click leaves just this one (11 Nov 2026; the
+        // picks stayed stuck when the click slipped).
+        if drop.target == nil, store.item(id)?.isTab == true,
            rows.first(where: { $0.itemID == id })?.frame.contains(point) == true {
             ui.clearPicks(anchor: id)
             store.selectTab(id, window: ui.windowID)
@@ -1137,6 +1326,15 @@ enum SidebarListMetrics {
 final class SidebarListScrollView: NSScrollView {
     override class var isCompatibleWithResponsiveScrolling: Bool { false }
 
+    /// The tab list's scroller always floats over the rows and fades when idle, whatever System
+    /// Settings ▸ "Show scroll bars" says or a mouse being plugged in: a legacy scroller took 8 pt
+    /// from the rows, so tab and folder names shifted as it came and went. AppKit sets the style
+    /// again on every such change; it stays overlay.
+    override var scrollerStyle: NSScroller.Style {
+        get { .overlay }
+        set { super.scrollerStyle = .overlay }
+    }
+
     override func scrollWheel(with event: NSEvent) {
         if abs(event.scrollingDeltaX) > abs(event.scrollingDeltaY) {
             nextResponder?.scrollWheel(with: event)
@@ -1220,6 +1418,20 @@ final class SpaceListDocument: NSView {
         return NSWindow.windowNumber(at: NSEvent.mouseLocation, belowWindowWithWindowNumber: 0) == w.windowNumber
     }
 
+    /// The list moved away from under the pointer (another space shown): it isn't inside any more
+    /// until the pointer moves on it.
+    func forgetPointer() {
+        isMouseInside = false
+        updateTrackingAreas()
+    }
+
+    /// Only a click on no row reaches the list itself: it clears the picks, then goes on (a press
+    /// on the empty sidebar still moves the window).
+    override func mouseDown(with event: NSEvent) {
+        list?.clickEmptySpace()
+        super.mouseDown(with: event)
+    }
+
     override func mouseEntered(with event: NSEvent) { isMouseInside = true; list?.pointerMoved(event) }
     override func mouseMoved(with event: NSEvent) { isMouseInside = true; list?.pointerMoved(event) }
     override func mouseExited(with event: NSEvent) {
@@ -1243,4 +1455,19 @@ final class SpaceListDocument: NSView {
     override func draggingExited(_ sender: NSDraggingInfo?) { list?.dragExited() }
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool { list?.performDrop(sender) ?? false }
     override func draggingEnded(_ sender: NSDraggingInfo) { list?.dragExited() }
+}
+
+/// A folder's rows while it opens or closes (SpaceListView.placeViews): a clip under the folder's
+/// row whose height follows them, so they show only below the row's bottom edge.
+final class FoldClipView: NSView {
+    override var isFlipped: Bool { true }
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        wantsLayer = true
+        layer?.masksToBounds = true
+        clipsToBounds = true
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
 }

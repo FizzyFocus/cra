@@ -1,9 +1,10 @@
 import AppKit
 import SwiftUI
 
-/// One space's page in the pager: Arc's favorites grid and space header, fixed, over the
-/// space's tab list, which scrolls (Arc 1.170). All AppKit: a space switch or swipe moves this
-/// view's layer and nothing in it lays out or re-renders.
+/// One space's page in the pager: the space header, fixed, over the space's tab list, which
+/// scrolls (Arc 1.170). The favorites are not on the page: they sit in the sidebar's chrome over
+/// the pager (SidebarView, FavoritesGridView), and the page leaves their room at its top. All
+/// AppKit: a space switch or swipe moves this view's layer and nothing in it lays out or re-renders.
 @MainActor
 final class SpaceColumnView: NSView {
     let spaceID: UUID
@@ -11,28 +12,34 @@ final class SpaceColumnView: NSView {
     private let ui: SidebarUIState
     private let actions: SidebarActions
     private let favicons: FaviconCache
-    private let favorites: FavoritesGridView
     private let header: SpaceHeaderView
     private let list: SpaceListView
-    /// How far SpacePagerView holds the favorites left of their place (see holdFavorites).
-    private var favoritesShift: CGFloat = 0
+    /// Where the favorites over the pager end, from the page's top (FavoritesGridView.tilesBottom);
+    /// nil with no tiles, card or pinned extensions.
+    private var favoritesBottom: CGFloat?
 
-    init(spaceID: UUID, store: SidebarStore, ui: SidebarUIState, actions: SidebarActions, favicons: FaviconCache) {
+    init(spaceID: UUID, store: SidebarStore, ui: SidebarUIState, actions: SidebarActions, favicons: FaviconCache,
+         favoritesBottom: CGFloat?) {
         self.spaceID = spaceID
         self.store = store
         self.ui = ui
         self.actions = actions
         self.favicons = favicons
-        favorites = FavoritesGridView(spaceID: spaceID, store: store, ui: ui, actions: actions, favicons: favicons)
+        self.favoritesBottom = favoritesBottom
         header = SpaceHeaderView(spaceID: spaceID, store: store, ui: ui, actions: actions)
         list = SpaceListView(spaceID: spaceID, store: store, ui: ui, actions: actions, favicons: favicons)
         super.init(frame: .zero)
-        favorites.onHeightChange = { [weak self] animated in self?.relayout(animated: animated) }
         header.onHiddenChange = { [weak self] in self?.relayout(animated: true) }
         list.header = header
         addSubview(list)
-        addSubview(favorites)
         addSubview(header)
+    }
+
+    /// The favorites over the pager grew or shrank (a row, the card, a drag opening the strip).
+    func setFavoritesBottom(_ bottom: CGFloat?, animated: Bool) {
+        guard bottom != favoritesBottom else { return }
+        favoritesBottom = bottom
+        relayout(animated: animated)
     }
 
     required init?(coder: NSCoder) { fatalError() }
@@ -54,20 +61,6 @@ final class SpaceColumnView: NSView {
         place(animated: false)
     }
 
-    /// Arc's favorites sit beside its space pager, not on a page (AX tree, 25 Oct), so a swipe
-    /// between spaces that share them (#154) leaves the tiles still. SpacePagerView shifts each
-    /// of the two pages' copies back by the page's offset and shows the nearer page's one.
-    func holdFavorites(shift: CGFloat, shown: Bool) {
-        let alpha: CGFloat = shown ? 1 : 0
-        guard shift != favoritesShift || favorites.alphaValue != alpha else { return }
-        favoritesShift = shift
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        favorites.setFrameOrigin(NSPoint(x: 8 + shift, y: favorites.frame.minY))
-        favorites.alphaValue = alpha
-        CATransaction.commit()
-    }
-
     /// Arc 1.171 (one space, live, 31 Oct) places everything under the favorites from the tiles'
     /// bottom, or with no favorites from the URL field's (the column starts 8 pt under it, where
     /// the first tile's top goes): the header's hover fill 8–44 pt below, 8 pt in from both
@@ -75,10 +68,8 @@ final class SpaceColumnView: NSView {
     /// hidden the line is 18.5 pt under the tiles, 15.5 pt under the URL field.
     private func place(animated: Bool) {
         let w = bounds.width
-        let fh = favorites.height(forWidth: w - 16)
         let set = { (v: NSView, f: NSRect) in if v.frame != f { animated ? (v.animator().frame = f) : (v.frame = f) } }
-        set(favorites, NSRect(x: 8 + favoritesShift, y: 0, width: w - 16, height: fh))
-        let tiles = favorites.tilesBottom(forWidth: w - 16)
+        let tiles = favoritesBottom
         // A Blank Window (Arc 1.172 captures, 6 Nov): its header sits 5 pt higher than a space's
         // with no favorites, and its tabs 1.5 pt closer under it.
         let blank = store.isBlank(space: spaceID)
@@ -192,8 +183,10 @@ final class SpaceHeaderView: NSView, NSTextFieldDelegate {
     private func sync() {
         syncQueued = false
         var hide = false
+        var renameAsked = false
         let wasCollapsed = collapsed
         withObservationTracking {
+            renameAsked = ui.renameSpaceRequest == spaceID
             guard let space = store.space(spaceID) else { return }
             emoji.stringValue = space.emoji
             symbol.image = space.symbol.flatMap { SidebarSymbols.image($0, size: 13, weight: .medium) }
@@ -214,6 +207,11 @@ final class SpaceHeaderView: NSView, NSTextFieldDelegate {
         if hide != isHidden {
             isHidden = hide
             onHiddenChange?()
+        }
+        if renameAsked {
+            ui.renameSpaceRequest = nil
+            // After the pager has brought this space's page in, so the field can take the keys.
+            DispatchQueue.main.async { [weak self] in self?.beginRename() }
         }
     }
 
@@ -252,13 +250,52 @@ final class SpaceHeaderView: NSView, NSTextFieldDelegate {
     /// and turns it a quarter over about 0.12 s (a 60 fps capture, 1 Nov). The turn is AppKit's own
     /// rotation: one set on the layer was reset by AppKit's layer geometry, so a space that opened
     /// collapsed showed the chevron pointing down.
+    ///
+    /// The quarter turn runs on SwiftUI's `.spring(response: 0.25, dampingFraction: 0.8)`
+    /// (SpringMotion.disclosure), one display frame at a time, so it is continuous and a second
+    /// click picks it up from wherever it is instead of snapping. Reduce Motion turns it at once.
     private func turnChevron() {
         let degrees: CGFloat = collapsed ? 90 : 0
-        guard window != nil else { chevron.frameCenterRotation = degrees; return }
-        NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = 0.12
-            ctx.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-            chevron.animator().frameCenterRotation = degrees
+        guard window != nil, !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else {
+            stopChevron()
+            chevron.frameCenterRotation = degrees
+            return
+        }
+        chevronTurn = (CACurrentMediaTime(), chevron.frameCenterRotation, degrees)
+        if chevronLink == nil {
+            let l = displayLink(target: self, selector: #selector(stepChevron))
+            l.add(to: .main, forMode: .common)
+            chevronLink = l
+        }
+    }
+
+    private var chevronTurn: (start: CFTimeInterval, from: CGFloat, to: CGFloat)?
+    private var chevronLink: CADisplayLink?
+
+    @objc private func stepChevron(_ link: CADisplayLink) {
+        guard let turn = chevronTurn else { stopChevron(); return }
+        let spring = SpringMotion.disclosure
+        let t = link.targetTimestamp - turn.start
+        guard t < spring.settlingDuration else {
+            chevron.frameCenterRotation = turn.to
+            stopChevron()
+            return
+        }
+        chevron.frameCenterRotation = turn.to + (turn.from - turn.to) * CGFloat(spring.offset(at: t))
+    }
+
+    private func stopChevron() {
+        chevronTurn = nil
+        chevronLink?.invalidate()
+        chevronLink = nil
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        // Off screen there is nothing to step: land the chevron where it belongs.
+        if window == nil, let turn = chevronTurn {
+            stopChevron()
+            chevron.frameCenterRotation = turn.to
         }
     }
 
@@ -430,9 +467,11 @@ enum SpaceMenu {
         guard let space = store.space(id) else { return nil }
         let m = NSMenu()
         m.autoenablesItems = false
+        // Where the menu was asked for (the header, its •••, a dock icon): the theme picker points there.
+        let asked = NSEvent.mouseLocation
         MenuItems.add(m, "Change Space Icon…") { [weak anchor] in if let anchor { actions.changeSpaceIcon(space, anchor) } }
         MenuItems.add(m, "Rename Space…", rename)
-        MenuItems.add(m, "Edit Theme Color…") { actions.editSpaceTheme(space) }
+        MenuItems.add(m, "Edit Theme Color…") { actions.editSpaceTheme(space, asked) }
         let profiles = MenuItems.submenu(m, "Set Profile")
         MenuItems.add(profiles, "Default", on: space.profileID == nil) { store.setProfile(nil, forSpace: id) }
         for p in store.profiles {
@@ -509,11 +548,17 @@ enum MenuItems {
 
 /// Arc's "top apps": a 4-wide grid of favorite tiles, 8 pt apart, and under it a strip that
 /// opens into "Add to Favorites" while a tab is dragged over it. With none, Arc's empty-state
-/// card stands in for the tiles until its × closes it. Arc shares them between spaces; in Cra
-/// every space has its own. While the toolbar is hidden the profile's pinned extensions sit
-/// over the tiles in a grid of their own (PinnedExtensionGrid), as in Arc.
+/// card stands in for the tiles until its × closes it. While the toolbar is hidden the profile's
+/// pinned extensions sit over the tiles in a grid of their own (PinnedExtensionGrid), as in Arc.
+///
+/// One grid per window, in the sidebar's chrome under the URL field and outside the space pager
+/// (SidebarView), like Arc's `sidebarFavoritesCollectionView` beside its pager: switching spaces
+/// by swipe, shortcut or the dock leaves it where it is. It shows the focused space's list, which
+/// is global (one per profile, AppSettings.sharedFavorites); a space with another list (another
+/// profile, or sharing off) cross-fades it in. Its open tile is the focused space's open tab.
 final class FavoritesGridView: NSView {
-    private let spaceID: UUID
+    /// The focused space, followed in sync().
+    private var spaceID: UUID
     let store: SidebarStore
     let ui: SidebarUIState
     let actions: SidebarActions
@@ -535,13 +580,14 @@ final class FavoritesGridView: NSView {
         let slot: Int
     }
 
-    init(spaceID: UUID, store: SidebarStore, ui: SidebarUIState, actions: SidebarActions, favicons: FaviconCache) {
-        self.spaceID = spaceID
+    init(store: SidebarStore, ui: SidebarUIState, actions: SidebarActions, favicons: FaviconCache) {
+        spaceID = store.focusedSpaceID(window: ui.windowID)
         self.store = store
         self.ui = ui
         self.actions = actions
         self.favicons = favicons
         super.init(frame: .zero)
+        wantsLayer = true
         strip.onDrop = { [weak self] id in
             guard let self else { return false }
             self.store.addToFavorites(id, in: self.spaceID)
@@ -577,7 +623,9 @@ final class FavoritesGridView: NSView {
         var dismissed = true
         var pins: [Pin] = []
         var protectedMedia: String?
+        let shownList = favoritesID
         withObservationTracking {
+            spaceID = store.focusedSpaceID(window: ui.windowID)
             guard let space = store.space(spaceID) else { return }
             palette = space.theme.palette
             // Arc (4 Nov): with the URL field in the sidebar, the pins leave it for this grid.
@@ -623,6 +671,15 @@ final class FavoritesGridView: NSView {
             }
         }
         self.palette = palette
+        // A space with a list of its own (another profile, or sharing off): the tiles cross-fade.
+        // Between spaces that share the list nothing moves; only the open tile follows the space.
+        if let shownList, shownList != favoritesID, window != nil, let layer {
+            let fade = CATransition()
+            fade.type = .fade
+            fade.duration = 0.15
+            fade.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            layer.add(fade, forKey: "favoritesList")
+        }
         let ids = models.map(\.0)
         let showsCard = ids.isEmpty && !dismissed
         // Arc drops the card and moves the list up in one frame, like a first tile coming in.
@@ -634,7 +691,7 @@ final class FavoritesGridView: NSView {
         }
         for (id, m) in models {
             let t = tiles[id] ?? {
-                let t = FavoriteTileView(itemID: id, spaceID: spaceID, grid: self)
+                let t = FavoriteTileView(itemID: id, grid: self)
                 tiles[id] = t
                 addSubview(t)
                 return t
@@ -1113,7 +1170,6 @@ enum FavoriteTileMetrics {
 /// rim is a Dia-like gradient of the open site's logo colours instead (PR #267).
 final class FavoriteTileView: NSView, ArcTooltipTarget, NSDraggingSource {
     let itemID: UUID
-    private let spaceID: UUID
     private weak var grid: FavoritesGridView?
     private let shade = CALayer()
     /// The selected tile's colored rim stays under the keyboard focus ring.
@@ -1135,9 +1191,8 @@ final class FavoriteTileView: NSView, ArcTooltipTarget, NSDraggingSource {
     /// Scenarios (cra://debug?hover=FavoriteTileView,n): the tile as the pointer leaves it hovered (#293).
     func debugHover() { hovering = true }
 
-    init(itemID: UUID, spaceID: UUID, grid: FavoritesGridView) {
+    init(itemID: UUID, grid: FavoritesGridView) {
         self.itemID = itemID
-        self.spaceID = spaceID
         self.grid = grid
         super.init(frame: .zero)
         wantsLayer = true
@@ -1460,11 +1515,12 @@ final class FavoriteTileView: NSView, ArcTooltipTarget, NSDraggingSource {
         let store = grid.store, ui = grid.ui, actions = grid.actions, favicons = grid.favicons
         let id = itemID
         if item.isSplit, let m = model {
-            return SidebarMenus.split(id, panes: m.cells.map { ($0.id, $0.title) }, open: m.selected, store: store, ui: ui, actions: actions) {
-                MenuItems.add($0, action: "favoriteTab", title: Self.removeTitle(id, store)) { store.removeFromFavorites(id) }
+            let menu = SidebarMenus.split(id, panes: m.cells.map { ($0.id, $0.title) }, open: m.selected, store: store, ui: ui, actions: actions) {
                 Self.moveToProfile($0, id, store)
-                $0.addItem(.separator())
+                if $0.numberOfItems > 0 { $0.addItem(.separator()) }
             }
+            Self.addRemove(menu, id, store)
+            return menu
         }
         let tileColor = item.tab?.tileColor
         let m = NSMenu()
@@ -1473,7 +1529,6 @@ final class FavoriteTileView: NSView, ArcTooltipTarget, NSDraggingSource {
             Self.liveCalendarMenu(m, url: url, profilePath: store.profilePath(item: id), store: store)
             m.addItem(.separator())
         }
-        MenuItems.add(m, action: "favoriteTab", title: Self.removeTitle(id, store)) { store.removeFromFavorites(id) }
         MenuItems.add(m, action: "renameTab", title: "Rename…") { ui.renamingID = id }
         if let t = item.tab, t.liveItemURL == nil {
             SidebarMenus.pinnedURLItems(m, id, navigatedAway: t.url != t.savedURL, store: store, actions: actions)
@@ -1513,7 +1568,14 @@ final class FavoriteTileView: NSView, ArcTooltipTarget, NSDraggingSource {
         m.addItem(.separator())
         MenuItems.add(m, action: "closeTab", title: "Close") { actions.closeTab(id) }
         MenuItems.add(m, "Archive") { store.archiveTab(id, reason: .manual) }
+        Self.addRemove(m, id, store)
         return m
+    }
+
+    /// Arc ends a favorite's menu with Remove Favorite, set apart under a line of its own.
+    private static func addRemove(_ m: NSMenu, _ id: UUID, _ store: SidebarStore) {
+        if let last = m.items.last, !last.isSeparatorItem { m.addItem(.separator()) }
+        MenuItems.add(m, action: "favoriteTab", title: removeTitle(id, store)) { store.removeFromFavorites(id) }
     }
 
     /// Arc 1.172.1's Live Calendar ▸ at the top of a Calendar favorite's menu: the last fetch,
@@ -1587,4 +1649,11 @@ final class FavoriteTileView: NSView, ArcTooltipTarget, NSDraggingSource {
     var onShow: (() -> Void)? { nil }
     var screenFrame: NSRect { window?.convertToScreen(convert(bounds, to: nil)) ?? .zero }
     var hostWindow: NSWindow? { window }
+}
+
+extension SpaceHeaderView: PagedHover {
+    func dropHover() {
+        hovering = false
+        columnHovering = false
+    }
 }

@@ -40,7 +40,7 @@ final class EaselRowCell: NSView {
     }
 }
 
-private final class EaselTile: NSView {
+private final class EaselTile: NSView, PointerHover {
     var open: (EaselEntry) -> Void = { _ in }
     var delete: (EaselEntry) -> Void = { _ in }
     private var entry: EaselEntry?
@@ -49,7 +49,7 @@ private final class EaselTile: NSView {
     private let picture = CALayer()
     private let mark = NSImageView()
     private let title = NSTextField(labelWithString: "")
-    private var hovering = false { didSet { refresh() } }
+    var hovering = false { didSet { if hovering != oldValue { refresh() } } }
     private var downAt: NSPoint?
 
     override init(frame: NSRect) {
@@ -117,11 +117,15 @@ private final class EaselTile: NSView {
 
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
-        trackingAreas.forEach(removeTrackingArea)
-        addTrackingArea(NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeInActiveApp, .inVisibleRect], owner: self))
+        trackPointer([.mouseEnteredAndExited, .activeInActiveApp])
     }
 
-    override func mouseEntered(with event: NSEvent) { hovering = true }
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        syncHover()
+    }
+
+    override func mouseEntered(with event: NSEvent) { syncHover() }
     override func mouseExited(with event: NSEvent) { hovering = false }
     override func mouseDown(with event: NSEvent) { downAt = event.locationInWindow }
     override func mouseUp(with event: NSEvent) {

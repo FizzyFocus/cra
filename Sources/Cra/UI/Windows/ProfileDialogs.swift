@@ -14,7 +14,7 @@ struct ProfileSpacesStep: View {
             ProfileAvatar().padding(.top, 38.5)
             Text("Which Spaces should use this Profile?")
                 .font(.system(size: 17.5, weight: .semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(DialogTheme.title)
                 .padding(.top, 19)
             Text("These Spaces will start fresh in your brand new Profile — so you’ll have to log back in to websites, re-save your passwords, add extensions, etc. You can always switch back to your previous Profile though if you forgot something!")
                 .font(.system(size: 14))
@@ -67,19 +67,19 @@ private struct SpaceChoice: View {
                 }
                 .frame(width: 63, height: 95)
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(.white.opacity(0.3), lineWidth: 1))
+                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(DialogTheme.fieldStroke, lineWidth: 1))
                 ZStack {
                     if on {
                         Circle().fill(Color(hex: "#007C00"))
                         Image(systemName: "checkmark").font(.system(size: 8.5, weight: .bold)).foregroundStyle(Color(hex: "#062A1E"))
                     } else {
-                        Circle().strokeBorder(Color(hex: "#5B616F"), lineWidth: 1.5)
+                        Circle().strokeBorder(DialogTheme.fieldStroke, lineWidth: 1.5)
                     }
                 }
                 .frame(width: 16, height: 16)
                 Text(space.title)
                     .font(.system(size: 12))
-                    .foregroundStyle(Color(hex: "#C8CAD2"))
+                    .foregroundStyle(DialogTheme.body)
                     .lineLimit(1)
                     .frame(width: 76)
             }
@@ -159,7 +159,7 @@ struct ChangeProfileDialog: View {
             SpaceProfileIcon(space: space).padding(.top, 38)
             (Text("Change ") + Text("\(space.title)’s").bold() + Text(" Profile"))
                 .font(.system(size: 17.5))
-                .foregroundStyle(.white)
+                .foregroundStyle(DialogTheme.title)
                 .padding(.top, 17)
             Text("Each Profile has different browser data, so you might get logged out of some websites, see different Favorites up top, or need to re-install extensions.")
                 .font(.system(size: 14))
@@ -171,7 +171,7 @@ struct ChangeProfileDialog: View {
             HStack(spacing: 6) {
                 (Text("\(space.title)’s").bold() + Text(" Profile"))
                     .font(.system(size: 14))
-                    .foregroundStyle(Color(hex: "#DBDCDF"))
+                    .foregroundStyle(DialogTheme.title)
                 // An NSMenu under the pill, like Arc's (Default, the other profiles, New Profile).
                 Button(action: showMenu) {
                     // Arc's lavender circle with the chevron cut in the pill's blue, 14 pt.
@@ -231,14 +231,14 @@ private struct SpaceProfileIcon: View {
             .frame(width: 62, height: 62)
             .frame(width: 68, height: 68, alignment: .topLeading)
             ZStack {
-                Circle().fill(Color(hex: "#30305D"))
-                Circle().strokeBorder(Color(hex: "#6262A3"), lineWidth: 1.5)
+                Circle().fill(DialogTheme.avatarFace)
+                Circle().strokeBorder(DialogTheme.avatarRim, lineWidth: 1.5)
                 VStack(spacing: 2.5) {
                     HStack(spacing: 3.5) {
-                        Capsule().fill(Color(hex: "#C4C4DC")).frame(width: 2, height: 5)
-                        Capsule().fill(Color(hex: "#C4C4DC")).frame(width: 2, height: 5)
+                        Capsule().fill(DialogTheme.avatarInk).frame(width: 2, height: 5)
+                        Capsule().fill(DialogTheme.avatarInk).frame(width: 2, height: 5)
                     }
-                    SmileArc().stroke(Color(hex: "#C4C4DC"), style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                    SmileArc().stroke(DialogTheme.avatarInk, style: StrokeStyle(lineWidth: 2, lineCap: .round))
                         .frame(width: 10, height: 2.5)
                 }
             }

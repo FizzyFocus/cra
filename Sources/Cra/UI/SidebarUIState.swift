@@ -10,6 +10,11 @@ final class SidebarUIState {
     /// The browser window this sidebar belongs to (its space and open tab, see WindowSession).
     @ObservationIgnored var windowID = UUID()
     var renamingID: UUID?
+    /// Rename Space… from somewhere other than the space's own header (the dock's menu): that
+    /// header starts its inline rename and clears this.
+    var renameSpaceRequest: UUID?
+    /// Create a Space is open in this window's sidebar, in place of its content (CreateSpaceSheet).
+    var creatingSpace: CreateSpaceModel?
     /// The ⌘T bar is open for a new tab: the focused space's New Tab row is the active row,
     /// filled like the selected tab, which loses its fill (Arc: isCommandBarNewTabPlaceholderActive).
     var newTabPlaceholderActive = false
@@ -17,6 +22,25 @@ final class SidebarUIState {
     /// Loading progress per tab (0...1), fed by the browser manager.
     var progress: [UUID: Double] = [:]
     var loadedTabIDs: Set<UUID> = []
+    /// Tabs whose page is loading now (any window): off screen, their row spins an arc round the
+    /// favicon (CraCore TabLoadingIndicator).
+    var loadingTabIDs: Set<UUID> = []
+    /// A page in this window is in full screen (a video): the address pill says Exit Fullscreen.
+    var pageFullscreen = false
+    /// Whether Unload Tab can act on `id` now: loaded, awake and not on screen.
+    func canUnload(_ id: UUID) -> Bool { loadedTabIDs.contains(id) && !unloadedTabIDs.contains(id) && !onScreenTabIDs.contains(id) }
+    /// Whether the row of tab `id` shows it unloaded (half-strength name, dashed ring): it has no
+    /// page in memory, never loaded since launch (every tab but the open one, as a relaunch leaves
+    /// them), unloaded or put to sleep since. The open tab and tabs on screen never do: they are
+    /// loading. Clicking a tab is what makes its page.
+    func showsUnloaded(_ id: UUID, selected: Bool) -> Bool {
+        !selected && !onScreenTabIDs.contains(id) && (!loadedTabIDs.contains(id) || unloadedTabIDs.contains(id))
+    }
+    /// Tabs whose page was unloaded (Unload Tab, tab sleeping) and that haven't been shown since,
+    /// closed or discarded in place (showsUnloaded).
+    var unloadedTabIDs: Set<UUID> = []
+    /// Tabs on screen in any window: their page can't be unloaded.
+    var onScreenTabIDs: Set<UUID> = []
     /// Tabs using the camera or microphone (Arc's recording indicator).
     var capturingTabIDs: Set<UUID> = []
     /// Tabs playing sound (Arc's speaker button).
@@ -38,16 +62,32 @@ final class SidebarUIState {
     var recentDownload: RecentDownload?
     /// The Library button's view, where download flights land.
     @ObservationIgnored weak var libraryAnchor: NSView?
+    /// The downloads list over the sidebar's bottom: where the Library button's bin goes as it opens.
+    @ObservationIgnored weak var downloadsTray: DownloadsTrayView?
     /// Arc's downloads list over the bottom of the sidebar, open while the Library
     /// button (or the list) is hovered.
     var downloadsListOpen = false
     @ObservationIgnored var libraryHovered = false
     @ObservationIgnored var downloadsListHovered = false
     @ObservationIgnored var downloadsListWork: DispatchWorkItem?
+    /// A preview opened from the tray is up, and how long the tray waits after it (DownloadsTrayHold).
+    @ObservationIgnored var downloadsPreviewOpen = false
+    @ObservationIgnored var downloadsGraceUntil: Date?
+    @ObservationIgnored var downloadsGraceGeneration = 0
+    /// The floating sidebar is sliding away with the tray out: hover changes wait until it's gone.
+    @ObservationIgnored var downloadsRideAlongUntil: Date?
     /// The Library page this window's sidebar shows, nil while it shows the tabs (Arc keeps the
     /// Library per window and reopens it on the page last shown).
     var libraryPage: LibraryPage?
     @ObservationIgnored var lastLibraryPage: LibraryPage = .downloads
+    /// ⇧⌘L closing the Library (MainWindowController.closeLibraryDirectly): the width the Library
+    /// keeps while the drawer narrows over it, so it is covered rather than squeezed or slid aside.
+    @ObservationIgnored var libraryHeldWidth: CGFloat?
+    /// The Library's close is a cut to the tab list, no crossfade (the drawer has already closed).
+    @ObservationIgnored var libraryCloseCut = false
+    /// The sidebar's pages show another space (a shortcut, the dock, a swipe): the window closes
+    /// the popovers that belonged to the one before (MainWindowController.dismissPopovers).
+    @ObservationIgnored var onShownSpaceChanged: (() -> Void)?
     /// A two-finger swipe pulling the Library in from the left of the first space, or back out
     /// (Arc 1.171): how much of it shows, 0 the space, 1 the Library, past 1 while it
     /// rubber-bands. nil when no such swipe is tracking or settling.
@@ -186,6 +226,10 @@ enum SplitDropTarget: Equatable {
 final class SidebarActions {
     var openCommandBar: (CommandBarMode) -> Void = { _ in }
     var closeTab: (UUID) -> Void = { _ in }
+    /// The address pill's Exit Fullscreen: the page in full screen leaves it.
+    var exitPageFullscreen: () -> Void = {}
+    /// Unload Tab: the page leaves memory, the tab stays and loads again when shown.
+    var unloadTab: (UUID) -> Void = { _ in }
     /// A tab dragged out of every Cra window and let go there (screen point): Arc opens it in a
     /// Blank Window where it was dropped (GitHub #219).
     var tearOffTab: (UUID, NSPoint) -> Void = { _, _ in }
@@ -198,7 +242,8 @@ final class SidebarActions {
     /// Arc's space menu: the icon picker under the header, the theme editor, a new profile for
     /// the space, the Library's Spaces page, and deleting this space (not the focused one).
     var changeSpaceIcon: (Space, NSView) -> Void = { _, _ in }
-    var editSpaceTheme: (Space) -> Void = { _ in }
+    /// Edit Theme Color…, with the screen point its menu was opened at: the picker points there.
+    var editSpaceTheme: (Space, NSPoint?) -> Void = { _, _ in }
     /// The theme editor beside a Spaces page card.
     var editSpaceThemeBeside: (Space, NSView) -> Void = { _, _ in }
     var newProfile: (UUID) -> Void = { _ in }
@@ -233,6 +278,10 @@ final class SidebarActions {
     var runExtension: (String) -> Void = { _ in }
     /// Toolbar Extensions button: the extensions menu, under the pointer.
     var showExtensionsMenu: () -> Void = {}
+    /// The Library's Bookmarks page: a bookmark opens in a new tab.
+    var openBookmark: (Bookmark) -> Void = { _ in }
+    /// The Library's Bookmarks page: Edit…, its card beside the row.
+    var editBookmark: (Bookmark, NSView) -> Void = { _, _ in }
     /// Split view: a pane's pinned extension or Extensions button. The pane takes the focus
     /// first, so the action and the Site Control Center describe its page (GitHub #178).
     var paneRunExtension: (UUID, String) -> Void = { _, _ in }

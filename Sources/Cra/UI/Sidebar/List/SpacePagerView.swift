@@ -1,8 +1,9 @@
 import AppKit
 import SwiftUI
 
-/// Dia's paging container in AppKit: every space's column (favorites, header, tab list) sits
-/// side by side on a strip, the strip follows a swipe 1:1, then a spring settles it on a page.
+/// Dia's paging container in AppKit: every space's column (header, tab list) sits side by side
+/// on a strip, the strip follows a swipe 1:1, then a spring settles it on a page. The favorites
+/// are not on the strip: they stay still over it in the sidebar's chrome (SidebarView).
 /// The strip only ever moves by frame. AppKit draws just the views it knows are inside the pager,
 /// so a column brought in or kept on screen by a layer translation alone showed blank: the next
 /// space while the fingers moved, the last one while a space change sprang (issue #12). Neither
@@ -24,6 +25,13 @@ final class SpacePagerView: NSView {
     private var ownSettle: Int?
     private var spring: Spring?
     private var link: CADisplayLink?
+    /// Where the favorites over the pager end (SpaceColumnView leaves their room).
+    private var favoritesBottom: CGFloat?
+
+    func setFavoritesBottom(_ bottom: CGFloat?, animated: Bool) {
+        favoritesBottom = bottom
+        for case let c as SpaceColumnView in columns.values { c.setFavoritesBottom(bottom, animated: animated) }
+    }
 
     /// Dia's zero-bounce spring (CASpringAnimation perceptualDuration 0.4, bounce 0): critically
     /// damped, so the offset from the page is (x0 + (v0 + ω·x0)·t)·e^(−ω·t).
@@ -97,30 +105,11 @@ final class SpacePagerView: NSView {
         CATransaction.setDisableActions(true)
         strip.setFrameOrigin(NSPoint(x: x, y: 0))
         CATransaction.commit()
-        holdSharedFavorites()
-    }
-
-    /// Between two pages that show one favorites list (#154) the tiles stay where they are,
-    /// as Arc's do: each page's copy is held back by the page's offset, the nearer one shown.
-    private func holdSharedFavorites() {
-        guard placedWidth > 0 else { return }
-        let ids = store.pagedSpaces(window: ui.windowID).map(\.id)
-        let shown = -strip.frame.minX / placedWidth
-        let left = Int(shown.rounded(.down))
-        let moving = abs(shown - shown.rounded()) > 0.001
-        func list(_ i: Int) -> UUID? { ids.indices.contains(i) ? store.space(ids[i])?.favoritesContainerID : nil }
-        let shared = moving && list(left) != nil && list(left) == list(left + 1)
-        for (i, id) in ids.enumerated() {
-            guard let column = columns[id] as? SpaceColumnView else { continue }
-            guard shared, i == left || i == left + 1 else { column.holdFavorites(shift: 0, shown: true); continue }
-            let dx = column.frame.minX + strip.frame.minX
-            column.holdFavorites(shift: -dx, shown: i == Int(shown.rounded()))
-        }
     }
 
     private func column(for id: UUID) -> NSView {
         if let c = columns[id] { return c }
-        let host = SpaceColumnView(spaceID: id, store: store, ui: ui, actions: actions, favicons: favicons)
+        let host = SpaceColumnView(spaceID: id, store: store, ui: ui, actions: actions, favicons: favicons, favoritesBottom: favoritesBottom)
         columns[id] = host
         strip.addSubview(host)
         return host
@@ -149,6 +138,8 @@ final class SpacePagerView: NSView {
         CATransaction.commit()
 
         let moved = index != placedIndex || placedSwipe != 0
+        // Another space: no row of any list stays lit under the resting pointer (SpaceListView).
+        if index != placedIndex { dropHoverInPages() }
         placedIndex = index
         placedWidth = width
         placedSwipe = swipe
@@ -201,7 +192,22 @@ final class SpacePagerView: NSView {
             ownSettle = nil
             ui.endSpaceSettle(generation)
         }
-        SpaceListView.refreshHover(for: ui)
+        // Landed: every tracking area on the pages is rebuilt where it is now (they went stale
+        // while the strip moved), and the rows are checked against where the pointer really is.
+        Self.eachView(strip) { $0.updateTrackingAreas() }
+        SpaceListView.pagesSettled(for: ui)
+    }
+
+    /// Another space shown: nothing on any page stays lit under the resting pointer.
+    private func dropHoverInPages() {
+        Self.eachView(strip) { ($0 as? PagedHover)?.dropHover() }
+        SpaceListView.spaceChanged(for: ui)
+        ui.onShownSpaceChanged?()
+    }
+
+    private static func eachView(_ v: NSView, _ body: (NSView) -> Void) {
+        body(v)
+        for s in v.subviews { eachView(s, body) }
     }
 
     private func stopSpring() {

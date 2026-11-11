@@ -61,6 +61,7 @@ static bool g_useMockKeychain = false;
 static NSArray<NSString*>* g_extensionPaths = nil;
 static NSString* g_extensionProfiles = nil;
 static BOOL g_chromeHosting = NO;
+static BOOL g_hardwareAcceleration = YES;
 static NSMutableArray<CraBrowser*>* g_pendingCreation = nil;
 
 /// Settings for every page Cra makes. Chrome style draws its own status bubble flush at the
@@ -161,12 +162,14 @@ enum CraMenuCommand {
     kMenuOpenLinkNewTab = MENU_ID_USER_FIRST + 1,
     kMenuOpenLinkLittleWindow,
     kMenuOpenLinkSplitView,
+    kMenuOpenLinkPeek,
     kMenuCaptureImage,
     kMenuCopyLink,
     kMenuInspectElement,
     kMenuOpenImageInNewTab,
     kMenuCopyImageURL,
     kMenuPictureInPicture,
+    kMenuOpenImageInPreview,
 };
 
 // MARK: - Downloads
@@ -698,6 +701,11 @@ public:
         command_line->AppendSwitch("disable-session-crashed-bubble");
         command_line->AppendSwitch("hide-crash-restore-bubble");
         command_line->AppendSwitch("no-first-run");
+        // Settings ▸ Privacy & Advanced: pages drawn without the GPU.
+        if (!g_hardwareAcceleration) {
+            command_line->AppendSwitch("disable-gpu");
+            command_line->AppendSwitch("disable-gpu-compositing");
+        }
         // The global request context, which Default spaces, fetches and extension settings use
         // (ProfileContext(nil)), is the profile Chrome starts with. Without a profile directory
         // that is Local State's profile.last_used, which a focused page in another space's
@@ -1426,14 +1434,16 @@ public:
 
     void OnLoadEnd(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, int httpStatusCode) override {
         // Every frame reports Picture in Picture changes (the events don't bubble, hence capture).
-        // Every frame reports Picture in Picture changes (the events don't bubble, hence capture).
+        // Leaving, the video's state goes too, at once and again a moment later: the close
+        // button's pause can land after the leave event, and the sidebar's card shows it.
         RunPageScript(frame, "pip",
             "(function(send){"
             "var cur=null;function playing(v){send('pip:play'+(v.paused||v.ended?0:1));}"
             "function watch(v){cur=v;playing(v);v.addEventListener('play',function(){if(cur===v)playing(v);});"
             "v.addEventListener('pause',function(){if(cur===v)playing(v);});v.addEventListener('ended',function(){if(cur===v)playing(v);});}"
             "document.addEventListener('enterpictureinpicture',function(e){send('pip:1');watch(e.target);},true);"
-            "document.addEventListener('leavepictureinpicture',function(){cur=null;send('pip:0');},true);"
+            "document.addEventListener('leavepictureinpicture',function(e){var v=e.target;cur=null;send('pip:0');"
+            "if(v&&v.tagName==='VIDEO'){playing(v);setTimeout(function(){if(cur!==v)playing(v);},300);}},true);"
             "if(document.pictureInPictureElement){send('pip:1');watch(document.pictureInPictureElement);}})");
         if (!frame->IsMain()) return;
         CraBrowser* o = owner_;
@@ -1469,7 +1479,8 @@ public:
                 }
             } else if (v == "play1" || v == "play0") {
                 BOOL playing = (v == "play1");
-                o.isPictureInPicturePlaying = playing;
+                // After the leave: the state the video left the window in, for the sidebar's card.
+                if (o.isInPictureInPicture) o.isPictureInPicturePlaying = playing;
                 if ([o.delegate respondsToSelector:@selector(browser:didChangePictureInPicturePlayback:)])
                     [o.delegate browser:o didChangePictureInPicturePlayback:playing];
             } else if (v.compare(0, 3, "err") == 0) {
@@ -1785,6 +1796,10 @@ public:
             model->InsertItemAt(++newWindow, kMenuOpenLinkSplitView, "Open Link in Split View");
         // Little Windows load in the normal profile: none from an incognito page.
         if (newWindow >= 0 && !o.isIncognito) model->InsertItemAt(newWindow + 1, kMenuOpenLinkLittleWindow, "Open Link in Little Window");
+        // Peek, as ⇧-click opens it: after Little Window (10 Nov 2026).
+        int little = model->GetIndexOf(kMenuOpenLinkLittleWindow);
+        if (little >= 0 && [o.delegate respondsToSelector:@selector(browser:requestsPeekWithURL:)])
+            model->InsertItemAt(little + 1, kMenuOpenLinkPeek, "Open Link in Peek (\u21E7-Click)");
         for (int id : {IDC_CONTENT_CONTEXT_GENERATE_QR_CODE, IDC_CONTENT_CONTEXT_OPENLINKINPROFILE,
                        IDC_CONTENT_CONTEXT_OPENLINKSPLITVIEW, IDC_CONTENT_CONTEXT_OPENLINKBOOKMARKAPP,
                        IDC_CONTENT_CONTEXT_SEARCHLENSFORVIDEOFRAME, IDC_CONTENT_CONTEXT_SEARCHWEBFORVIDEOFRAME}) {
@@ -1809,6 +1824,13 @@ public:
             model->RemoveAt(lens);
             model->InsertItemAt(lens, IDC_CONTENT_CONTEXT_SEARCHWEBFORIMAGE, CefStringFromNS(imageSearch));
         }
+        // Open Image in Preview (⇧-click), Cra's preview card, after Open Image in New Tab (11 Nov 2026).
+        int openImage = model->GetIndexOf(IDC_CONTENT_CONTEXT_OPENIMAGENEWTAB);
+        if (params->GetMediaType() == CM_MEDIATYPE_IMAGE && !params->GetSourceUrl().empty() &&
+            [o.delegate respondsToSelector:@selector(browser:requestsPreviewOfImageURL:at:)]) {
+            int at = openImage >= 0 ? openImage + 1 : model->GetIndexOf(IDC_CONTENT_CONTEXT_SAVEIMAGEAS);
+            if (at >= 0) model->InsertItemAt(at, kMenuOpenImageInPreview, "Open Image in Preview (\u21E7-Click)");
+        }
         int saveImage = model->GetIndexOf(IDC_CONTENT_CONTEXT_SAVEIMAGEAS);
         if (saveImage >= 0 && params->GetMediaType() == CM_MEDIATYPE_IMAGE &&
             [o.delegate respondsToSelector:@selector(browser:requestsCaptureOfImageAt:)]) {
@@ -1824,11 +1846,16 @@ public:
             CraBrowser* o = owner_;
             if ([o.delegate respondsToSelector:@selector(browser:requestsSplitPaneWithURL:)])
                 model->InsertItemAt(index++, kMenuOpenLinkSplitView, "Open Link in Split View");
+            if (!o.isIncognito && [o.delegate respondsToSelector:@selector(browser:requestsPeekWithURL:)])
+                model->InsertItemAt(index++, kMenuOpenLinkPeek, "Open Link in Peek (\u21E7-Click)");
             model->InsertItemAt(index++, kMenuCopyLink, ChromiumLabel(IDS_CONTENT_CONTEXT_COPYLINKLOCATION, "Copy Link Address"));
             model->InsertSeparatorAt(index++);
         }
         if ((params->GetTypeFlags() & CM_TYPEFLAG_MEDIA) && !params->GetSourceUrl().empty()) {
             model->InsertItemAt(index++, kMenuOpenImageInNewTab, ChromiumLabel(IDS_CONTENT_CONTEXT_OPENIMAGENEWTAB, "Open Image in New Tab"));
+            if (params->GetMediaType() == CM_MEDIATYPE_IMAGE &&
+                [owner_.delegate respondsToSelector:@selector(browser:requestsPreviewOfImageURL:at:)])
+                model->InsertItemAt(index++, kMenuOpenImageInPreview, "Open Image in Preview (\u21E7-Click)");
             model->InsertItemAt(index++, kMenuCopyImageURL, ChromiumLabel(IDS_CONTENT_CONTEXT_COPYIMAGELOCATION, "Copy Image Address"));
             model->InsertSeparatorAt(index++);
         }
@@ -1858,6 +1885,10 @@ public:
                 if ([o.delegate respondsToSelector:@selector(browser:requestsSplitPaneWithURL:)])
                     [o.delegate browser:o requestsSplitPaneWithURL:NSStringFromCef(params->GetLinkUrl())];
                 return true;
+            case kMenuOpenLinkPeek:
+                if ([o.delegate respondsToSelector:@selector(browser:requestsPeekWithURL:)])
+                    [o.delegate browser:o requestsPeekWithURL:NSStringFromCef(params->GetLinkUrl())];
+                return true;
             case kMenuCopyLink:
             case kMenuCopyImageURL: {
                 NSString* s = NSStringFromCef(command_id == kMenuCopyLink ? params->GetUnfilteredLinkUrl()
@@ -1881,6 +1912,11 @@ public:
                 [o.delegate browser:o requestsWindowWithURL:url kind:kind];
                 return true;
             }
+            case kMenuOpenImageInPreview:
+                if ([o.delegate respondsToSelector:@selector(browser:requestsPreviewOfImageURL:at:)])
+                    [o.delegate browser:o requestsPreviewOfImageURL:NSStringFromCef(params->GetSourceUrl())
+                                     at:NSMakePoint(params->GetXCoord(), params->GetYCoord())];
+                return true;
             case kMenuCaptureImage:
                 if ([o.delegate respondsToSelector:@selector(browser:requestsCaptureOfImageAt:)])
                     [o.delegate browser:o requestsCaptureOfImageAt:NSMakePoint(params->GetXCoord(), params->GetYCoord())];
@@ -2909,6 +2945,7 @@ static void MarkProfileExitedCleanly(NSString* profileDir) {
 @implementation CraCEFRuntime
 
 + (void)setChromeHosting:(BOOL)enabled { g_chromeHosting = enabled; }
++ (void)setHardwareAccelerationEnabled:(BOOL)enabled { g_hardwareAcceleration = enabled; }
 + (void)setLinkMenuTitle:(NSString*)title opensInBackground:(BOOL)background {
     g_linkMenuTitle = [title copy];
     g_linkMenuBackground = background;
@@ -3374,6 +3411,10 @@ static id CraTopLevelWindow(id element) {
 // Cmd-Q, the Dock, logout: give the delegate a say, then tear Chromium down
 // in order (browsers first, then the message loop, then CefShutdown in main).
 - (void)terminate:(id)sender {
+    // Already quitting (the pages are closing): Chromium's shutdown and AppKit's reply to
+    // applicationShouldTerminate come back here, and asking the delegate again showed its
+    // "Quit Cra?" a second time. The quit in progress finishes on its own.
+    if (g_quitting) return;
     id<NSApplicationDelegate> delegate = self.delegate;
     if ([delegate respondsToSelector:@selector(applicationShouldTerminate:)]) {
         NSApplicationTerminateReply reply = [delegate applicationShouldTerminate:self];

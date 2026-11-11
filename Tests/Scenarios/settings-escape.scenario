@@ -1,0 +1,36 @@
+# Escape on cra://settings (11 Nov 2026): the page handles it itself and never passes it on to the
+# window (no closing the tab, no leaving full screen, no un-maximizing). It closes the page's open
+# dialog (Add Site Search), else clears and leaves the field being typed in, else does nothing.
+cra://debug?windowSize=1000x700
+wait 2
+cra://action/settings
+wait 3
+cra://debug?zoomWindow=1
+wait 1.5
+cra://debug?windowState=before
+expect-log window state before: main0 .*docked=1
+cra://debug?zoomLevel=1
+expect-log zoom level .*keys go to WKWebView
+# Nothing open, nothing being typed in: Escape stays in the page and does nothing.
+cra://debug?key=%1B,53,0
+wait 1
+cra://debug?windowState=after
+reject-log window state after: main0 .*size=1000x700
+cra://debug?settingsPageJS=location.href
+expect-log settings page js: cra://settings
+# The search field being typed in: Escape clears it and leaves it.
+cra://debug?settingsPageJS=(document.getElementById('search').focus(),document.activeElement.id)
+expect-log settings page js: search
+cra://debug?key=%1B,53,0
+wait 0.5
+cra://debug?settingsPageJS=document.activeElement.tagName
+expect-log settings page js: BODY
+# The page's own dialog: Escape closes it.
+cra://debug?settingsPageJS=(document.getElementById('site-dialog').showModal(),'dialog '+document.getElementById('site-dialog').open)
+expect-log settings page js: dialog (1|true)
+cra://debug?key=%1B,53,0
+wait 0.8
+cra://debug?settingsPageJS='dialog now '+document.getElementById('site-dialog').open
+expect-log settings page js: dialog now (0|false)
+# None of the three reached the window.
+reject-log escape in window

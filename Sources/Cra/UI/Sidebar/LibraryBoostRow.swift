@@ -5,7 +5,7 @@ import AppKit
 /// under the pointer a rounded card and a 36 × 22 pt switch 8 pt from the right (on: the theme's
 /// dark shade with a light knob). A boost that's off keeps its row but its tile dims under a
 /// diagonal stroke. Right-click: Rename, Delete.
-final class BoostRowCell: NSView, NSTextFieldDelegate {
+final class BoostRowCell: NSView, NSTextFieldDelegate, PointerHover {
     private let card = FlippedView()
     private let tile = NSView()
     private let icon = NSImageView()
@@ -18,7 +18,7 @@ final class BoostRowCell: NSView, NSTextFieldDelegate {
     private var boost: Boost?
     private var ink = NSColor.black
     private var hoverFill = NSColor.clear
-    private var hovering = false { didSet { if hovering != oldValue { refresh() } } }
+    var hovering = false { didSet { if hovering != oldValue { refresh(); needsLayout = true } } }
     private var downAt: NSPoint?
     var open: () -> Void = {}
 
@@ -166,12 +166,16 @@ final class BoostRowCell: NSView, NSTextFieldDelegate {
 
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
-        trackingAreas.forEach(removeTrackingArea)
-        addTrackingArea(NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeInActiveApp, .inVisibleRect], owner: self))
+        trackPointer([.mouseEnteredAndExited, .activeInActiveApp])
     }
 
-    override func mouseEntered(with event: NSEvent) { hovering = true; needsLayout = true }
-    override func mouseExited(with event: NSEvent) { hovering = false; needsLayout = true }
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        syncHover()
+    }
+
+    override func mouseEntered(with event: NSEvent) { syncHover() }
+    override func mouseExited(with event: NSEvent) { hovering = false }
     override func mouseDown(with event: NSEvent) { downAt = event.locationInWindow }
     override func mouseUp(with event: NSEvent) {
         defer { downAt = nil }

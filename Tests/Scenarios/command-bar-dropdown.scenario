@@ -1,0 +1,24 @@
+# A click on the address field opens a narrow dropdown over the field (CommandBarLayout): 360 pt,
+# its input row centred on the field, never the full palette. ⌘T and ⌘L open the palette, centred
+# in the window and 766 pt wide (10 Nov 2026).
+cra://debug?windowSize=1200x800
+wait 2
+cra://open?url=${PAGE}?n=dropdown
+expect-log loaded 127\.0\.0\.1 \(HTTP 200\)
+cra://debug?urlFieldClick=1
+wait 0.8
+cra://debug?commandBarState=click
+expect-log command bar click: open=1 dropdown=1 panel=\d+,\d+,360,\d+ field=
+cra://debug?closeCommandBar=1
+wait 0.5
+cra://action/newTab
+wait 0.8
+cra://debug?commandBarState=newTab
+expect-log command bar newTab: open=1 dropdown=0 panel=\d+,\d+,766,\d+
+cra://debug?closeCommandBar=1
+wait 0.5
+cra://action/editURL
+wait 0.8
+cra://debug?commandBarState=editURL
+expect-log command bar editURL: open=1 dropdown=0 panel=\d+,\d+,766,\d+
+cra://debug?closeCommandBar=1

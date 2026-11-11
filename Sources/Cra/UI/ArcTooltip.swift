@@ -31,6 +31,18 @@ final class ArcTooltipController {
     /// next one waits for the pointer to rest the full delay.
     var paused = false { didSet { if paused { dismiss() } } }
 
+    /// Until when a window is changing (a zoom, full screen, the sidebar coming or going, the card
+    /// gliding to or from edge to edge): a tip's panel stays where it was shown, so one on the
+    /// sidebar toggle hung over the address field while the toggle moved. None shows meanwhile.
+    private var heldUntil: TimeInterval = 0
+    private var held: Bool { ProcessInfo.processInfo.systemUptime < heldUntil }
+
+    /// A window starts changing: any tip goes at once, and none shows for `duration`.
+    func holdForTransition(_ duration: TimeInterval) {
+        heldUntil = max(heldUntil, ProcessInfo.processInfo.systemUptime + duration)
+        dismiss()
+    }
+
     /// The tones of the space a window is in (AppDelegate). Arc paints every tip in a browser
     /// window from that space's palette, whichever control or space icon it belongs to; windows
     /// without a space (Little Windows) get nil and Little Arc's navy.
@@ -61,7 +73,7 @@ final class ArcTooltipController {
             cancelPending()
             return
         }
-        if shownFor === target || paused { return }
+        if shownFor === target || paused || held { return }
         startTip(for: target)
     }
 
@@ -75,7 +87,7 @@ final class ArcTooltipController {
         timer?.invalidate()
         timer = Timer.scheduledTimer(withTimeInterval: view.idleDelay, repeats: false) { [weak self, weak view] _ in
             Task { @MainActor in
-                guard let self, let view, self.pendingFor === view, !self.paused else { return }
+                guard let self, let view, self.pendingFor === view, !self.paused, !self.held else { return }
                 self.show(for: view)
             }
         }
@@ -132,6 +144,7 @@ final class ArcTooltipController {
         let p = LittleTooltipPanel()
         let option = NSEvent.modifierFlags.contains(.option) ? view.optionText : nil
         let colors = tones(window).map(ArcTooltipLabel.Colors.init) ?? .little
+        CraLog.note("tooltip shown: \(colors.light ? "light" : "dark")")
         let label = ArcTooltipLabel(text: option ?? view.text, keys: option == nil ? view.keys : [],
                                     subtitle: option == nil ? view.subtitle : nil, badge: option == nil ? view.badge : nil,
                                     colors: colors)
@@ -360,6 +373,9 @@ final class ArcTooltipLabel: NSView {
 
     struct Colors {
         var fill, title, cap, capGlyph, capEdge: NSColor
+        /// A light space's tip (TooltipTones.light): frosted under its fill, a dark hairline.
+        var light = false
+        var edge: NSColor?
 
         init(fill: NSColor, title: NSColor, cap: NSColor, capGlyph: NSColor, capEdge: NSColor) {
             (self.fill, self.title, self.cap, self.capGlyph, self.capEdge) = (fill, title, cap, capGlyph, capEdge)
@@ -367,7 +383,12 @@ final class ArcTooltipLabel: NSView {
 
         init(_ t: TooltipTones) {
             self.init(fill: NSColor(t.fill), title: NSColor(t.title), cap: NSColor(t.badge), capGlyph: NSColor(t.ink),
-                      capEdge: NSColor(t.badge.mixed(with: t.ink, 0.5)))
+                      capEdge: NSColor(t.badge.mixed(with: t.ink, t.light ? 0.25 : 0.5)))
+            if t.light {
+                light = true
+                fill = NSColor(t.fill).withAlphaComponent(0.82)
+                edge = NSColor(t.edge).withAlphaComponent(t.edgeAlpha)
+            }
         }
 
         /// Little Arc's tip, whatever space is focused.
@@ -384,6 +405,8 @@ final class ArcTooltipLabel: NSView {
     private let sub = NSTextField.sidebarLabel(size: 11)
     private var caps: [NSView] = []
     private var pill: ProfilePill?
+    /// A light tip's frost and fill, under everything else.
+    private var backdrop: [NSView] = []
     private let multiline: Bool
 
     init(text: String, keys: [String], subtitle: String? = nil, badge: String? = nil, colors: Colors = .little) {
@@ -392,9 +415,29 @@ final class ArcTooltipLabel: NSView {
         super.init(frame: .zero)
         wantsLayer = true
         // Two or more lines get a rounded rectangle (Cra's choice; Arc's multi-line tip wasn't observed).
-        layer?.backgroundColor = colors.fill.cgColor
-        layer?.borderColor = colors.fill.blended(withFraction: 0.1, of: .white)?.cgColor
-        layer?.cornerRadius = multiline ? 10 : 14
+        layer?.cornerRadius = multiline ? 12 : 14
+        layer?.cornerCurve = .continuous
+        if colors.light {
+            // Arc's light tip: frosted glass under a pale fill, edged with a dark hairline.
+            let frost = NSVisualEffectView()
+            frost.material = .popover
+            frost.blendingMode = .behindWindow
+            frost.state = .active
+            frost.appearance = NSAppearance(named: .aqua)
+            frost.autoresizingMask = [.width, .height]
+            addSubview(frost)
+            let tint = NSView()
+            tint.wantsLayer = true
+            tint.layer?.backgroundColor = colors.fill.cgColor
+            tint.autoresizingMask = [.width, .height]
+            addSubview(tint)
+            layer?.masksToBounds = true
+            layer?.borderColor = colors.edge?.cgColor
+            backdrop = [frost, tint]
+        } else {
+            layer?.backgroundColor = colors.fill.cgColor
+            layer?.borderColor = colors.fill.blended(withFraction: 0.1, of: .white)?.cgColor
+        }
         title.font = Self.font
         title.textColor = colors.title
         title.stringValue = text
@@ -405,7 +448,7 @@ final class ArcTooltipLabel: NSView {
         addSubview(title)
         if let subtitle {
             sub.stringValue = subtitle
-            sub.textColor = colors.title.withAlphaComponent(0.6)
+            sub.textColor = colors.title.withAlphaComponent(colors.light ? 0.55 : 0.6)
             addSubview(sub)
         }
         if let badge, !multiline {
@@ -463,6 +506,7 @@ final class ArcTooltipLabel: NSView {
         let trailing: CGFloat = !caps.isEmpty ? Self.capsTrailing : pill != nil ? ProfilePill.trailing : 10
         let w = 10 + textW + pillW + (caps.isEmpty ? 0 : Self.textToCaps + keysW) + trailing
         setFrameSize(NSSize(width: ceil(w), height: ceil(h)))
+        for v in backdrop { v.frame = bounds }
         // VStack(spacing: 1), centred.
         let top = (h + textH) / 2
         title.frame = NSRect(x: 10 - SidebarText.inset, y: top - ts.height, width: ts.width + 2 * SidebarText.inset, height: ts.height)

@@ -1,0 +1,26 @@
+# The loading bar at the top middle of the window (LoadingIndicator): a pulsing pill while the server
+# hasn't answered, in the 10 pt margin above the card. Maximized with the sidebar hidden the card goes
+# edge to edge and there is no margin: the bar sat in none and every load went unseen (10 Nov 2026).
+# It now lies just inside the page's top edge. ${STALL} accepts connections and never answers.
+cra://debug?windowSize=1000x700
+wait 2
+cra://open?url=${STALL}/
+wait 1.5
+cra://debug?windowState=inset
+# Centred over the card (x 328 + 662/2 - 66), in the margin above it (700 - 10).
+expect-log window state inset: main0 .*card=328,10,.* loading=waiting,1,\d+,690
+cra://debug?zoomWindow=1
+wait 1.5
+cra://action/toggleSidebar
+wait 1.5
+cra://debug?windowState=edge
+expect-log window state edge: main0 .*card=0,0,.* docked=0 .*loading=waiting,1,\d+,\d+
+reject-log window state edge: .*loading=waiting,0
+cra://action/stop
+wait 1
+cra://debug?windowState=stopped
+expect-log window state stopped: main0 .*loading=hidden,1,
+cra://action/toggleSidebar
+wait 1
+cra://debug?zoomWindow=1
+wait 1.5

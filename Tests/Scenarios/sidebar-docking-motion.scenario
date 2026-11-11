@@ -1,0 +1,27 @@
+# Settings ▸ Appearance ▸ Sidebar ▸ "Animate sidebar docking" (11 Nov 2026, off by default). Off, ⌘S
+# slides the sidebar away and back on Arc's near-instant slide; switched on from the settings page,
+# both ways glide and the card eases into its inset frame (CraCore SidebarMotion.docking).
+cra://debug?windowSize=1280x800
+wait 2
+cra://action/toggleSidebar
+expect-log sidebar slides away over 0.085 s
+wait 1
+cra://action/toggleSidebar
+expect-log sidebar slides docked over 0.085 s
+wait 1
+cra://action/settings
+wait 3
+cra://debug?settingsPane=appearance
+wait 1.5
+expect-log settings tab shown \(appearance, existing\)
+cra://debug?settingsPageJS=document.body.innerText.includes('Animate sidebar docking')
+expect-log settings page js: (1|true)
+cra://debug?settingsPageJS=craSettings.set('animateSidebarDocking',true).then(s=>`dock ${s.settings.animateSidebarDocking}`)
+expect-log settings page js: dock (1|true)
+cra://action/toggleSidebar
+expect-log sidebar slides away over 0.42 s
+expect-log sidebar glides, the page resizing with its card
+wait 1
+cra://action/toggleSidebar
+expect-log sidebar slides docked over 0.42 s
+wait 1

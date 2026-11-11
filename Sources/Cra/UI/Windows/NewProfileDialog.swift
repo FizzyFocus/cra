@@ -14,8 +14,8 @@ struct NewProfileDialog: View {
     @State private var choosingSpaces = false
     @FocusState private var focused: Bool
 
-    static let card = DialogTheme.card
-    static let body = DialogTheme.body
+    static var card: Color { DialogTheme.card }
+    static var body: Color { DialogTheme.body }
     private var trimmed: String { name.trimmingCharacters(in: .whitespaces) }
 
     init(spaces: [Space], ticked: Set<UUID>, onCreate: @escaping (String, Set<UUID>) -> Void, onCancel: @escaping () -> Void) {
@@ -43,7 +43,7 @@ struct NewProfileDialog: View {
             ProfileAvatar().padding(.top, 38.5)
             Text("Create a new Profile")
                 .font(.system(size: 17.5, weight: .semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(DialogTheme.title)
                 .padding(.top, 19)
             Text("Profiles make your Spaces truly separate — with their own history, saved passwords, extensions, and other browsing data. No more flipping between work and personal accounts!")
                 .font(.system(size: 14))
@@ -57,22 +57,22 @@ struct NewProfileDialog: View {
                 .font(.system(size: 14))
                 .foregroundStyle(Self.body)
                 .padding(.top, 20)
-            TextField("", text: $name, prompt: Text("Personal").foregroundStyle(Color(hex: "#9699A1")))
+            TextField("", text: $name, prompt: Text("Personal").foregroundStyle(DialogTheme.placeholder))
                 .textFieldStyle(.plain)
                 .font(.system(size: 14))
-                .foregroundStyle(.white)
+                .foregroundStyle(DialogTheme.title)
                 .focused($focused)
                 .onSubmit(next)
                 .padding(.horizontal, 12.5)
                 .frame(height: 49)
-                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(Color(hex: "#23293B"), lineWidth: 1))
+                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(DialogTheme.fieldStroke, lineWidth: 1))
                 .padding(.top, 7)
             HStack(spacing: 4) {
                 Image(systemName: "clock.arrow.2.circlepath").font(.system(size: 11, weight: .semibold))
                 Text("Profiles are ") + Text("not synced").bold() + Text(" between computers.")
             }
             .font(.system(size: 11))
-            .foregroundStyle(Color(hex: "#8F929E"))
+            .foregroundStyle(DialogTheme.muted)
             .padding(.top, 4)
             HStack(spacing: 8.5) {
                 Spacer()
@@ -95,16 +95,16 @@ struct ProfileAvatar: View {
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
             ZStack {
-                Circle().strokeBorder(Color(hex: "#6262A3").opacity(0.45), style: StrokeStyle(lineWidth: 1, dash: [2, 2]))
+                Circle().strokeBorder(DialogTheme.avatarRim.opacity(0.45), style: StrokeStyle(lineWidth: 1, dash: [2, 2]))
                     .frame(width: 61, height: 61)
-                Circle().fill(Color(hex: "#30305D")).frame(width: 54, height: 54)
-                Circle().strokeBorder(Color(hex: "#6262A3"), lineWidth: 3).frame(width: 54, height: 54)
+                Circle().fill(DialogTheme.avatarFace).frame(width: 54, height: 54)
+                Circle().strokeBorder(DialogTheme.avatarRim, lineWidth: 3).frame(width: 54, height: 54)
                 VStack(spacing: 7) {
                     HStack(spacing: 9) {
-                        Capsule().fill(Color(hex: "#C4C4DC")).frame(width: 4.5, height: 13)
-                        Capsule().fill(Color(hex: "#C4C4DC")).frame(width: 4.5, height: 13)
+                        Capsule().fill(DialogTheme.avatarInk).frame(width: 4.5, height: 13)
+                        Capsule().fill(DialogTheme.avatarInk).frame(width: 4.5, height: 13)
                     }
-                    SmileArc().stroke(Color(hex: "#C4C4DC"), style: StrokeStyle(lineWidth: 4.5, lineCap: .round))
+                    SmileArc().stroke(DialogTheme.avatarInk, style: StrokeStyle(lineWidth: 4.5, lineCap: .round))
                         .frame(width: 26, height: 6)
                 }
                 .offset(y: 1)

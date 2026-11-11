@@ -112,6 +112,9 @@ typedef NS_ENUM(NSInteger, CraChromiumString) {
 /// The page's context menu: Open Link in Split View, a pane beside this page (#257). Without it
 /// the menu has no such item (a Little Window's page).
 - (void)browser:(CraBrowser *)browser requestsSplitPaneWithURL:(NSString *)url;
+/// The page's context menu: Open Link in Peek (what ⇧-click does), over this page's window.
+/// Without it the menu has no such item (a Little Window's or an incognito page).
+- (void)browser:(CraBrowser *)browser requestsPeekWithURL:(NSString *)url;
 /// Chromium wants to download `url` for this page. `clickModifiers` (AppKit's flags) and
 /// `clickAge` (seconds since) are the page's last click, or Return in it; `clickAge` is negative
 /// when there was none. Return YES when that was an Option-click on a link, which Chromium makes
@@ -122,6 +125,9 @@ typedef NS_ENUM(NSInteger, CraChromiumString) {
 /// The page's context menu on an image: Capture Image… at `point` (page points from the top
 /// left). Without it the menu has no such item.
 - (void)browser:(CraBrowser *)browser requestsCaptureOfImageAt:(NSPoint)point;
+/// The page's context menu on an image: Open Image in Preview, Cra's preview card for `url`, the
+/// image at `point` (page points from the top left). Without it the menu has no such item.
+- (void)browser:(CraBrowser *)browser requestsPreviewOfImageURL:(NSString *)url at:(NSPoint)point;
 /// A video of this page entered or left Chromium's Picture in Picture window
 /// (whether the page, the user or Cra asked for it).
 - (void)browser:(CraBrowser *)browser didChangePictureInPicture:(BOOL)active;
@@ -309,6 +315,9 @@ typedef NS_ENUM(NSInteger, CraChromiumString) {
 /// Host pages as Chrome-style windows (Chrome extensions, Chrome's docked
 /// DevTools) instead of embedded Alloy views. Set before any browser exists.
 + (void)setChromeHosting:(BOOL)enabled;
+/// Settings ▸ Privacy & Advanced ▸ Use hardware acceleration: off starts Chromium with
+/// --disable-gpu (and GPU compositing off). Set before +initialize; read at launch only.
++ (void)setHardwareAccelerationEnabled:(BOOL)enabled;
 + (BOOL)chromeHosting;
 /// The "Open Link in New Tab" item at the top of a page's context menu: its title and whether it
 /// opens its tab in the background. Read when a menu opens.

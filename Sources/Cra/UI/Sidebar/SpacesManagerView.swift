@@ -95,26 +95,62 @@ final class SpacesManagerView: NSView {
     @objc private func newSpace() { actions.editSpace(nil) }
 
     private var dragging: (id: UUID, dx: CGFloat)?
+    /// The slot the dragged card is over (CardReorder): the others make room for it as it moves.
+    private var dragSlot: Int?
+    private static var pitch: CGFloat { SpacesManagerMetrics.card + SpacesManagerMetrics.gap }
 
+    /// The dragged card follows the pointer; as its centre passes a neighbour that card springs
+    /// aside into the gap it leaves (the dock's spring, with its haptic tick), live, not on release.
     private func drag(_ id: UUID, by dx: CGFloat) {
+        guard let from = order.firstIndex(of: id) else { return }
+        // The card in hand stays its size (a scale clipped its contents inside the card's rounded
+        // mask, a sudden zoom); it rides above the others while they glide aside.
+        if dragging == nil, let c = cards[id] { document.addSubview(c, positioned: .above, relativeTo: nil) }
         dragging = (id, dx)
-        if let c = cards[id] { document.addSubview(c, positioned: .above, relativeTo: nil) }
-        needsLayout = true
-        layoutSubtreeIfNeeded()
+        let slot = CardReorder.slot(from: from, offset: Double(dx), pitch: Double(Self.pitch), count: order.count)
+        let moved = slot != (dragSlot ?? from)
+        dragSlot = slot
+        if moved, store.settings.hapticFeedbackOnReorder {
+            NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
+        }
+        placeCards(springing: moved)
     }
 
-    /// Where the dragged card's centre is, among the others, is its new place.
+    /// Let go: the card springs into the slot it was over, and that order is saved.
     private func drop(_ id: UUID) {
-        guard let d = dragging, let from = order.firstIndex(of: id) else { return }
+        guard dragging != nil, let from = order.firstIndex(of: id) else { return }
+        let to = dragSlot ?? from
         dragging = nil
-        let pitch = SpacesManagerMetrics.card + SpacesManagerMetrics.gap
-        let to = min(max(0, from + Int((d.dx / pitch).rounded())), order.count - 1)
-        if to != from, let target = store.spaceOrder.firstIndex(of: order[to]) { store.moveSpace(id, to: target) }
-        NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = 0.15
-            ctx.allowsImplicitAnimation = true
-            needsLayout = true
-            layoutSubtreeIfNeeded()
+        dragSlot = nil
+        let target = to != from ? store.spaceOrder.firstIndex(of: order[to]) : nil
+        order = CardReorder.order(order, moving: from, to: to)
+        placeCards(springing: true)
+        if let target { store.moveSpace(id, to: target) }
+    }
+
+    /// Each card's frame: in `order`, or while dragging in the order it makes room for, the dragged
+    /// one under the pointer.
+    private func cardFrames() -> [UUID: NSRect] {
+        typealias M = SpacesManagerMetrics
+        let cardH = max(0, bounds.height - 2 * M.inset)
+        var shown = order
+        if let d = dragging, let from = order.firstIndex(of: d.id), let slot = dragSlot {
+            shown = CardReorder.order(order, moving: from, to: slot)
+        }
+        var frames: [UUID: NSRect] = [:]
+        for (i, id) in shown.enumerated() {
+            frames[id] = NSRect(x: M.lead + CGFloat(i) * Self.pitch, y: M.inset, width: M.card, height: cardH)
+        }
+        if let d = dragging, let from = order.firstIndex(of: d.id) {
+            frames[d.id] = NSRect(x: M.lead + CGFloat(from) * Self.pitch + d.dx, y: M.inset, width: M.card, height: cardH)
+        }
+        return frames
+    }
+
+    private func placeCards(springing: Bool) {
+        for (id, f) in cardFrames() {
+            guard let c = cards[id] else { continue }
+            if springing, id != dragging?.id { SpaceDockView.slide(c, to: f) } else { c.frame = f }
         }
     }
 
@@ -123,13 +159,8 @@ final class SpacesManagerView: NSView {
         typealias M = SpacesManagerMetrics
         scroll.frame = bounds
         let h = bounds.height
-        let cardH = max(0, h - 2 * M.inset)
-        var x = M.lead
-        for id in order {
-            let dx = dragging?.id == id ? dragging?.dx ?? 0 : 0
-            cards[id]?.frame = NSRect(x: x + dx, y: M.inset, width: M.card, height: cardH)
-            x += M.card + M.gap
-        }
+        for (id, f) in cardFrames() { cards[id]?.frame = f }
+        var x = M.lead + CGFloat(order.count) * Self.pitch
         x += M.plusGap - M.gap
         plus.frame = NSRect(x: x, y: (h - M.plus) / 2, width: M.plus, height: M.plus)
         document.frame = NSRect(x: 0, y: 0, width: x + M.plus + M.trail, height: h)

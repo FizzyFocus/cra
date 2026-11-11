@@ -1,3 +1,4 @@
+import CoreGraphics
 import CraCore
 import Testing
 
@@ -6,6 +7,23 @@ struct LoadingIndicatorTests {
     func ends(at time: Double) -> [Double] {
         let s = LoadingIndicator.sweep(at: time)
         return [s.start, s.end].map { ($0 * 100).rounded() / 100 }
+    }
+
+    /// In the 10 pt margin above the card, centred; edge to edge just inside the page's top edge
+    /// rather than nowhere (it went unseen in a maximized window with the sidebar hidden, 10 Nov
+    /// 2026); none over a page in full screen.
+    @Test func barSitsAboveTheCardOrJustInsideIt() throws {
+        let window = CGRect(x: 0, y: 0, width: 1200, height: 800)
+        let inset = CGRect(x: 300, y: 10, width: 890, height: 780)
+        let above = try #require(LoadingIndicator.frame(content: inset, in: window, pageFullscreen: false))
+        #expect(above == CGRect(x: 679, y: 790, width: 132, height: 10))
+        let edge = try #require(LoadingIndicator.frame(content: window, in: window, pageFullscreen: false))
+        #expect(edge == CGRect(x: 534, y: 790, width: 132, height: 10))
+        #expect(edge.midY == window.maxY - 5, "the bar's centre 5 pt under the window's top edge, over the page")
+        #expect(LoadingIndicator.frame(content: window, in: window, pageFullscreen: true) == nil)
+        // A margin too thin for the bar (on the way to edge to edge) puts it inside too.
+        let thin = CGRect(x: 0, y: 2, width: 1200, height: 796)
+        #expect(LoadingIndicator.frame(content: thin, in: window, pageFullscreen: false)?.maxY == thin.maxY)
     }
 
     @Test func phaseFollowsLoadingAndCommit() {

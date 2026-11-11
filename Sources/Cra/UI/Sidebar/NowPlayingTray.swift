@@ -229,16 +229,46 @@ final class NowPlayingTrayView: NSView {
             hideBehind()
             return
         }
+        // The cards grow up out of the pill and fold back on a spring, over whatever lies above
+        // them: the tab list behind stays exactly where it is (it gave up only the resting pill's room).
+        CATransaction.begin()
+        CATransaction.setCompletionBlock { [weak self] in
+            MainActor.assumeIsolated { if self?.expanded == false { hideBehind() } }
+        }
+        for (card, f, _) in frames { Self.spring(card, to: f) }
+        CATransaction.commit()
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = 0.2
             ctx.timingFunction = CAMediaTimingFunction(controlPoints: 0.15, 0.85, 0.3, 1)
-            ctx.allowsImplicitAnimation = true
-            for (card, f, a) in frames {
-                card.animator().frame = f
-                card.animator().alphaValue = a
-            }
-        } completionHandler: { [weak self] in
-            if self?.expanded == false { hideBehind() }
+            for (card, _, a) in frames { card.animator().alphaValue = a }
+        }
+    }
+
+    /// The cards' spring: quick, with a touch of give and no bounce past the stack's top.
+    static let cardSpring = SpringMotion(response: 0.3, dampingFraction: 0.86)
+
+    /// `card` to `f` on cardSpring, from wherever it shows now (a fold caught mid-way turns round).
+    private static func spring(_ card: NSView, to f: NSRect) {
+        guard let layer = card.layer, !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else { card.frame = f; return }
+        let shown = layer.presentation()
+        let fromPosition = shown?.position ?? layer.position
+        let fromBounds = shown?.bounds ?? layer.bounds
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        card.frame = f
+        CATransaction.commit()
+        let s = cardSpring
+        for (key, from, to) in [("position", NSValue(point: fromPosition), NSValue(point: layer.position)),
+                                ("bounds", NSValue(rect: fromBounds), NSValue(rect: layer.bounds))] {
+            guard from != to else { layer.removeAnimation(forKey: "card." + key); continue }
+            let a = CASpringAnimation(keyPath: key)
+            a.fromValue = from
+            a.toValue = to
+            a.mass = 1
+            a.stiffness = s.stiffness
+            a.damping = s.damping
+            a.duration = a.settlingDuration
+            layer.add(a, forKey: "card." + key)
         }
     }
 

@@ -159,4 +159,20 @@ struct PeekLayoutTests {
         #expect(!PeekLayout.sourceScript(pointer: nil).contains("nan"))
         #expect(PeekLayout.sourceScript(pointer: CGPoint(x: 0.25, y: 0.5)).contains("0.25 * vv.width"))
     }
+
+    /// No link found (the page opened the Peek from script): the card grows from a small rect at
+    /// the click, so it visibly opens out of it; never from the whole area, which barely moved.
+    @Test func withoutALinkTheCardGrowsFromTheClick() {
+        let area = CGRect(x: 100, y: 0, width: 1000, height: 800)
+        let s = PeekLayout.clickSource(pointer: CGPoint(x: 400, y: 300), in: area)
+        #expect(s.size == PeekLayout.clickSourceSize && s.midX == 400 && s.midY == 300)
+        let edge = PeekLayout.clickSource(pointer: CGPoint(x: 101, y: 799), in: area)
+        #expect(area.contains(edge) && edge.minX == 100 && edge.maxY == 800, "kept inside the area")
+        let off = PeekLayout.clickSource(pointer: CGPoint(x: 20, y: 300), in: area)
+        #expect(off.midX == area.midX && off.midY == area.midY, "a pointer off the area: from its middle")
+        #expect(PeekLayout.clickSource(pointer: nil, in: area).midX == area.midX)
+        let open = PeekLayout.opening(from: s, to: PeekLayout.card(in: area), at: 0)
+        #expect(open.frame.width < area.width / 5, "the first frame is small")
+    }
 }
+

@@ -27,8 +27,9 @@ Legend: [O] observed in shipped artifact or data file, [I] inference, [U] unknow
   - itemContainer { containerType: topApps{profile} | spaceItems{spaceID} }
   - [O strings only] easel, splitView, arcDocument, tabGroup also exist.
 - [O] Favorites = the "topApps" container, one per profile, shared by all spaces (StorableSidebar.topAppsContainerIDs).
-  Cra keeps favorites per space by default; Settings ▸ Tabs ▸ "Share Favorites across Spaces with the same profile"
-  (#154) does it Arc's way (see "Favorites per profile").
+  Cra does it Arc's way by default (see "Favorites per profile"); turning off Settings ▸ Tabs ▸ "Share Favorites
+  across Spaces with the same profile" (#154) gives each space its own. Settings saved before the default changed
+  (no `favoritesDefaultMigrated`) switch to shared once.
 - [O] Every space owns one pinned container and one unpinned ("Today") container; ordering = childrenIds; folders nest via parentID.
 - [O] A pinned tab keeps savedURL/savedTitle as its home; strings: resetTab, resetCurrentTab, replacePinnedTab,
   PinnedTabNavigationProfile, renamePinnedTabsEnabled=1.
@@ -2284,7 +2285,9 @@ click, then AX), 120 fps region recordings.
   (container kind `.favorites(spaceID: sharedFavoritesSpaceID)`) that its spaces point at and that outlives them;
   a favorite loads in its list's profile; turning it on merges the spaces' own favorites into their profile's list
   (a page twice once), off gives each space its own copy. Tile menu: Remove Favorite, Move to › Profile.
-  SpacePagerView holds the tiles still between two pages that show one list.
+  One FavoritesGridView per window sits in SidebarView's chrome under the URL field, outside SpacePagerView (Arc's
+  `sidebarFavoritesCollectionView` beside its pager): the tiles stay still through every space change, and a space
+  with another list (another profile, or sharing off) cross-fades it in rather than sliding it with the page.
 
 ### Reordering Favorites (Arc 1.171, 4 Nov 2026, offline Arc, issue #176)
 - [O static] The top apps are an NSCollectionView (`AppTrayViewController`, `AppTrayCollectionViewLayout`) with the

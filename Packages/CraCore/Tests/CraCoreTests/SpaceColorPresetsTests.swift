@@ -37,17 +37,46 @@ struct SpaceColorPresetsTests {
         #expect(SpaceColorPresets.page(of: ["#123456"]) == nil)
     }
 
-    /// A new space starts on one colour (#170) on Auto, so it follows macOS like every Auto space
-    /// (#155): the colour, flat, while macOS is light (a pastel of it when it reads dark) and the
-    /// colour's hue, dark, while macOS is dark.
+    /// One colour on Auto follows macOS like every Auto space (#155): the colour, flat, while macOS
+    /// is light (a pastel of it when it reads dark) and the colour's hue, dark, while macOS is dark.
     @Test(.bug("https://github.com/VictorKildahl/cra/issues/155"), arguments: 0..<9)
-    func newSpaceIsOneColourOnAuto(index: Int) {
+    func oneColourOnAutoFollowsMacOS(index: Int) {
         let hex = SpaceColorPresets.brand[index]
-        let theme = SpaceColorPresets.newSpaceTheme(index: index)
+        let theme = SpaceThemeVariants.theme(key: [hex], intensity: 0.8, noise: 0, appearance: "auto")
         #expect(theme.key == [hex] && theme.appearance == "auto" && theme.dark != nil)
         let light = theme.resolved(systemDark: false), dark = theme.resolved(systemDark: true)
         #expect(light.solid && light.colors.count == 2 && light.colors[0] == light.colors[1] && !light.isDark)
         #expect(dark.colors.count == 2 && dark.colors[0] == dark.colors[1] && dark.isDark)
+    }
+
+    /// A new space starts in Arc's light pastel look, whatever macOS is set to: one Pastel colour,
+    /// flat, in Light, light in both of macOS's modes.
+    @Test(arguments: 0..<9)
+    func newSpaceIsOnePastelColourInLight(index: Int) {
+        let hex = SpaceColorPresets.pastel[index]
+        let theme = SpaceColorPresets.pastelTheme(index: index)
+        #expect(theme.key == [hex] && theme.appearance == "light")
+        for systemDark in [false, true] {
+            let shown = theme.resolved(systemDark: systemDark)
+            #expect(shown.solid && shown.colors == [hex, hex] && !shown.isDark)
+        }
+    }
+
+    /// With nothing picked a new space is unthemed (no colour on the pad) in Light, never a dark
+    /// look; the pad's + brings Pastel's sky blue.
+    @Test func newSpaceStartsUnthemed() {
+        let theme = SpaceColorPresets.newSpaceTheme()
+        #expect((theme.key ?? []).isEmpty && theme.appearance == "light")
+        #expect(!theme.resolved(systemDark: true).isDark && !theme.resolved(systemDark: false).isDark)
+        #expect(SpaceColorPresets.firstPadColour == "#DCF3FC")
+        #expect(SpaceColorPresets.pastelTheme().key == ["#DCF3FC"])
+    }
+
+    /// A new install's first space is Arc's warm off-white, light.
+    @Test func firstSpaceIsWarmOffWhite() {
+        let theme = SidebarDocument.fresh().spaces[0].theme
+        #expect(theme == SpaceColorPresets.firstSpaceTheme() && theme.key == ["#F2EAE4"])
+        #expect(!theme.resolved(systemDark: true).isDark && !theme.resolved(systemDark: false).isDark)
     }
 
     /// Arc's pairs: each Brand colour with the second colour Arc saved for it, which keeps roughly

@@ -1,0 +1,30 @@
+# A page's image in Cra's preview card (11 Nov 2026): "Open Image in Preview" in its context menu,
+# or a Shift-click on it. The card grows out of the image on the page and zooms like any picture in
+# it. A Shift-click on an image inside a link stays the link's (Peek).
+cra://debug?windowSize=1200x800
+wait 1.5
+cra://open?url=file://${FIXTURES}/Pages/images.html
+expect-log loaded file:
+wait 1
+# A Shift-click on the plain image.
+cra://debug?imagePreview=80,40&shift=1
+expect-log image preview: a Shift-click on an image from a data: address
+expect-log media preview opens Image.png \(image, webImage\)
+expect-log media preview grows from its item \(Image.png\)
+cra://debug?previewState=web
+expect-log media preview web: shown name=Image.png kind=image index=1/1 source=webImage .*zoom=fit
+cra://debug?previewKey=escape
+expect-log media preview closes into its item \(Image.png\)
+wait 0.5
+# A Shift-click on the linked image: no preview.
+cra://debug?imagePreview=80,140&shift=1
+expect-log image preview: a Shift-click on a linked image stays the link's
+wait 0.5
+cra://debug?previewState=linked
+expect-log media preview linked: closed
+# The menu's Open Image in Preview works on it.
+cra://debug?imagePreview=80,140
+expect-log image preview: the menu on an image from a data: address
+cra://debug?previewState=menu
+expect-log media preview menu: shown name=Image\.png kind=image
+cra://debug?previewKey=escape

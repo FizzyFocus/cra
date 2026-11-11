@@ -154,11 +154,14 @@ public struct TabSleepPolicy: Equatable, Sendable {
         public var id: UUID
         public var hiddenAt: Date?
         public var audibleAt: Date?
+        /// Tab ▸ Load on Start: the page stays in memory, and still counts as one used lately.
+        public var loadOnStart: Bool
 
-        public init(id: UUID, hiddenAt: Date?, audibleAt: Date? = nil) {
+        public init(id: UUID, hiddenAt: Date?, audibleAt: Date? = nil, loadOnStart: Bool = false) {
             self.id = id
             self.hiddenAt = hiddenAt
             self.audibleAt = audibleAt
+            self.loadOnStart = loadOnStart
         }
     }
 
@@ -240,7 +243,7 @@ public struct TabSleepPolicy: Equatable, Sendable {
         let kept = keepsRecentTabs ? Self.recentlyShown(pages, visible: visible, count: protectedRecent) : []
         return pages
             .filter { p in
-                guard let hidden = p.hiddenAt, hidden < cutoff, !visible.contains(p.id), !kept.contains(p.id) else { return false }
+                guard !p.loadOnStart, let hidden = p.hiddenAt, hidden < cutoff, !visible.contains(p.id), !kept.contains(p.id) else { return false }
                 return p.audibleAt.map { $0 < cutoff } ?? true
             }
             .sorted { ($0.hiddenAt!, $0.id.uuidString) < ($1.hiddenAt!, $1.id.uuidString) }

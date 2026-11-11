@@ -23,7 +23,7 @@ import CraCEF
 
 // Unrelated shell services required to typecheck the complete production manager.
 // The tab store deliberately remains observable so stale callbacks can be asserted.
-struct TestTab { var url: String; var savedTitle = ""; var muted = false; var faviconKey: String?; var themeColor: String?; var activeTabBeforeCreationID: UUID? }
+struct TestTab { var url: String; var savedTitle = ""; var muted = false; var faviconKey: String?; var themeColor: String?; var activeTabBeforeCreationID: UUID?; var loadOnStart: Bool? }
 struct TestItem {
     let id: UUID
     var tab: TestTab?
@@ -73,6 +73,9 @@ enum TestRoot { case today }
     func clearHistory(_ range: BrowsingDataClear.Range) {}
     func selectTab(_ id: UUID, window: UUID?) {}
     func markUnread(_ id: UUID, _ unread: Bool) {}
+    /// Links opened from tabs (TabLineage), in the order they opened.
+    var tabLineage: [UUID: UUID] = [:]
+    func noteOpened(_ child: UUID, from parent: UUID) { tabLineage[child] = parent }
     @discardableResult
     func createTab(url: String, in space: UUID? = nil, select: Bool = false,
                    parent: UUID? = nil, index: Int? = nil, window: UUID? = nil, referrer: UUID? = nil) -> TestItem {

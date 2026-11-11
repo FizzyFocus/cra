@@ -1,0 +1,44 @@
+# The popovers hung from the bar and the sidebar (the Extensions popover, the bookmark card) go
+# when what they belong to goes: another space coming up, the floating sidebar starting to hide.
+# They were left hanging on screen over nothing (10 Nov 2026; MainWindowController.dismissPopovers,
+# FloatingSidebarController.willHide).
+seed sidebar.json {"version":1,"spaceOrder":["B2520000-0000-0000-0000-000000000001","B2520000-0000-0000-0000-000000000002"],"spaces":[{"id":"B2520000-0000-0000-0000-000000000001","title":"One","emoji":"\ud83e\uddea","theme":{"colors":["#CDB68F","#CDB68F"],"intensity":1,"noise":0,"appearance":"light","accent":"#CDB68F","solid":true},"favoritesContainerID":"D2520000-0000-0000-1000-000000000001","pinnedContainerID":"D2520000-0000-0000-2000-000000000001","todayContainerID":"D2520000-0000-0000-3000-000000000001","createdAt":"2026-11-08T08:00:00Z"},{"id":"B2520000-0000-0000-0000-000000000002","title":"Two","emoji":"","theme":{"colors":["#CDB68F","#CDB68F"],"intensity":1,"noise":0,"appearance":"light","accent":"#CDB68F","solid":true},"favoritesContainerID":"D2520000-0000-0000-1000-000000000002","pinnedContainerID":"D2520000-0000-0000-2000-000000000002","todayContainerID":"D2520000-0000-0000-3000-000000000002","createdAt":"2026-11-08T08:00:00Z"}],"items":[{"id":"D2520000-0000-0000-1000-000000000001","children":[],"isUnread":false,"createdAt":"2026-11-08T08:00:00Z","data":{"container":{"_0":{"favorites":{"spaceID":"B2520000-0000-0000-0000-000000000001"}}}}},{"id":"D2520000-0000-0000-2000-000000000001","children":[],"isUnread":false,"createdAt":"2026-11-08T08:00:00Z","data":{"container":{"_0":{"pinned":{"spaceID":"B2520000-0000-0000-0000-000000000001"}}}}},{"id":"D2520000-0000-0000-3000-000000000001","children":[],"isUnread":false,"createdAt":"2026-11-08T08:00:00Z","data":{"container":{"_0":{"today":{"spaceID":"B2520000-0000-0000-0000-000000000001"}}}}},{"id":"D2520000-0000-0000-1000-000000000002","children":[],"isUnread":false,"createdAt":"2026-11-08T08:00:00Z","data":{"container":{"_0":{"favorites":{"spaceID":"B2520000-0000-0000-0000-000000000002"}}}}},{"id":"D2520000-0000-0000-2000-000000000002","children":[],"isUnread":false,"createdAt":"2026-11-08T08:00:00Z","data":{"container":{"_0":{"pinned":{"spaceID":"B2520000-0000-0000-0000-000000000002"}}}}},{"id":"D2520000-0000-0000-3000-000000000002","children":[],"isUnread":false,"createdAt":"2026-11-08T08:00:00Z","data":{"container":{"_0":{"today":{"spaceID":"B2520000-0000-0000-0000-000000000002"}}}}}]}
+budget rss=600 stalls50=10
+cra://debug?windowSize=1280x800
+cra://open?url=${PAGE}?n=popovers
+wait 3
+cra://debug?urlFieldHover=1
+cra://debug?urlFieldPress=siteControls
+wait 1
+expect-log url field press siteControls: pressed true, site control center shown
+cra://debug?windowState=extensions
+expect-log window state extensions: main0 .*popovers=extensions
+cra://action/nextSpace
+wait 1
+cra://debug?windowState=extensionsSpace
+expect-log window state extensionsSpace: main0 .*popovers=-
+cra://action/previousSpace
+wait 1
+cra://action/bookmarkTab
+wait 1
+cra://debug?windowState=card
+expect-log window state card: main0 .*popovers=bookmark
+cra://action/nextSpace
+wait 1
+cra://debug?windowState=cardSpace
+expect-log window state cardSpace: main0 .*popovers=-
+cra://action/previousSpace
+wait 1
+cra://action/toggleSidebar
+wait 1
+cra://debug?floatingSidebar=1
+wait 1
+cra://debug?urlFieldHover=1
+cra://debug?urlFieldPress=siteControls
+wait 1
+cra://debug?windowState=floating
+expect-log window state floating: main0 .*floating=1 .*popovers=extensions
+cra://debug?floatingSidebar=0
+wait 1
+cra://debug?windowState=floatingGone
+expect-log window state floatingGone: main0 .*floating=0 .*popovers=-

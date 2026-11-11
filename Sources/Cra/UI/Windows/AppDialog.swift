@@ -174,7 +174,7 @@ private struct AppDialogView: View {
             }
             Text(dialog.title)
                 .font(.system(size: 17.5, weight: .semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(DialogTheme.title)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, dialog.icon == .none ? 0 : dialog.icon == .application ? 18 : 17.5)
             if !dialog.message.isEmpty {
@@ -189,12 +189,12 @@ private struct AppDialogView: View {
                 TextField(dialog.placeholder, text: Binding(get: { dialog.input ?? "" }, set: { dialog.input = $0 }))
                     .textFieldStyle(.plain)
                     .font(.system(size: 14))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(DialogTheme.title)
                     .focused($inputFocused)
                     .padding(.horizontal, 12)
                     .frame(height: 37)
-                    .background(RoundedRectangle(cornerRadius: 6).fill(Color(hex: "#383E4F")))
-                    .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Color(hex: "#737884"), lineWidth: 1))
+                    .background(RoundedRectangle(cornerRadius: 6).fill(DialogTheme.fieldFill))
+                    .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(DialogTheme.fieldStroke, lineWidth: 1))
                     .padding(.top, 18)
             }
             if let title = dialog.suppressionTitle {

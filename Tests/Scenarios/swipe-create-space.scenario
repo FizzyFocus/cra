@@ -1,0 +1,10 @@
+# Swiping on past the last space fills a ring round a +, a tick each quarter; letting go with it
+# full opens Create a Space, the new space going at the end (10 Nov 2026; SpaceCreateSwipe).
+cra://debug?windowSize=1280x800
+wait 2
+cra://debug?swipe=-14,24
+wait 1
+expect-log swipe past the last space opens Create a Space
+cra://debug?windowState=creating
+expect-log window state creating: main0 .*docked=1
+cra://debug?createSpace=cancel

@@ -16,13 +16,21 @@ struct ShippedPlatformTests {
         #expect(SecureDNSProvider.all.allSatisfy { SecureDNSPrefs.validTemplates($0.template) == $0.template })
     }
 
-    /// Settings ▸ Performance (#91) records from the first launch, with site names kept until
-    /// "Hide site names" is ticked, and a settings file without the keys reads the same way.
+    /// Settings ▸ Performance (#91) records only when asked for since 11 Nov 2026 (the user's
+    /// call: recording all day had macOS flag Cra for significant energy), with site names kept
+    /// until "Hide site names" is ticked. A file saved with the old on default reads as off, once;
+    /// one switched on after that stays on.
     @Test(.bug("https://github.com/VictorKildahl/cra/issues/91"))
-    func performanceRecordingIsOnByDefault() throws {
+    func performanceRecordingIsOffUntilAskedFor() throws {
         let s = try JSONDecoder().decode(AppSettings.self, from: Data("{}".utf8))
-        #expect(s.perfRecording && !s.perfHidesSiteNames)
-        #expect(AppSettings().perfRecording && !AppSettings().perfHidesSiteNames)
+        #expect(!s.perfRecording && !s.perfHidesSiteNames)
+        #expect(!AppSettings().perfRecording && !AppSettings().perfHidesSiteNames)
+        let old = try JSONDecoder().decode(AppSettings.self, from: Data(#"{"perfRecording": true}"#.utf8))
+        #expect(!old.perfRecording, "the old default, saved without being chosen")
+        var on = AppSettings()
+        on.perfRecording = true
+        let back = try JSONDecoder().decode(AppSettings.self, from: try JSONEncoder().encode(on))
+        #expect(back.perfRecording, "switched on after the change: stays on")
     }
 
     /// The permission sheet (#137) names MIDI and the clipboard in Chrome's words, not as "a

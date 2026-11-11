@@ -177,6 +177,9 @@ final class FavoritePreviewCard {
     private func showIfReady() {
         guard wantsShow, panel == nil, let tile, let window = tile.window, let view = content() else { return }
         let p = PreviewPanel(content: view)
+        // The sidebar's light or dark (its space's), not the Mac's: a light card on a pastel space.
+        p.appearance = tile.effectiveAppearance
+        CraLog.note("favorite preview shown (\(tile.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? "dark" : "light"))")
         let t = window.convertToScreen(tile.convert(tile.bounds, to: nil))
         // Arc: the card's left edge 4 pt in from the tile's right edge, its top 3.5 pt above the tile's bottom.
         p.place(cardTopLeft: NSPoint(x: t.maxX - 4, y: t.minY + 3.5))
@@ -262,6 +265,7 @@ final class MeetingReminder {
         if let panel, shown == key { panel.replace(view); return }
         close()
         let p = PreviewPanel(content: view)
+        p.appearance = tile.effectiveAppearance
         let t = window.convertToScreen(tile.convert(tile.bounds, to: nil))
         p.place(cardTopLeft: NSPoint(x: t.maxX - 4, y: t.minY + 3.5))
         window.addChildWindow(p, ordered: .above)
@@ -450,18 +454,39 @@ private final class TrackingView: NSView {
 
 // MARK: - Views
 
+/// The card's colours follow its panel's appearance, the sidebar's (CraCore FavoritePreviewTones):
+/// Arc's dark card on a dark space, a light frosted one with dark text on a light one.
 private enum CardStyle {
-    static let fill = Color(red: 25 / 255, green: 24 / 255, blue: 23 / 255)
-    static let edge = Color(red: 63 / 255, green: 62 / 255, blue: 60 / 255)
-    static let line = Color.white.opacity(0.08)
-    static let text = Color.white.opacity(0.9)
-    static let secondary = Color.white.opacity(0.5)
-    static let hover = Color.white.opacity(0.07)
+    static let fill = tone { $0.fill }
+    static let edge = tone { $0.edge }
+    static let line = tone { $0.line }
+    static let text = tone { $0.text }
+    static let secondary = tone { $0.secondary }
+    static let hover = tone { $0.hover }
+    static let button = tone { $0.button }
+    /// Event blocks on the calendar: a step up from the card.
+    static let block = Color(nsColor: NSColor(name: nil) { isDark($0) ? NSColor(white: 0.22, alpha: 1) : NSColor(white: 0, alpha: 0.07) })
+    static let blockHover = Color(nsColor: NSColor(name: nil) { isDark($0) ? NSColor(white: 0.27, alpha: 1) : NSColor(white: 0, alpha: 0.11) })
+
+    static func isDark(_ a: NSAppearance) -> Bool { a.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua }
+
+    private static func tone(_ pick: @escaping @Sendable (FavoritePreviewTones) -> FavoritePreviewTones.RGBA) -> Color {
+        Color(nsColor: NSColor(name: nil) { a in
+            let c = pick(FavoritePreviewTones.forSidebar(dark: isDark(a)))
+            return NSColor(srgbRed: c.r, green: c.g, blue: c.b, alpha: c.a)
+        })
+    }
 
     static func card<V: View>(_ v: V) -> some View {
-        v.background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(fill))
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(edge, lineWidth: 1))
+        v.background {
+            ZStack {
+                // Frosted: what is behind shows through, blurred, under the tint.
+                RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.regularMaterial)
+                RoundedRectangle(cornerRadius: 10, style: .continuous).fill(fill)
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(edge, lineWidth: 1))
     }
 }
 
@@ -476,8 +501,9 @@ private struct RoundButton: View {
     var body: some View {
         GeometryReader { g in
             Circle()
-                .fill(light ? Color.white.opacity(hovered ? 0.3 : 0.24) : Color(white: hovered ? 0.2 : 0.14))
-                .overlay(Circle().strokeBorder(Color.white.opacity(light ? 0 : 0.14), lineWidth: 1))
+                .fill(light ? CardStyle.hover : CardStyle.button)
+                .brightness(hovered ? 0.06 : 0)
+                .overlay(Circle().strokeBorder(CardStyle.line, lineWidth: 1))
                 .overlay(Image(systemName: symbol).font(.system(size: 15, weight: .semibold)).foregroundStyle(CardStyle.text))
                 .shadow(color: .black.opacity(0.35), radius: 4, y: 1)
                 .contentShape(Circle())
@@ -512,7 +538,7 @@ private struct GmailPreviewView: View {
                 Text(GmailPreview.emptyText).font(.system(size: 13)).multilineTextAlignment(.center)
                 Text("🍃").font(.system(size: 14))
             }
-            .foregroundStyle(.white.opacity(0.78))
+            .foregroundStyle(CardStyle.text)
             .padding(.vertical, 15.5).padding(.horizontal, 16)
             .frame(width: 240))
     }
@@ -599,7 +625,7 @@ struct CalendarPreviewView: View {
         CardStyle.card(
             VStack(spacing: 8) {
                 Text("Sign in to Google Calendar to see today's meetings here.")
-                    .font(.system(size: 13)).multilineTextAlignment(.center).foregroundStyle(.white.opacity(0.78))
+                    .font(.system(size: 13)).multilineTextAlignment(.center).foregroundStyle(CardStyle.text)
                 Button("Sign In", action: actions.signIn).buttonStyle(.borderedProminent).controlSize(.small)
             }
             .padding(.vertical, 14).padding(.horizontal, 16)
@@ -689,12 +715,12 @@ private struct EventBlock: View {
         HStack(alignment: compact ? .center : .top, spacing: 4) {
             if compact {
                 (Text(event.title).font(.system(size: 11, weight: .semibold))
-                    + Text("  " + CalendarPreview.timeRange(event)).font(.system(size: 10)).foregroundColor(.white.opacity(0.6)))
+                    + Text("  " + CalendarPreview.timeRange(event)).font(.system(size: 10)).foregroundColor(CardStyle.secondary))
                     .lineLimit(1)
             } else {
                 VStack(alignment: .leading, spacing: 1) {
                     Text(event.title).font(.system(size: 11, weight: .semibold)).lineLimit(1)
-                    Text(CalendarPreview.timeRange(event)).font(.system(size: 10)).foregroundStyle(.white.opacity(0.6)).lineLimit(1)
+                    Text(CalendarPreview.timeRange(event)).font(.system(size: 10)).foregroundStyle(CardStyle.secondary).lineLimit(1)
                 }
             }
             Spacer(minLength: 0)
@@ -712,7 +738,7 @@ private struct EventBlock: View {
         .padding(.horizontal, 5).padding(.vertical, compact ? 0 : 3)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: compact ? .leading : .topLeading)
         // Opaque, over the hour lines and the now line.
-        .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(Color(white: hovered ? 0.27 : 0.22)))
+        .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(hovered ? CardStyle.blockHover : CardStyle.block))
         .opacity(past ? 0.55 : 1)
         .clipped()
         .contentShape(Rectangle())

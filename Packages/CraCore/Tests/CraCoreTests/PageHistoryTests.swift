@@ -23,6 +23,23 @@ struct PageHistoryTests {
         #expect(!empty.restores(into: .chromium, at: "https://example.com/b"))
     }
 
+    /// Chromium's own pages (chrome://settings and the like) open fresh at their address: putting
+    /// a saved list back into one crashed Cra as its page was made (Cra.restoreHistory, a Settings
+    /// tab shown after it was unloaded or after a relaunch). So does a list that went through one.
+    @Test func chromiumsOwnPagesStartFresh() {
+        var settings = saved
+        settings.url = "chrome://settings/searchEngines"
+        #expect(!settings.restores(into: .chromium, at: "chrome://settings/searchEngines"))
+        for url in ["chrome://history/", "chrome-untrusted://print/", "devtools://devtools/bundled/inspector.html", "CHROME://settings"] {
+            var h = saved
+            h.url = url
+            #expect(!h.restores(into: .chromium, at: url), "\(url)")
+        }
+        var through = saved
+        through.state = Data("…https://example.com/a…chrome://settings/…https://example.com/b…".utf8)
+        #expect(!through.restores(into: .chromium, at: "https://example.com/b"))
+    }
+
     /// Sidebar tabs keep theirs, and so do the 25 latest closed tabs, for ⇧⌘T.
     @Test(.bug("https://github.com/VictorKildahl/cra/issues/273"))
     func closedTabsKeepTheirsForReopening() {

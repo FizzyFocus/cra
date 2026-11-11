@@ -6,15 +6,18 @@ import Testing
 /// editor's one-colour default (#170), the tooltip tones on a reporter's space (#152) and the
 /// edge-to-edge setting (#24).
 struct ShippedThemesTests {
-    /// A new space starts on one of Arc's Brand colours, alone on the pad, on Auto (#170: Edit
-    /// Space no longer starts every theme with two colours). Index 3 is the CloudDev red.
+    /// Edit Space no longer starts every theme with two colours (#170). Since 10 Nov 2026 a new
+    /// space starts with none on the pad, unthemed, in Light; the pad's + then brings one Pastel
+    /// colour, in Light, the editor on Pastel's page.
     @Test(.bug("https://github.com/VictorKildahl/cra/issues/170"), arguments: 0..<9)
-    func newSpaceStartsOnOneBrandColour(index: Int) {
-        let theme = SpaceColorPresets.newSpaceTheme(index: index)
-        #expect(theme.key == [SpaceColorPresets.brand[index]])
-        #expect(theme.intensity == 0.8 && theme.noise == 0 && theme.appearance == "auto")
-        #expect(SpaceColorPresets.page(of: theme.key ?? []) == 0, "the editor opens on Brand, the page holding it")
-        #expect(SpaceColorPresets.newSpaceTheme(index: 3).key == ["#F25E6B"])
+    func newSpaceStartsOnOnePastelColour(index: Int) {
+        let new = SpaceColorPresets.newSpaceTheme()
+        #expect((new.key ?? []).isEmpty && new.colors.isEmpty && new.appearance == "light", "no colour on the pad")
+        let theme = SpaceColorPresets.pastelTheme(index: index)
+        #expect(theme.key == [SpaceColorPresets.pastel[index]])
+        #expect(theme.intensity == 0.8 && theme.noise == 0 && theme.appearance == "light")
+        #expect(SpaceColorPresets.page(of: theme.key ?? []) == 2, "the editor opens on Pastel, the page holding it")
+        #expect(SpaceColorPresets.pastelTheme(index: 3).key == ["#FFCBD1"])
     }
 
     /// One colour picked in Light is saved as a solid theme, the same shape an Arc `single`
@@ -37,7 +40,7 @@ struct ShippedThemesTests {
     /// ThemeTonesTests checks from Arc's own shadedDark; here it comes from the theme alone.
     @Test(.bug("https://github.com/VictorKildahl/cra/issues/152"))
     func cloudDevTipTakesArcsTones() {
-        let cloudDev = SpaceColorPresets.newSpaceTheme(index: 3).resolved(systemDark: false)
+        let cloudDev = SpaceThemeVariants.theme(key: ["#F25E6B"], intensity: 0.8, noise: 0, appearance: "auto").resolved(systemDark: false)
         let tones = TooltipTones(theme: cloudDev)
         func near(_ c: RGB, _ e: (Double, Double, Double)) -> Bool {
             abs(c.r * 255 - e.0) <= 4 && abs(c.g * 255 - e.1) <= 4 && abs(c.b * 255 - e.2) <= 4

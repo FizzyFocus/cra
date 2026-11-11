@@ -190,6 +190,20 @@ public enum PeekLayout {
         return r.isNull || r.width < 1 || r.height < 1 ? nil : r
     }
 
+    /// What a Peek grows from when no link was found (a page that opens it from script, Gmail's
+    /// messages): a link-sized rect at the click, `pointer` (the window's coordinates), kept inside
+    /// `area`; the area's middle when the pointer isn't on it. It used to grow from the whole area,
+    /// which barely moves and read as the card just appearing (10 Nov 2026).
+    public static let clickSourceSize = CGSize(width: 96, height: 28)
+
+    public static func clickSource(pointer: CGPoint?, in area: CGRect) -> CGRect {
+        let s = CGSize(width: min(clickSourceSize.width, area.width), height: min(clickSourceSize.height, area.height))
+        let c = pointer.flatMap { area.contains($0) ? $0 : nil } ?? CGPoint(x: area.midX, y: area.midY)
+        let x = min(max(c.x - s.width / 2, area.minX), area.maxX - s.width)
+        let y = min(max(c.y - s.height / 2, area.minY), area.maxY - s.height)
+        return CGRect(x: x, y: y, width: s.width, height: s.height)
+    }
+
     /// The page script that finds the link a Peek opens from: the link under `pointer` (fractions
     /// of the view, y down; nil without one), else the focused one (Return on a link). Its answer
     /// is the link's rect in fractions of the visual viewport, or null. It keeps the link for

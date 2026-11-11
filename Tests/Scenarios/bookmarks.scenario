@@ -1,0 +1,18 @@
+# ⇧⌘D bookmarks the page (bookmarks.json) and opens its card; View Bookmarks… opens the Library's
+# Bookmarks page as a ~400 pt drawer over the page; a relaunch keeps the bookmark.
+cra://debug?windowSize=1280x800
+cra://open?url=${PAGE}?n=bookmark
+wait 3
+cra://action/bookmarkTab
+wait 1
+expect-log bookmark added
+expect-log bookmark card shows added
+cra://action/viewBookmarks
+wait 1.5
+cra://debug?windowState=bookmarks
+expect-log window state bookmarks: main0 .*docked=1 floating=0 drawer=400 library=bookmarks
+relaunch
+wait 3
+cra://action/viewBookmarks
+wait 1
+expect-log bookmarks: 1 loaded

@@ -1,0 +1,56 @@
+# The Library opens as a drawer: the sidebar widens to the drawer (about 400 pt) and the docked
+# card moves right with it at its own size (942 wide before and after), so the window and the page
+# never resize or reflow (Arc, 10 Nov 2026). Opened over a hidden sidebar it comes out in the
+# floating sidebar, the card staying put, and leaves the sidebar hidden when it closes; it never
+# docks the sidebar (ShellView.drawerWidth, MainWindowController.showLibrary). ⇧⌘L closes it
+# directly, with no slide past the tab list (closeLibraryDirectly).
+cra://debug?windowSize=1280x800
+wait 2
+cra://debug?windowState=before
+expect-log window state before: main0 .*size=1280x800 card=328,10,942,780 docked=1 floating=0 drawer=0 library=-
+cra://action/showArchive
+wait 1.5
+cra://debug?windowState=open
+expect-log window state open: main0 .*size=1280x800 card=400,10,942,780 docked=1 floating=0 drawer=400 library=archive
+cra://action/openLibrary
+wait 1
+expect-log library closes directly
+cra://debug?windowState=closed
+expect-log window state closed: main0 .*card=328,10,942,780 docked=1 floating=0 drawer=0 library=-
+cra://action/toggleSidebar
+wait 1
+cra://action/showArchive
+wait 1.5
+cra://debug?windowState=hiddenOpen
+expect-log window state hiddenOpen: main0 .*card=10,10,1260,780 docked=0 floating=1 drawer=400 library=archive
+# The pointer off the floating sidebar: ⇧⌘L takes the sidebar away with the Library in it.
+cra://debug?pointerOnSidebar=0
+cra://action/openLibrary
+wait 1.5
+expect-log library closes directly with the floating sidebar
+cra://debug?windowState=hiddenClosed
+expect-log window state hiddenClosed: main0 .*card=10,10,1260,780 docked=0 floating=0 drawer=0 library=-
+# The pointer on it: ⇧⌘L slides the Library back to the space as its ← does, the floating sidebar
+# staying out at the sidebar's width (11 Nov 2026: the drawer narrowed over it and cut it in half).
+cra://action/showArchive
+wait 1.5
+cra://debug?pointerOnSidebar=1
+cra://action/openLibrary
+expect-log library slides back in the floating sidebar
+wait 1.5
+cra://debug?windowState=hiddenSlidBack
+expect-log window state hiddenSlidBack: main0 .*docked=0 floating=1 drawer=0 library=-
+cra://debug?pointerOnSidebar=0
+cra://debug?floatingSidebar=0
+wait 1
+# The floating sidebar going away with the Library in it takes the Library too, out of sight: the
+# next reveal is the space's tabs, not the Library again (10 Nov 2026).
+cra://action/showArchive
+wait 1.5
+cra://debug?windowState=hiddenReopen
+expect-log window state hiddenReopen: main0 .*docked=0 floating=1 drawer=400 library=archive
+cra://debug?floatingSidebar=0
+wait 1
+cra://debug?windowState=hiddenGone
+expect-log library closed with the floating sidebar
+expect-log window state hiddenGone: main0 .*card=10,10,1260,780 docked=0 floating=0 drawer=0 library=-

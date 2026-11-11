@@ -1,0 +1,13 @@
+# Bookmarks come in from Chromium's bookmark manager (a profile's Bookmarks file, where Chrome's
+# importer puts them: read after launch and whenever it changes) and from a bookmarks.html
+# (Library ▸ Bookmarks ▸ Import), their folders kept (10 Nov 2026; BookmarkStore.syncChromium,
+# importHTML).
+seed Chromium/Default/Bookmarks {"roots":{"bookmark_bar":{"children":[{"guid":"s-1","name":"Seeded","type":"url","url":"https://seeded.test/"},{"guid":"s-f","name":"Seeded folder","type":"folder","children":[{"guid":"s-2","name":"Inside","type":"url","url":"https://inside.test/"}]}],"name":"Bookmarks bar","type":"folder","guid":"bar"},"other":{"children":[],"name":"Other bookmarks","type":"folder","guid":"other"},"synced":{"children":[],"name":"Mobile bookmarks","type":"folder","guid":"synced"}},"version":1}
+wait 5
+expect-log bookmarks from Chromium \(Default\): 2 bookmarks, 1 folders
+cra://debug?importBookmarks=${FIXTURES}/Pages/bookmarks.html
+wait 1
+expect-log bookmarks imported from html: 3 bookmarks, 2 folders
+relaunch
+wait 4
+expect-log bookmarks: 5 loaded

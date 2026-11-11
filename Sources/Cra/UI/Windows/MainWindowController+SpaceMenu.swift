@@ -34,25 +34,51 @@ extension MainWindowController {
     /// Edit Theme Color…: Arc's editor in a panel against the sidebar's edge at the window's top.
     /// Every change shows in the space at once but is written only when the editor closes, as in
     /// Arc (offline Arc 1.171: StorableSidebar.json changed on Escape, not on the swatch press).
-    func showSpaceStyleEditor(space: Space, beside anchor: NSView? = nil) {
+    /// Edit Theme Color…: the picker beside what it was asked from, its arrow there. From a Spaces
+    /// page card it sits flush with the card's right edge (Arc), pointing at the pointer on the card
+    /// or the card's header row; from the sidebar (a header, its •••, a dock icon, the list) at the
+    /// sidebar's edge level with `point`, where the menu was opened; from elsewhere beside the
+    /// pointer, or at the sidebar's top when the pointer is outside the window.
+    func showSpaceStyleEditor(space: Space, at point: NSPoint? = nil, beside anchor: NSView? = nil) {
         guard let window else { return }
-        if let open = window.childWindows?.first(where: { $0 is StyleEditorPanel }) { open.close() }
         let store = self.store, id = space.id
-        let editor = SpaceStyleEditor(theme: space.theme) { theme in store.previewTheme(theme, forSpace: id) }
-        // The card sits 12 pt into its 382 × 534 pt window (19 pt above the bottom), room for the shadow.
-        let size = NSSize(width: 382, height: 534)
-        // From a Spaces page card Arc puts it flush with the card's right edge.
-        let x = (anchor.flatMap { v in v.window.map { $0.convertToScreen(v.convert(v.bounds, to: nil)).maxX } }
-            ?? window.frame.minX + (shell.sidebarVisible ? shell.sidebarWidth : 0)).rounded()
-        let panel = StyleEditorPanel(contentRect: NSRect(x: x, y: window.frame.maxY - size.height, width: size.width, height: size.height)) {
-            store.endThemePreview(forSpace: id, keep: true)
+        let mouse = NSEvent.mouseLocation
+        let card = anchor.flatMap { v in v.window.map { $0.convertToScreen(v.convert(v.bounds, to: nil)) } }
+        let source: NSPoint
+        let edge: CGFloat
+        if let card {
+            source = NSPoint(x: card.maxX, y: card.insetBy(dx: -4, dy: -4).contains(mouse) ? mouse.y : card.maxY - 37)
+            edge = card.maxX
+        } else {
+            source = point ?? (window.frame.contains(mouse) ? mouse : NSPoint(x: window.frame.minX, y: window.frame.maxY - 60))
+            // Over the sidebar the arrow stands at its edge; past it, just right of the point.
+            edge = sidebarEdgeOnScreen.map { $0 >= source.x - 1 ? $0 : source.x + 6 } ?? source.x + 6
         }
-        let host = NSHostingView(rootView: editor.shadow(color: .black.opacity(0.3), radius: 10, y: 4)
-            .padding(.top, 12).padding(.horizontal, 13.5).padding(.bottom, 19))
-        host.sizingOptions = []
-        panel.contentView = host
-        window.addChildWindow(panel, ordered: .above)
-        panel.makeKeyAndOrderFront(nil)
+        let place = placeThemePicker(sourceY: source.y, edgeX: edge)
+        themePickerSpaceID = id
+        ThemePickerPopover.present(on: window, theme: space.theme, topLeft: place.topLeft, arrowY: place.arrowY,
+                                   onChange: { theme in store.previewTheme(theme, forSpace: id) },
+                                   onClose: { store.endThemePreview(forSpace: id, keep: true) })
+    }
+
+    /// The sidebar's right edge on screen while it is in sight: docked (the Library's drawer
+    /// included) or floating out; nil while hidden.
+    var sidebarEdgeOnScreen: CGFloat? {
+        guard let window else { return nil }
+        if shell.sidebarVisible { return window.frame.minX + shell.shownSidebarWidth }
+        if floatingSidebar?.isShown == true { return window.frame.minX + FloatingSidebarGeometry.margin + shell.shownSidebarWidth }
+        return nil
+    }
+
+    /// The picker's panel for something at height `sourceY`: the card centred on it inside the window
+    /// (ThemePickerPlacement), the arrow's tip just past `edgeX`.
+    func placeThemePicker(sourceY: CGFloat, edgeX: CGFloat) -> (topLeft: NSPoint, arrowY: CGFloat) {
+        let frame = window?.frame ?? .zero
+        let card = ThemePickerPopover.cardSize
+        let p = ThemePickerPlacement.place(sourceY: Double(sourceY), cardHeight: Double(card.height),
+                                           windowMinY: Double(frame.minY), windowMaxY: Double(frame.maxY))
+        let x = edgeX - (ThemePickerPopover.cardLeading - PickerCardShape.arrowDepth) + 2
+        return (NSPoint(x: x, y: CGFloat(p.top) + ThemePickerPopover.cardTop), CGFloat(p.arrowY))
     }
 
     /// Set Profile ▸ New Profile…: Arc's dialog over the dimmed window; Next asks which spaces use
@@ -143,7 +169,15 @@ final class StyleEditorPanel: NSPanel {
     override var canBecomeKey: Bool { true }
     override func cancelOperation(_ sender: Any?) { close() }
 
+    private var closing = false
+    /// The picker's own way out (ThemePickerPopover: back into its arrow as it fades); `done` once
+    /// it is gone. Without one the panel fades over 0.1 s.
+    var closeAnimation: ((_ done: @escaping () -> Void) -> Void)?
+
+    /// Commits at once, then animates away (at once with Reduce Motion or off screen).
     override func close() {
+        guard !closing else { return }
+        closing = true
         let done = onClose
         onClose = nil
         done?()
@@ -153,6 +187,23 @@ final class StyleEditorPanel: NSPanel {
         resignObserver = nil
         if let parentObserver { NotificationCenter.default.removeObserver(parentObserver) }
         parentObserver = nil
+        ignoresMouseEvents = true
+        guard isVisible, !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else { finishClose(); return }
+        if let animate = closeAnimation {
+            closeAnimation = nil
+            animate { [weak self] in self?.finishClose() }
+            return
+        }
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = 0.1
+            ctx.timingFunction = CAMediaTimingFunction(name: .easeIn)
+            animator().alphaValue = 0
+        } completionHandler: { [weak self] in
+            MainActor.assumeIsolated { self?.finishClose() }
+        }
+    }
+
+    private func finishClose() {
         parent?.removeChildWindow(self)
         super.close()
     }

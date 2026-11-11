@@ -1,0 +1,14 @@
+# A tab that isn't on screen is hidden to Chromium (11 Nov 2026, "Using Significant Energy"): its
+# page reads document.visibilityState "hidden", so Chromium stops painting it and throttles its timers
+# (once a second, then once a minute: its own background throttling, on as in Chrome; Cra adds no
+# switch that turns it off). The tab on screen stays "visible".
+seed sidebar.json {"version": 1, "spaceOrder": ["B4000000-0000-0000-0000-000000000001"], "spaces": [{"id": "B4000000-0000-0000-0000-000000000001", "title": "Home", "emoji": "🏠", "theme": {"colors": ["#DCF3FC", "#DCF3FC"], "intensity": 0.8, "noise": 0, "appearance": "light", "solid": true}, "favoritesContainerID": "D4000000-0000-0000-1000-000000000001", "pinnedContainerID": "D4000000-0000-0000-2000-000000000001", "todayContainerID": "D4000000-0000-0000-3000-000000000001", "createdAt": "2030-01-01T08:00:00Z"}], "items": [{"id": "D4000000-0000-0000-1000-000000000001", "children": [], "isUnread": false, "createdAt": "2030-01-01T08:00:00Z", "data": {"container": {"_0": {"favorites": {"spaceID": "B4000000-0000-0000-0000-000000000001"}}}}}, {"id": "D4000000-0000-0000-2000-000000000001", "children": [], "isUnread": false, "createdAt": "2030-01-01T08:00:00Z", "data": {"container": {"_0": {"pinned": {"spaceID": "B4000000-0000-0000-0000-000000000001"}}}}}, {"id": "D4000000-0000-0000-3000-000000000001", "children": ["E4000000-0000-0000-0000-000000000001", "E4000000-0000-0000-0000-000000000002"], "isUnread": false, "createdAt": "2030-01-01T08:00:00Z", "data": {"container": {"_0": {"today": {"spaceID": "B4000000-0000-0000-0000-000000000001"}}}}}, {"id": "E4000000-0000-0000-0000-000000000001", "parentID": "D4000000-0000-0000-3000-000000000001", "children": [], "isUnread": false, "createdAt": "2030-01-01T08:00:00Z", "data": {"tab": {"_0": {"url": "${PAGE}?n=a", "savedURL": "${PAGE}?n=a", "savedTitle": "Tab a"}}}}, {"id": "E4000000-0000-0000-0000-000000000002", "parentID": "D4000000-0000-0000-3000-000000000001", "children": [], "isUnread": false, "createdAt": "2030-01-01T08:00:00Z", "data": {"tab": {"_0": {"url": "${PAGE}?n=b", "savedURL": "${PAGE}?n=b", "savedTitle": "Tab b"}}}}]}
+wait 2
+cra://debug?selectTab=E4000000-0000-0000-0000-000000000001
+wait 3
+cra://debug?selectTab=E4000000-0000-0000-0000-000000000002
+wait 3
+cra://debug?cdp=Runtime.evaluate&tab=E4000000-0000-0000-0000-000000000001&params={"expression":"'tab-a '+document.visibilityState"}
+expect-log Cra cdp Runtime.evaluate .*"value":"tab-a hidden"
+cra://debug?cdp=Runtime.evaluate&tab=E4000000-0000-0000-0000-000000000002&params={"expression":"'tab-b '+document.visibilityState"}
+expect-log Cra cdp Runtime.evaluate .*"value":"tab-b visible"

@@ -1,21 +1,18 @@
 import AppKit
 
-/// Chrome plays a download-started animation when a download begins: a 64 pt round
-/// download glyph that fades in over the page and flies to the toolbar's download button
-/// (DownloadBubbleStartedAnimationViews, 500 ms). Cra keeps Chrome's toolbar hidden, so
-/// the glyph flies to nothing, and Cra shows its own animation like Arc. Chrome has no
-/// switch for it (only reduced motion), so its window is ordered out as soon as it
-/// appears: a views popup parented to the page (a child window), created with
-/// accept_events = false (ignores the mouse), sized 2 × kIconBackgroundRadius 32.
+/// Hides Chrome's download-started animation as it appears (CraCore ChromeDownloadAnimationWindow
+/// says which window it is). Chrome has no switch for it (only reduced motion), so for a couple of
+/// seconds after a download starts every window is checked 120 times a second.
 @MainActor
 enum ChromeDownloadAnimation {
-    private static let size = NSSize(width: 64, height: 64)
     /// Chrome posts the animation once the toolbar's download button has animated in.
     private static let watchDuration: TimeInterval = 2
     private static var watchUntil = Date.distantPast
     private static var timer: Timer?
+    private static var hidden: Set<Int> = []
 
-    /// Call when a download starts.
+    /// Call when a download starts: as soon as Chromium asks where to save it (the animation can
+    /// play before Cra hears the download's first update) and again on that update.
     static func suppress() {
         watchUntil = Date().addingTimeInterval(watchDuration)
         guard timer == nil else { return }
@@ -25,9 +22,13 @@ enum ChromeDownloadAnimation {
     }
 
     private static func tick() {
+        // Chrome sets the window's opacity on every frame of its animation: kept at 0 and out.
         for w in NSApp.windows where isAnimationWindow(w) && (w.isVisible || w.alphaValue > 0) {
             w.alphaValue = 0
             w.orderOut(nil)
+            if hidden.insert(w.windowNumber).inserted {
+                CraLog.note("chrome download animation hidden (\(Int(w.frame.width))x\(Int(w.frame.height)))")
+            }
         }
         if Date() >= watchUntil {
             timer?.invalidate()
@@ -36,7 +37,7 @@ enum ChromeDownloadAnimation {
     }
 
     private static func isAnimationWindow(_ w: NSWindow) -> Bool {
-        w.parent != nil && w.ignoresMouseEvents && w.frame.size == size
-            && NSStringFromClass(type(of: w)).contains("NativeWidgetMac")
+        ChromeDownloadAnimationWindow.matches(className: NSStringFromClass(type(of: w)), ignoresMouse: w.ignoresMouseEvents,
+                                              width: w.frame.width, height: w.frame.height)
     }
 }

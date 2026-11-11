@@ -1,0 +1,22 @@
+# Maximized (WindowFill): with the sidebar docked the card keeps its 10 pt inset and rounded corners;
+# hidden, the card goes edge to edge with the window's own zoom animation, and restoring brings the
+# inset back as the window shrinks (ShellView.beginZoom). Both the zoom command (the green button
+# with ⌥, Window ▸ Zoom) and a title strip double-click (with the system set to Maximize) do it.
+cra://debug?windowSize=1000x700
+wait 2
+cra://debug?zoomWindow=1
+wait 1.5
+cra://debug?windowState=maxDocked
+expect-log window state maxDocked: main0 .*card=328,10,.* docked=1
+cra://debug?zoomWindow=1
+wait 1.5
+cra://action/toggleSidebar
+wait 1
+cra://debug?titleDoubleClick=Maximize
+wait 1.5
+cra://debug?windowState=maxHidden
+expect-log window state maxHidden: main0 .*card=0,0,.* docked=0
+cra://debug?titleDoubleClick=Maximize
+wait 1.5
+cra://debug?windowState=restored
+expect-log window state restored: main0 .*size=1000x700 card=10,10,980,680 docked=0

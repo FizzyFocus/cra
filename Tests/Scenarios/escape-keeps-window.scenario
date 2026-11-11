@@ -1,0 +1,22 @@
+# Escape never changes the window's size (CraCore WindowEscape, 11 Nov 2026). AppKit's own
+# cancelOperation: took a full-screen window out of full screen; CraWindow now hands Escape to its
+# controller, which only closes what is open (or a page's video full screen). A maximized window
+# stays maximized; with the command bar open, Escape closes the bar and the window stays as it was.
+cra://debug?windowSize=1000x700
+wait 2
+cra://debug?zoomWindow=1
+wait 1.5
+cra://debug?windowState=zoomed
+expect-log window state zoomed: main0 .*docked=1
+cra://debug?windowEscape=1
+wait 1
+expect-log escape in window: nothing
+cra://debug?windowState=afterEscape
+reject-log window state afterEscape: main0 .*size=1000x700
+cra://action/newTab
+wait 1
+cra://debug?windowEscape=1
+wait 1
+expect-log escape in window: dismissOpen
+cra://debug?commandBarState=closed
+expect-log command bar closed: open=0

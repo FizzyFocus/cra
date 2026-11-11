@@ -1,0 +1,24 @@
+# The page and docked DevTools windows are square: macOS clips neither (os=0), so the page meets
+# DevTools on a straight edge with nothing showing between them, and the card's corners are its own
+# 6 pt (r=6, CraMetrics.contentCornerRadius) rather than the system's window corners. On macOS 27
+# both windows kept 16 pt corners: the card looked hyper-rounded, and DevTools' background showed in
+# the page's corners where the two meet (11 Nov 2026). os=- is a macOS that doesn't say.
+budget rss=700 stalls50=5
+cra://debug?windowSize=1100x720
+wait 1.5
+cra://open?url=${PAGE}?n=corners
+wait 3
+cra://debug?windowCorners=plain
+expect-log window corners plain: child[0-9]+ page .*square=1 os=(0|-) r=6\.0
+cra://action/devTools
+wait 4
+cra://debug?windowCorners=docked
+expect-log window corners docked: child[0-9]+ devtools .*square=1 os=(0|-) r=6\.0
+expect-log window corners docked: child[0-9]+ page .*square=1 os=(0|-) r=6\.0
+cra://debug?zoomWindow=1
+wait 1.5
+cra://action/toggleSidebar
+wait 1.5
+cra://debug?windowCorners=maxHidden
+expect-log window corners maxHidden: child[0-9]+ page .*square=1 os=(0|-)
+expect-log window corners maxHidden: child[0-9]+ devtools .*square=1 os=(0|-)

@@ -92,12 +92,14 @@ struct FavoritesSharingTests {
         #expect(FavoritesSharing.key(of: SidebarItem.folder("F", parent: nil), children: []) == nil)
     }
 
+    /// Favorites are global by default (one list per profile, pinned in the sidebar's chrome); the
+    /// setting turns them back into each space's own. GlobalFavoritesSettingTests has the migration.
     @Test(.bug("https://github.com/VictorKildahl/cra/issues/154"))
-    func settingIsOffUntilTurnedOn() throws {
+    func settingIsOnUntilTurnedOff() throws {
         let empty = try JSONDecoder().decode(AppSettings.self, from: Data("{}".utf8))
-        #expect(!empty.sharedFavorites)
-        let on = try JSONDecoder().decode(AppSettings.self, from: Data(#"{"sharedFavorites": true}"#.utf8))
-        #expect(on.sharedFavorites)
+        #expect(empty.sharedFavorites)
+        let off = try JSONDecoder().decode(AppSettings.self, from: Data(#"{"sharedFavorites": false, "favoritesDefaultMigrated": true}"#.utf8))
+        #expect(!off.sharedFavorites)
     }
 
     @Test(.bug("https://github.com/VictorKildahl/cra/issues/154"))

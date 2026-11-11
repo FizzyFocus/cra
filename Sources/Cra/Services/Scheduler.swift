@@ -46,6 +46,9 @@ final class LiveScheduler: Scheduler {
         timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: repeats) { [weak handle] _ in
             Task { @MainActor in if let handle, !handle.isCancelled { work() } }
         }
+        // A tenth of the interval's slack for anything a second or longer (the tab-sleep pass, the
+        // archive, live folders, sync): macOS can fire them with other wake-ups instead of alone.
+        if interval >= 1 { timer?.tolerance = interval / 10 }
         return handle
     }
 }

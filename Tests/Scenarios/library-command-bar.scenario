@@ -1,0 +1,23 @@
+# ⌘L with the Library open in the floating sidebar (11 Nov 2026): the Library slides back to the space
+# the way its ← and Escape do, the floating sidebar staying out, and the address opens on the
+# sidebar's field (the bar is open, unseen, meanwhile, so typing isn't lost). Before, the drawer was
+# cut off at the sidebar's width and the tab list came back in one jump.
+cra://debug?windowSize=1200x800
+wait 1.5
+cra://open?url=${PAGE}?n=address
+wait 2
+cra://action/toggleSidebar
+wait 1
+cra://debug?floatingSidebar=1
+wait 1
+cra://action/openLibrary
+wait 1.5
+cra://action/editURL
+expect-log command bar waits for the Library to slide back
+expect-log command bar opens on the address after the Library \(on its field\)
+reject-log library closes directly
+wait 1
+cra://debug?commandBarState=address
+expect-log command bar address: open=1 dropdown=1
+cra://debug?closeCommandBar=1
+wait 0.5

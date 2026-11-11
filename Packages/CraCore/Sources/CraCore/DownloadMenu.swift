@@ -72,8 +72,11 @@ public enum QuitPrompt: Equatable, Sendable {
     case confirmQuit
     case downloadsInProgress
 
-    public static func on(source: MenuBarMode.QuitSource, downloadsRunning: Bool, warnBeforeQuitting: Bool) -> QuitPrompt {
-        guard source != .relaunch else { return .none }
+    /// `agreed`: this quit was already asked about and confirmed (or had nothing to ask). Chromium's
+    /// shutdown asks the app to quit again while the pages close; that asks nothing.
+    public static func on(source: MenuBarMode.QuitSource, downloadsRunning: Bool, warnBeforeQuitting: Bool,
+                          agreed: Bool = false) -> QuitPrompt {
+        guard source != .relaunch, !agreed else { return .none }
         if downloadsRunning { return .downloadsInProgress }
         return warnBeforeQuitting ? .confirmQuit : .none
     }

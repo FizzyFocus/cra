@@ -90,4 +90,12 @@ struct DownloadMenuTests {
         #expect(QuitPrompt.on(source: .appMenu, downloadsRunning: false, warnBeforeQuitting: true) == .confirmQuit)
         #expect(QuitPrompt.on(source: .appMenu, downloadsRunning: false, warnBeforeQuitting: false) == .none)
     }
+
+    /// One quit asks once: Chromium's shutdown asks the app to quit again as its pages close, and
+    /// "Quit Cra?" came up a second time after Quit was picked.
+    @Test func aQuitAlreadyAgreedToAsksNothing() {
+        #expect(QuitPrompt.on(source: .appMenu, downloadsRunning: false, warnBeforeQuitting: true, agreed: true) == .none)
+        #expect(QuitPrompt.on(source: .appMenu, downloadsRunning: true, warnBeforeQuitting: true, agreed: true) == .none)
+        #expect(QuitPrompt.on(source: .appMenu, downloadsRunning: false, warnBeforeQuitting: true, agreed: false) == .confirmQuit)
+    }
 }
