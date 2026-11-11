@@ -34,6 +34,7 @@ if [ "${1:-}" != core ]; then
   suite "Live folder plugins" scripts/test-live-folder-plugins.sh
   suite "Key bindings" scripts/test-key-bindings.sh
   suite "Perf recorder" scripts/test-perf.sh
+  suite "CEF update check" python3 Tests/test_cef_update_check.py
   suite "Lint" scripts/lint.py
 fi
 
