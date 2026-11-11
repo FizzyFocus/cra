@@ -222,12 +222,13 @@ final class SettingsPageFiles: NSObject, WKURLSchemeHandler {
             return
         }
         let parts = url.path.split(separator: "/").map(String.init)
-        if parts.count >= 2, ["favicon", "app-icon", "extension-icon"].contains(parts[0]) {
+        if parts.count >= 2, ["favicon", "app-icon", "extension-icon", "agent-icon"].contains(parts[0]) {
             let key = parts[1].removingPercentEncoding ?? parts[1]
             let data: Data? = MainActor.assumeIsolated {
                 switch parts[0] {
                 case "app-icon": return Self.png(AppIconManager.shared.image(for: key), size: 64)
                 case "extension-icon": return Self.png(ExtensionStore.shared.entries.first { $0.id == key }?.icon, size: 32)
+                case "agent-icon": return Self.png(MCPAgentSetup.agents.first { $0.id == key }.flatMap(MCPAgentInstaller.shared.icon), size: 56)
                 default: return Self.favicon(key)
                 }
             }

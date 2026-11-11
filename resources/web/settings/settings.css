@@ -380,3 +380,21 @@ dialog h2 { margin: 0 0 16px; font-size: 15px; font-weight: 700; }
 .tint-chip.selected { overflow: visible; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.14), 0 0 0 2px var(--card), 0 0 0 4px var(--accent); }
 .tint-chip.custom { background: conic-gradient(#F7B2C4, #FDE2A7, #C9F0C2, #B5E4F7, #D3C7F5, #F7B2C4); }
 .tint-chip.custom input { position: absolute; inset: -6px; width: 34px; height: 34px; opacity: 0; border: 0; padding: 0; }
+
+/* Advanced ▸ Agents ▸ Add Cra to an agent (upstream 241cc8c): three tiles a row. */
+.row.agent-block { flex-direction: column; align-items: stretch; gap: 10px; }
+.agent-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.agent-tile { display: flex; align-items: center; gap: 8px; min-height: 46px; padding: 0 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--field); color: var(--ink); text-align: left; font: inherit; }
+.agent-tile:hover:not(:disabled) { background: var(--hover); }
+.agent-tile:active:not(:disabled) { background: var(--press); }
+.agent-tile:disabled { opacity: 0.5; }
+.agent-tile.current { border: 1.5px solid var(--accent); }
+.agent-icon { width: 28px; height: 28px; flex: none; }
+.agent-icon.terminal { display: grid; place-items: center; border-radius: 6px; background: var(--ink); color: var(--card); font: 600 11px ui-monospace, SFMono-Regular, Menlo, monospace; transform: scale(0.86); }
+.agent-text { display: flex; flex-direction: column; min-width: 0; }
+.agent-name { font-size: 12px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.agent-state { font-size: 10px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.agent-tile.current .agent-state { color: #2E9E5B; }
+.agent-tile.outdated .agent-state { color: var(--accent); }
+.agent-tile.unreadable .agent-state { color: var(--danger); }
+.agent-actions { display: flex; gap: 8px; }

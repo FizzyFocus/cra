@@ -30,12 +30,24 @@ extension SettingsPageBridge {
 
     /// Advanced ▸ Agents: the local MCP server (upstream 31187f8, #193), off unless switched on.
     private func mcpState() -> [String: Any] {
-        let m = MCPServer.shared
+        let m = MCPServer.shared, installer = MCPAgentInstaller.shared
         return ["enabled": m.enabled, "status": m.status, "lastTool": m.lastTool,
                 "scripts": m.allowsScripts, "history": m.allowsHistory,
                 "agents": m.agents.map { a -> [String: Any] in
                     ["id": a.id, "name": a.via.isEmpty ? a.name : "\(a.name) in \(a.via)", "allowed": a.allowed]
-                }]
+                },
+                // Add Cra to an agent (upstream 241cc8c): the popular agents as tiles, the rest in Other Agent.
+                "apps": MCPAgentSetup.agents.map { a -> [String: Any] in
+                    let state: String = switch installer.state(a) {
+                    case .absent: "absent"
+                    case .current: "current"
+                    case .outdated: "outdated"
+                    case .unreadable: "unreadable"
+                    }
+                    return ["id": a.id, "name": a.name, "detail": a.detail, "popular": a.popular, "state": state,
+                            "installed": installer.isInstalled(a), "hasIcon": installer.icon(a) != nil]
+                },
+                "message": installer.message, "messageIsError": installer.messageIsError]
     }
 
     private func profilesState(_ store: SidebarStore) -> [String: Any] {
@@ -180,6 +192,29 @@ extension SettingsPageBridge {
                 return .some("That agent isn’t on the list any more.")
             }
             MCPServer.shared.forget(agent)
+        case "mcpAgentsRefresh":
+            MCPAgentInstaller.shared.refresh()
+        case "mcpAgentAdd":
+            guard let agent = MCPAgentSetup.agents.first(where: { $0.id == args["id"]?.string }) else { return .some(nil) }
+            MCPAgentInstaller.shared.add(agent)
+        case "mcpAgentMenu":
+            // A tile's right-click, and Other Agent: AppKit's own menu where the pointer is.
+            let installer = MCPAgentInstaller.shared
+            let menu = NSMenu()
+            menu.autoenablesItems = false
+            if let agent = MCPAgentSetup.agents.first(where: { $0.id == args["id"]?.string }) {
+                if installer.state(agent) == .current || installer.state(agent) == .outdated {
+                    MenuItems.add(menu, "Remove Cra from \(agent.name)") { installer.remove(agent); self.push() }
+                }
+                MenuItems.add(menu, "Show Settings File in Finder") { installer.reveal(agent) }
+            } else {
+                for agent in MCPAgentSetup.agents where !agent.popular {
+                    MenuItems.add(menu, agent.name, enabled: installer.isInstalled(agent), on: installer.state(agent) == .current) {
+                        installer.add(agent); self.push()
+                    }
+                }
+            }
+            menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
         case "createProfile":
             let name = (args["name"]?.string ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
             guard !name.isEmpty else { return .some("Give the Profile a name.") }

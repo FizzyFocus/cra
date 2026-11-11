@@ -680,8 +680,28 @@
       const rows = [row({ title: 'Allow local agents to control Cra', detail: `Connected agents can read pages and act using your signed-in sessions. ${m.status}`,
         trailing: switchControl(m.enabled, false, (on) => run('mcpEnabled', { on }).catch(() => update())), search: 'mcp agents claude cursor codex' })];
       if (m.enabled) {
-        rows.push(row({ title: 'MCP configuration', detail: `Last tool: ${m.lastTool || 'None'}`,
-          trailing: el('button', { class: 'btn', type: 'button', onclick: () => run('mcpCopyConfiguration').then(() => toast('MCP configuration copied')).catch(() => {}) }, 'Copy Configuration') }));
+        // Add Cra to an agent (upstream 241cc8c): a tile per popular agent writes Cra into its MCP
+        // settings; right-click for Remove and Show Settings File. Other Agent lists the rest.
+        const caption = (a) => ({ current: '✓ Added', outdated: 'Update', unreadable: 'Can’t edit its settings' }[a.state] || (a.installed ? (a.detail || 'Add') : 'Not on this Mac'));
+        const help = (a) => (!a.installed ? `Cra didn’t find ${a.name} on this Mac.` : {
+          current: `Cra is in ${a.name}’s MCP settings.`, outdated: `${a.name} has Cra at another location. Click to point it at this Cra.`,
+          unreadable: `${a.name}’s settings file isn’t one Cra can change safely. Copy the configuration and add it by hand.`,
+        }[a.state] || `Add Cra to ${a.name}’s MCP settings.`);
+        const tiles = el('div', { class: 'agent-tiles' }, ...(m.apps || []).filter((a) => a.popular).map((a) => el('button', {
+          class: `agent-tile ${a.state}`, type: 'button', disabled: !a.installed, title: help(a), 'aria-label': a.name,
+          onclick: () => run('mcpAgentAdd', { id: a.id }).catch(() => {}),
+          oncontextmenu: (e) => { e.preventDefault(); run('mcpAgentMenu', { id: a.id }).catch(() => {}); },
+        }, a.hasIcon ? el('img', { class: 'agent-icon', alt: '', src: `cra://settings/agent-icon/${encodeURIComponent(a.id)}` }) : el('span', { class: 'agent-icon terminal' }, '>_'),
+        el('span', { class: 'agent-text' }, el('span', { class: 'agent-name' }, a.name), el('span', { class: 'agent-state' }, caption(a))))));
+        rows.push(el('div', { class: 'row agent-block', dataset: { search: 'add cra to an agent mcp claude code cowork codex cursor t3 conductor' } },
+          el('div', { class: 'label' }, el('div', { class: 'title' }, 'Add Cra to an agent'),
+            el('div', { class: 'detail' }, 'Cra writes itself into the agent’s MCP settings. Each agent asks before it uses Cra the first time.')),
+          tiles,
+          el('div', { class: 'agent-actions' },
+            el('button', { class: 'btn small', type: 'button', onclick: () => run('mcpAgentMenu').catch(() => {}) }, 'Other Agent…'),
+            el('button', { class: 'btn small', type: 'button', onclick: () => run('mcpCopyConfiguration').then(() => toast('MCP configuration copied')).catch(() => {}) }, 'Copy MCP Configuration')),
+          m.message ? el('p', { class: `footnote${m.messageIsError ? ' error' : ''}` }, m.message) : null));
+        rows.push(row({ title: 'Last tool', detail: m.lastTool || 'None' }));
         rows.push(row({ title: 'Let agents run JavaScript in pages', detail: 'A script can read anything a page holds, including passwords Cra fills in.',
           trailing: switchControl(m.scripts, false, (on) => run('mcpScripts', { on }).catch(() => update())) }));
         rows.push(row({ title: 'Let agents read your history',
@@ -1004,6 +1024,7 @@
       perfTimer = setInterval(tick, 2000);
     }
     if (current === 'max') bridge.action('maxRefresh').catch(() => {});
+    if (current === 'advanced') bridge.action('mcpAgentsRefresh').catch(() => {});
   }
   document.addEventListener('visibilitychange', () => { if (!document.hidden) sectionShown(); });
 
