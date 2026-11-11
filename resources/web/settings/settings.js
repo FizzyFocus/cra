@@ -446,7 +446,8 @@
           button('Restart', 'Close and open Cra again, with the windows you have open.', 'Restart Cra', 'relaunch'),
         ]),
         card('Websites', [
-          toggle('pageTopWindowDrag', 'Allow window dragging from the top of webpages'),
+          // Arc's, under the toolbar too (#363): the band is 60 pt from the card's top, its bar included.
+          toggle('pageTopWindowDrag', 'Allow window dragging from the top of webpages', 'Drag the top edge of a page to move the window.'),
           toggle('boostsEnabled', 'Enable Boosts on websites you visit'),
         ]),
         card('Command bar', [
