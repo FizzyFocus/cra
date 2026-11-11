@@ -1329,7 +1329,7 @@ final class SpaceDockView: NSView {
         let id = order[i], store = self.store, ui = self.ui
         hovered = nil
         for c in cells.values { ArcTooltipController.shared.mouseExited(c) }
-        return SpaceMenu.make(spaceID: id, store: store, ui: ui, actions: actions, anchor: cell) {
+        return SpaceMenu.make(spaceID: id, store: store, ui: ui, actions: actions, anchor: cell, from: .dock) {
             store.focusSpace(id, window: ui.windowID)
             ui.renameSpaceRequest = id
         }
