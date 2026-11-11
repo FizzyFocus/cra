@@ -339,6 +339,13 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
             b.isLoading ? b.stopLoading() : b.reload()
         }
         sidebarActions.editSpace = { [weak self] s in self?.showSpaceEditor(space: s) }
+        sidebarActions.newSpaceWith = { [weak self] ids in
+            self?.showSpaceEditor(space: nil) { space in
+                guard let self else { return }
+                for id in ids { self.store.moveTab(id, toSpace: space, window: self.windowID) }
+                self.sidebarUI.clearPicks()
+            }
+        }
         sidebarActions.changeSpaceIcon = { [weak self] s, anchor in self?.showSpaceIconPicker(space: s, anchor: anchor) }
         sidebarActions.editSpaceTheme = { [weak self] s, point in self?.showSpaceStyleEditor(space: s, at: point) }
         sidebarActions.editSpaceThemeBeside = { [weak self] s, card in self?.showSpaceStyleEditor(space: s, beside: card) }
@@ -653,8 +660,9 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
 
     /// `cra://debug?pickedMenu=<n>`: picks the focused space's first n listed tabs, as ⌘-click does,
     /// and logs the menu a right-click on the first one opens (#356): "|" between rows, "──" for a
-    /// separator, "▸" after a submenu, " (off)" after a dimmed row. `run` picks the row with that
-    /// title and logs what it copied; the clipboard gets its old contents back.
+    /// separator, "▸" after a submenu, " (off)" after a dimmed row. `run` picks the row (or a submenu's
+    /// row) with that title (its "…" may be left off) and logs what it copied; the clipboard gets its
+    /// old contents back.
     func testPickedMenu(count: Int, label: String, run: String?) {
         func rows(in v: NSView) -> [TabRowView] {
             (v as? TabRowView).map { [$0] } ?? v.subviews.flatMap { rows(in: $0) }
@@ -670,13 +678,14 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
             return item.title + (item.submenu != nil ? " ▸" : "") + (item.isEnabled ? "" : " (off)")
         }
         CraLog.note("picked menu \(label): \(drawn.joined(separator: "|"))")
-        guard let run, let item = menu.items.first(where: { $0.title == run }) else { return }
+        let rows = menu.items + menu.items.flatMap { $0.submenu?.items ?? [] }
+        guard let run, let item = rows.first(where: { $0.title == run || $0.title == run + "…" }), let owner = item.menu else { return }
         let pb = NSPasteboard.general
         let saved = pb.pasteboardItems?.map { item in
             item.types.reduce(into: [NSPasteboard.PasteboardType: Data]()) { $0[$1] = item.data(forType: $1) }
         } ?? []
         let before = pb.changeCount
-        menu.performActionForItem(at: menu.index(of: item))
+        owner.performActionForItem(at: owner.index(of: item))
         let copied = pb.changeCount != before ? pb.string(forType: .string) ?? "" : "-"
         CraLog.note("picked menu \(label) ran \(run): \(copied.replacingOccurrences(of: "\n", with: "⏎")) picks=\(sidebarUI.multiSelection.count)")
         guard pb.changeCount != before else { return }
@@ -4219,6 +4228,8 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
     private var createShowedSidebar = false
     /// Create a Space opened in the floating sidebar over a hidden one.
     private var createFloats = false
+    /// What runs with the new space's id once Create Space made it (Move to ▸ New Space…, #356).
+    private var createCompletion: ((UUID) -> Void)?
     /// When the theme picker last closed: a press on Choose a Theme that closed it doesn't reopen it.
     private var createPickerClosedAt: TimeInterval = 0
 
@@ -4234,8 +4245,9 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
         model.onCreate()
     }
 
-    func showCreateSpace() {
+    func showCreateSpace(created: ((UUID) -> Void)? = nil) {
         guard let window else { return }
+        if let created { createCompletion = created }
         if let open = sidebarUI.creatingSpace {
             (shell.sidebarHost.window ?? window).makeKey()
             open.focusName()
@@ -4274,12 +4286,15 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
         if let id = createPreviewSpace { store.endThemePreview(forSpace: id, keep: false) }
         createPreviewSpace = nil
         sidebarUI.creatingSpace = nil
+        let completion = createCompletion
+        createCompletion = nil
         if create, model.isValid {
             let id = store.createSpace(title: model.trimmedName, emoji: model.icon.emoji, symbol: model.icon.symbol, theme: model.theme).id
             switch model.profile {
             case .existing(let p): store.setProfile(p, forSpace: id)
             case .new: store.setProfile(store.createProfile(name: model.trimmedProfileName).id, forSpace: id)
             }
+            completion?(id)
         }
         if createShowedSidebar { sidebarVisible = false }
         createShowedSidebar = false
@@ -4314,9 +4329,10 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
                                    })
     }
 
-    func showSpaceEditor(space: Space?) {
+    /// `created` runs with a new space's id once it is made (Move to ▸ New Space…, #356).
+    func showSpaceEditor(space: Space?, created: ((UUID) -> Void)? = nil) {
         // A new space is made in the sidebar, as in Arc; Edit Space… keeps its sheet.
-        guard space != nil else { showCreateSpace(); return }
+        guard space != nil else { showCreateSpace(created: created); return }
         guard let window else { return }
         let panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 651, height: 600), styleMask: [.titled], backing: .buffered, defer: false)
         // Arc's New Space starts on the profile of the space it was opened from.
@@ -4341,6 +4357,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
             }
             store.setSearchEngine(searchEngine, forSpace: id)
             if let panel { window.endSheet(panel) }
+            if space == nil { created?(id) }
         }, onCancel: { [weak panel] in if let panel { window.endSheet(panel) } }, onPreview: { theme in
             // A new space has nothing to draw on yet; the sheet's own preview shows it.
             if let sid = space?.id { store.previewTheme(theme, forSpace: sid) }
