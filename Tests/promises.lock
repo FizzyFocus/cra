@@ -500,3 +500,5 @@
 #299   Tests/ExtensionStoreMigrationTests.swift::unpackedCopiesStepAside  e9a30c4a0209
 #299   Tests/Scenarios/unpacked-extension-copy.scenario  59ab5b7e11a8
 #319   Tests/Scenarios/app-icon-dock-return.scenario  32316d80e199
+#346   Packages/CraCore/Tests/CraCoreTests/ScreenshotPickTests.swift::aPickOverThePageTakesTheMainWindow  916c67b02ac1
+#346   Tests/Scenarios/screenshot-window-pick.scenario  bf271139d3c5
