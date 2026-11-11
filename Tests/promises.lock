@@ -547,6 +547,8 @@
 #345   Tests/Scenarios/pinned-icon-double-click.scenario  e0383d787f7c
 #346   Packages/CraCore/Tests/CraCoreTests/ScreenshotPickTests.swift::aPickOverThePageTakesTheMainWindow  916c67b02ac1
 #346   Tests/Scenarios/screenshot-window-pick.scenario  bf271139d3c5
+#348   Packages/CraCore/Tests/CraCoreTests/ViewSourceTests.swift::pageOpensItsSource  a8206dcf8756
+#348   Tests/Scenarios/view-source.scenario  c8591c290ad4
 #349   Packages/CraCore/Tests/CraCoreTests/ChromiumDialogTests.swift::hangsWhereASheetDoes  c4438e2ff53c
 #349   Packages/CraCore/Tests/CraCoreTests/ChromiumDialogTests.swift::othersAreNot  b1da0b8bf52e
 #349   Packages/CraCore/Tests/CraCoreTests/ChromiumDialogTests.swift::staysOnTheScreen  635a7aec06bf
