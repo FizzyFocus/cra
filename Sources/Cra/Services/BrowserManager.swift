@@ -1492,6 +1492,9 @@ final class BrowserManager: NSObject, @preconcurrency CraBrowserDelegate {
     func browser(_ browser: CraBrowser, popupHostForURL url: String, inBackground background: Bool) -> CraBrowser? {
         if url.lowercased().hasPrefix("cra:") { return nil }
         let source = tabID(of: browser)
+        // The page opened a pop-up Chromium blocked before (a shared folder's next click): the
+        // blocked pop-ups button no longer offers it (#357).
+        if let source, runtimes[source]?.blockedPopups.markOpened(url: url) == true { delegate?.browserManagerDidUpdate(source) }
         let sourceSpace = source.flatMap { store.spaceID(ofItem: $0) }
         // A target=_blank link with an opener lines up under its tab like any other link.
         let parentIndex = linkTabIndex(from: source)
