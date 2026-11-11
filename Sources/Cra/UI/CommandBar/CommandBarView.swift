@@ -35,6 +35,10 @@ final class CommandBarView: NSView {
     private var rows: [CommandBarRowView] = []
     private var syncQueued = false
     private var attached = false
+    /// The card ⌥⌘N opens (#337): the bar is the whole Little Window, with a ✕ at the field's end.
+    var card: CommandBarCard? { didSet { scheduleSync(); needsLayout = true } }
+    /// The card's ✕: closes the bar, and with it the card.
+    private let closeTile = CommandBarBadge()
     /// The scope shown last, to bounce when Tab enters one or Backspace leaves it.
     private var shownScope: CommandBarScope?
     private var splash: NSPanel?
@@ -62,6 +66,14 @@ final class CommandBarView: NSView {
         info.layer?.cornerRadius = 12
         info.imageScaling = .scaleNone
         info.contentTintColor = .secondaryLabelColor
+        closeTile.image = SidebarSymbols.image("xmark", size: 11, weight: .semibold)
+        closeTile.label = "Close"
+        closeTile.wantsLayer = true
+        closeTile.layer?.cornerRadius = LittleCard.closeRadius
+        closeTile.layer?.cornerCurve = .continuous
+        closeTile.imageScaling = .scaleNone
+        closeTile.isHidden = true
+        closeTile.onPress = { [weak controller] in controller?.close() }
         divider.wantsLayer = true
         pill.wantsLayer = true
         pill.layer?.cornerCurve = .continuous
@@ -75,7 +87,7 @@ final class CommandBarView: NSView {
         keycap.layer?.cornerCurve = .continuous
         keycapLabel.stringValue = "Tab"
         keycap.addSubview(keycapLabel)
-        for v in [material, tint, leadingIcon, text.field, info, pill, hint, keycap, divider] as [NSView] { addSubview(v) }
+        for v in [material, tint, leadingIcon, text.field, info, closeTile, pill, hint, keycap, divider] as [NSView] { addSubview(v) }
         layer?.addSublayer(border)
         layer?.addSublayer(innerLine)
         border.zPosition = 10
@@ -151,6 +163,16 @@ final class CommandBarView: NSView {
         innerLine.strokeColor = (dark ? NSColor(srgbRed: 0x4E / 255, green: 0x4D / 255, blue: 0x4F / 255, alpha: 1)
                                       : NSColor.white.withAlphaComponent(0.5)).cgColor
         divider.layer?.backgroundColor = (dark ? NSColor.white : NSColor.black).withAlphaComponent(0.1).cgColor
+        // The card's bar is Little Arc's own: opaque, a light hairline round it, a ✕ tile (Arc 1.172.1, #337).
+        material.isHidden = card != nil
+        closeTile.isHidden = card == nil
+        if card != nil {
+            tint.layer?.backgroundColor = LittlePalette.cardBar.cgColor
+            border.strokeColor = LittlePalette.cardBarBorder.cgColor
+            divider.layer?.backgroundColor = LittlePalette.cardDivider.cgColor
+            closeTile.layer?.backgroundColor = LittlePalette.cardClose.cgColor
+            closeTile.contentTintColor = LittlePalette.cardCloseGlyph
+        }
         let scope = c.scope
         // The site's colour: picked in Settings, Arc's, or its icon's (SiteSearchColors).
         let siteHex: String? = if case .site(let site) = scope {
@@ -245,7 +267,7 @@ final class CommandBarView: NSView {
         tint.frame = b
         let m = metrics
         let corner = CGFloat(m.corner)
-        let path = Self.path(b, top: corner, bottom: corner)
+        let path = Self.path(b, top: card?.top ?? corner, bottom: card?.bottom ?? corner)
         shape.frame = b
         shape.path = path
         border.frame = b
@@ -263,9 +285,16 @@ final class CommandBarView: NSView {
         let icon = leadingIcon.frame.size
         leadingIcon.frame = NSRect(x: iconCentre - icon.width / 2, y: (fh - icon.height) / 2, width: icon.width, height: icon.height)
         var right = b.width - 22
+        var end = b.width
+        if let card {
+            let s = LittleCard.closeSize
+            closeTile.frame = NSRect(x: b.width - card.closeTrailing - s, y: (fh - s) / 2, width: s, height: s)
+            right = closeTile.frame.minX - 14
+            end = closeTile.frame.minX - 8 + 21
+        }
         if !info.isHidden {
-            // Arc: a 24 pt circle 21 pt from the edge.
-            info.frame = NSRect(x: b.width - 21 - 24, y: (fh - 24) / 2, width: 24, height: 24)
+            // Arc: a 24 pt circle 21 pt from the edge (in a card, 8 pt before the ✕).
+            info.frame = NSRect(x: end - 21 - 24, y: (fh - 24) / 2, width: 24, height: 24)
             right = info.frame.minX - 14
         }
         if !keycap.isHidden {
@@ -290,7 +319,12 @@ final class CommandBarView: NSView {
         let fieldH: CGFloat = attached ? 22 : 30
         text.field.frame = NSRect(x: x - 1.5, y: (fh - fieldH) / 2 + (attached ? 1 : 3), width: max(0, right - x), height: fieldH)
         // A hairline 12 pt in from each side.
-        divider.frame = NSRect(x: 12, y: fh, width: max(0, b.width - 24), height: px)
+        if let card {
+            // The card's hairline (#337): one pixel, the card's inset from each side.
+            divider.frame = NSRect(x: card.dividerInset, y: fh - px, width: max(0, b.width - 2 * card.dividerInset), height: px)
+        } else {
+            divider.frame = NSRect(x: 12, y: fh, width: max(0, b.width - 24), height: px)
+        }
         var y: CGFloat = fh + CGFloat(m.listTop)
         for r in rows where !r.isHidden {
             r.frame = NSRect(x: inset, y: y, width: b.width - 2 * inset, height: CGFloat(m.rowHeight))
@@ -400,6 +434,16 @@ final class CommandBarView: NSView {
         p.closeSubpath()
         return p
     }
+}
+
+/// The card ⌥⌘N opens (#337), as the Little Window lays it out: the bar's corners (the window's at
+/// the top, and at the bottom while the bar fills the card), and where the ✕ and the divider go, from
+/// the bar's own edges.
+struct CommandBarCard: Equatable {
+    var top: CGFloat
+    var bottom: CGFloat
+    var closeTrailing: CGFloat
+    var dividerInset: CGFloat
 }
 
 /// The glow's panel reaches 420 pt past the bar, so near the top of the screen it crosses the
@@ -574,5 +618,22 @@ final class CommandBarRowView: NSView {
     override func mouseDown(with event: NSEvent) {}
     override func mouseUp(with event: NSEvent) {
         if bounds.contains(convert(event.locationInWindow, from: nil)) { onClick() }
+    }
+}
+
+/// A tile that acts as a button (the card's ✕, #337): a click (or an accessibility press) runs `onPress`, as the bar's rows do.
+private final class CommandBarBadge: NSImageView {
+    var onPress: () -> Void = {}
+    var label = "About search suggestions"
+
+    override func mouseDown(with event: NSEvent) {}
+    override func mouseUp(with event: NSEvent) {
+        if bounds.contains(convert(event.locationInWindow, from: nil)) { onPress() }
+    }
+    override func accessibilityRole() -> NSAccessibility.Role? { .button }
+    override func accessibilityLabel() -> String? { label }
+    override func accessibilityPerformPress() -> Bool {
+        onPress()
+        return true
     }
 }
