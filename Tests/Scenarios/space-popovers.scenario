@@ -1,0 +1,49 @@
+# Translate and Blocked pop-ups popovers (SpacePopoverTones) take the light or dark of the window's
+# space, not macOS's: a light space's popover is light on a dark Mac, a dark space's dark on a light
+# one. systemAppearance flips the app's appearance without touching the Mac's own setting.
+budget rss=900 stalls50=40
+pace 0.5
+env GOOGLE_API_KEY=cra-scenario
+seed settings.json {"hasSeenImportPrompt": true, "toolbarDefaultMigrated": true}
+seed sidebar.json {"version":1,"spaceOrder":["A0000000-0000-0000-0000-000000000001","A0000000-0000-0000-0000-000000000002"],"spaces":[{"id":"A0000000-0000-0000-0000-000000000001","title":"Light","emoji":"☀️","theme":{"colors":["#DCF3FC","#DCF3FC"],"intensity":0.5,"noise":0,"appearance":"light","accent":"#8389FF","solid":true,"key":["#DCF3FC"]},"favoritesContainerID":"C0000000-0000-0000-0000-000000000011","pinnedContainerID":"C0000000-0000-0000-0000-000000000012","todayContainerID":"C0000000-0000-0000-0000-000000000013","createdAt":"2026-11-06T08:00:00Z"},{"id":"A0000000-0000-0000-0000-000000000002","title":"Dark","emoji":"🌙","theme":{"colors":["#2B2734","#2B2734"],"intensity":1,"noise":0,"appearance":"dark","accent":"#8389FF","solid":true,"key":["#2B2734"]},"favoritesContainerID":"C0000000-0000-0000-0000-000000000021","pinnedContainerID":"C0000000-0000-0000-0000-000000000022","todayContainerID":"C0000000-0000-0000-0000-000000000023","createdAt":"2026-11-06T08:00:00Z"}],"items":[{"id":"C0000000-0000-0000-0000-000000000011","children":[],"isUnread":false,"createdAt":"2026-11-06T08:00:00Z","data":{"container":{"_0":{"favorites":{"spaceID":"A0000000-0000-0000-0000-000000000001"}}}}},{"id":"C0000000-0000-0000-0000-000000000012","children":[],"isUnread":false,"createdAt":"2026-11-06T08:00:00Z","data":{"container":{"_0":{"pinned":{"spaceID":"A0000000-0000-0000-0000-000000000001"}}}}},{"id":"C0000000-0000-0000-0000-000000000013","children":[],"isUnread":false,"createdAt":"2026-11-06T08:00:00Z","data":{"container":{"_0":{"today":{"spaceID":"A0000000-0000-0000-0000-000000000001"}}}}},{"id":"C0000000-0000-0000-0000-000000000021","children":[],"isUnread":false,"createdAt":"2026-11-06T08:00:00Z","data":{"container":{"_0":{"favorites":{"spaceID":"A0000000-0000-0000-0000-000000000002"}}}}},{"id":"C0000000-0000-0000-0000-000000000022","children":[],"isUnread":false,"createdAt":"2026-11-06T08:00:00Z","data":{"container":{"_0":{"pinned":{"spaceID":"A0000000-0000-0000-0000-000000000002"}}}}},{"id":"C0000000-0000-0000-0000-000000000023","children":[],"isUnread":false,"createdAt":"2026-11-06T08:00:00Z","data":{"container":{"_0":{"today":{"spaceID":"A0000000-0000-0000-0000-000000000002"}}}}}]}
+cra://debug?systemAppearance=dark
+wait 1
+cra://open?url=${PAGE}?n=source
+expect-log loaded 127\.0\.0\.1 \(HTTP 200\)
+wait 1
+cra://debug?cdp=Runtime.evaluate&params={"expression":"[1,2,3].map(n=>!!window.open('${PAGE}?n=p'+n)).join()","userGesture":true}
+expect-log Cra cdp Runtime.evaluate .*"value":"true,false,false"
+wait 1.5
+cra://action/goBack
+wait 1
+cra://debug?popups=light-space&show=1
+expect-log popups light-space: waiting=2
+wait 1
+cra://debug?popoverTones=1
+expect-log popover tones: translate=- popups=light
+cra://debug?windowState=light-space
+expect-log window state light-space: main0 .*popovers=popups
+cra://open?url=${PAGE}/../translate.html
+expect-log translate: offer ru→en
+wait 1
+cra://debug?translate=open
+expect-log translate popover: Translate this page to English\? \| Options, Translate
+cra://debug?popoverTones=1
+expect-log popover tones: translate=light popups=-
+cra://action/space2
+wait 1.5
+cra://debug?systemAppearance=light
+wait 1
+cra://open?url=${PAGE}?n=source2
+wait 2
+cra://debug?cdp=Runtime.evaluate&params={"expression":"[1,2,3].map(n=>!!window.open('${PAGE}?n=p'+n)).join()","userGesture":true}
+wait 1.5
+cra://action/goBack
+wait 1
+cra://debug?popups=dark-space&show=1
+expect-log popups dark-space: waiting=2
+wait 1
+cra://debug?popoverTones=1
+expect-log popover tones: translate=- popups=dark
+cra://debug?systemAppearance=system
+reject-log fault:

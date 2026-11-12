@@ -1408,7 +1408,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                 CraLog.note("split \(label): panes=\(urls) selected=\(selected?.tab?.url ?? "-") downloads=\(DownloadHistory.shared.live.count + DownloadHistory.shared.entries.count)")
                 return
             }
-            // popups=<label>[&run=open|openAll|allow|block]: the front tab's blocked pop-ups, its
+            // popups=<label>[&run=open|openAll|allow|block][&show=1]: the front tab's blocked pop-ups, its
             // toolbar button and URL-field line, the menu's rows, Chrome's site setting and the
             // Today tab count; run= picks a menu row first (#357).
             if let label = dict["popups"], let id = main.selectedTab?.id {
@@ -1418,6 +1418,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                 case "allow": main.browsers.setPopupsAllowed(id, true)
                 case "block": main.browsers.setPopupsAllowed(id, false)
                 default: break
+                }
+                // show=1: the popover, from the URL field's "Pop-ups Blocked" (or the toolbar's button).
+                if dict["show"] != nil {
+                    let toolbar = (main.shell.focusedCard?.toolbarHost as? PaneToolbarView)?.buttonFrameOnScreen("blockedPopups")
+                    main.showBlockedPopups(id, from: toolbar)
                 }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak main] in
                     guard let main else { return }
@@ -1649,6 +1654,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             }
             // Arc's translate UI (#310): what shows, and a press on its parts.
             if let step = dict["translate"] { main.debugTranslate(step); return }
+            if dict["popoverTones"] != nil { main.debugPopoverTones(); return }
             // The n-th space icon's tip, without a pointer.
             if let n = dict["spaceTip"].flatMap({ Int($0) }), let content = main.window?.contentView {
                 ArcTooltipController.shared.debugShowSpaceTip(n, in: content)

@@ -3524,6 +3524,12 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
     /// Translation Available", or "none"). "open": a press on it (or on the toolbar's button), then
     /// "translate popover: <prompt> | <buttons>". "press:<title>": a press on a popover button.
     /// "menu": the Options menu's items.
+    /// `cra://debug?popoverTones=1`: the appearance the open Translate and Blocked pop-ups popovers
+    /// took (the space's, SpacePopoverTones), "-" for one that isn't open.
+    func debugPopoverTones() {
+        CraLog.note("popover tones: translate=\(translatePopover.appearanceName) popups=\(blockedPopupsPopover.appearanceName)")
+    }
+
     func debugTranslate(_ step: String) {
         let sidebar = shell.sidebarHost as? SidebarView
         switch step {

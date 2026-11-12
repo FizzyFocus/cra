@@ -15,6 +15,11 @@ struct BlockedPopupsActions {
 final class BlockedPopupsPopover: NSObject, NSPopoverDelegate {
     private var popover: NSPopover?
     var isShown: Bool { popover?.isShown == true }
+    /// For scenarios: the shown popover's appearance ("light", "dark"), "-" while none shows.
+    var appearanceName: String {
+        guard let p = popover, p.isShown else { return "-" }
+        return p.appearance?.name == .darkAqua ? "dark" : "light"
+    }
     /// When a click outside closed the popover: the same click on the button leaves it closed.
     private var closingClick: TimeInterval?
 

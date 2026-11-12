@@ -20,6 +20,11 @@ struct TranslateActions {
 final class TranslatePopover: NSObject, NSPopoverDelegate {
     private var popover: NSPopover?
     var isShown: Bool { popover?.isShown == true }
+    /// For scenarios: the shown popover's appearance ("light", "dark"), "-" while none shows.
+    var appearanceName: String {
+        guard let p = popover, p.isShown else { return "-" }
+        return p.appearance?.name == .darkAqua ? "dark" : "light"
+    }
     /// The shown popover's buttons, for scenarios (cra://debug?translate=…).
     private(set) weak var content: TranslatePopoverView?
 
