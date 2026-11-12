@@ -3521,10 +3521,6 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
         }
     }
 
-    /// Scenario hooks (#310). "line": the sidebar URL field's translate line ("translate line:
-    /// Translation Available", or "none"). "open": a press on it (or on the toolbar's button), then
-    /// "translate popover: <prompt> | <buttons>". "press:<title>": a press on a popover button.
-    /// "menu": the Options menu's items.
     /// `cra://debug?popoverTones=1`: the appearance each open popover took (the space's,
     /// SpacePopoverTones): Translate, Blocked pop-ups, Extensions, the bookmark card; "-" for one that isn't open.
     func debugPopoverTones() {
@@ -3532,6 +3528,10 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
                     + "extensions=\(siteControlCenter.appearanceName) bookmark=\(BookmarkEditPopover.appearanceName(in: window))")
     }
 
+    /// Scenario hooks (#310). "line": the sidebar URL field's translate line ("translate line:
+    /// Translation Available", or "none"). "open": a press on it (or on the toolbar's button), then
+    /// "translate popover: <prompt> | <buttons>". "press:<title>": a press on a popover button.
+    /// "menu": the Options menu's items.
     func debugTranslate(_ step: String) {
         let sidebar = shell.sidebarHost as? SidebarView
         switch step {

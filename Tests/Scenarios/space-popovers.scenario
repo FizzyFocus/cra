@@ -30,7 +30,9 @@ cra://debug?translate=open
 expect-log translate popover: Translate this page to English\? \| Options, Translate
 cra://debug?popoverTones=1
 expect-log popover tones: translate=light popups=- extensions=- bookmark=-
+cra://debug?urlFieldHover=1
 cra://debug?urlFieldPress=siteControls
+expect-log url field press siteControls: pressed true, site control center shown
 wait 1
 cra://debug?popoverTones=1
 expect-log popover tones: translate=- popups=- extensions=light bookmark=-
@@ -49,7 +51,9 @@ expect-log popups dark-space: waiting=2
 wait 1
 cra://debug?popoverTones=1
 expect-log popover tones: translate=- popups=dark extensions=- bookmark=-
+cra://debug?urlFieldHover=1
 cra://debug?urlFieldPress=siteControls
+expect-log url field press siteControls: pressed true, site control center shown
 wait 1
 cra://debug?popoverTones=1
 expect-log popover tones: translate=- popups=- extensions=dark bookmark=-
