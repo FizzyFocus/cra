@@ -1,4 +1,4 @@
-# Translate and Blocked pop-ups popovers (SpacePopoverTones) take the light or dark of the window's
+# Every popover over the page (SpacePopoverTones: Translate, Blocked pop-ups, Extensions) takes the light or dark of the window's
 # space, not macOS's: a light space's popover is light on a dark Mac, a dark space's dark on a light
 # one. systemAppearance flips the app's appearance without touching the Mac's own setting.
 budget rss=900 stalls50=40
@@ -20,7 +20,7 @@ cra://debug?popups=light-space&show=1
 expect-log popups light-space: waiting=2
 wait 1
 cra://debug?popoverTones=1
-expect-log popover tones: translate=- popups=light
+expect-log popover tones: translate=- popups=light extensions=- bookmark=-
 cra://debug?windowState=light-space
 expect-log window state light-space: main0 .*popovers=popups
 cra://open?url=${PAGE}/../translate.html
@@ -29,7 +29,11 @@ wait 1
 cra://debug?translate=open
 expect-log translate popover: Translate this page to English\? \| Options, Translate
 cra://debug?popoverTones=1
-expect-log popover tones: translate=light popups=-
+expect-log popover tones: translate=light popups=- extensions=- bookmark=-
+cra://debug?urlFieldPress=siteControls
+wait 1
+cra://debug?popoverTones=1
+expect-log popover tones: translate=- popups=- extensions=light bookmark=-
 cra://action/space2
 wait 1.5
 cra://debug?systemAppearance=light
@@ -44,6 +48,10 @@ cra://debug?popups=dark-space&show=1
 expect-log popups dark-space: waiting=2
 wait 1
 cra://debug?popoverTones=1
-expect-log popover tones: translate=- popups=dark
+expect-log popover tones: translate=- popups=dark extensions=- bookmark=-
+cra://debug?urlFieldPress=siteControls
+wait 1
+cra://debug?popoverTones=1
+expect-log popover tones: translate=- popups=- extensions=dark bookmark=-
 cra://debug?systemAppearance=system
 reject-log fault:

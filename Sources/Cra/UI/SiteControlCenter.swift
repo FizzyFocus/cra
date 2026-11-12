@@ -819,6 +819,11 @@ final class SiteControlCenterPopover: NSObject, NSPopoverDelegate {
     private var closingClick: TimeInterval?
 
     var isShown: Bool { popover?.isShown == true }
+    /// For scenarios: the shown popover's appearance ("light", "dark"), "-" while none shows.
+    var appearanceName: String {
+        guard let p = popover, p.isShown else { return "-" }
+        return p.appearance?.name == .darkAqua ? "dark" : "light"
+    }
 
     /// The sliders button pressed while the popover is up, or by the click that just closed it:
     /// it closes (and stays closed) instead of opening again. Asked before anything slower than

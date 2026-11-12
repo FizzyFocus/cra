@@ -27,6 +27,12 @@ enum BookmarkEditPopover {
         return window.map { c.parent === $0 } ?? true
     }
 
+    /// For scenarios: the open card's appearance ("light", "dark"), "-" while none shows in `window`.
+    static func appearanceName(in window: NSWindow?) -> String {
+        guard isOpen(in: window), let c = current else { return "-" }
+        return c.popover.appearance?.name == .darkAqua ? "dark" : "light"
+    }
+
     /// Shows the card for `bookmark` hanging from `anchor` (a screen rect) in `window`, as the
     /// Extensions popover hangs from its rect: under it, its arrow at the rect's middle.
     static func show(_ bookmark: Bookmark, from anchor: NSRect, in window: NSWindow, isNew: Bool) {
@@ -58,7 +64,8 @@ final class BookmarkPopoverController: NSObject, NSPopoverDelegate {
 
     init(bookmark: Bookmark, isNew: Bool, parent: NSWindow) {
         self.parent = parent
-        let dark = SystemAppearance.shared.isDark
+        // Light or dark with the window's space, as the Extensions popover beside it (SpacePopoverTones).
+        let dark = SpacePopoverTones(window: parent).dark
         let icon = (NSApp.delegate as? AppDelegate)?.favicons.image(for: bookmark.url)
         card = BookmarkCardView(bookmark: bookmark, isNew: isNew, colors: SiteControlCenterColors(dark: dark), icon: icon)
         super.init()

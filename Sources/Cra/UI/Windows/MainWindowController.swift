@@ -3449,7 +3449,8 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
         siteControlCenterSpaceID = focusedSpaceID
         let show = { [weak self] (safariEngine: Bool?) in
             guard let self, let window = self.window, window.isVisible else { return }
-            self.siteControlCenter.show(relativeTo: rect, of: content, url: url, secure: secure, dark: SystemAppearance.shared.isDark,
+            // Light or dark with the window's space, as Translate and Blocked pop-ups (SpacePopoverTones).
+            self.siteControlCenter.show(relativeTo: rect, of: content, url: url, secure: secure, dark: SpacePopoverTones(window: self.window).dark,
                                         profile: self.profileDirectoryName, tab: self.selectedTabID,
                                         protectedMedia: self.browsers.visibleTabID.flatMap { self.sidebarUI.navState(for: $0).protectedMedia },
                                         safariEngine: safariEngine, toggleChecked: true, store: self.store, actions: actions)
@@ -3524,10 +3525,11 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
     /// Translation Available", or "none"). "open": a press on it (or on the toolbar's button), then
     /// "translate popover: <prompt> | <buttons>". "press:<title>": a press on a popover button.
     /// "menu": the Options menu's items.
-    /// `cra://debug?popoverTones=1`: the appearance the open Translate and Blocked pop-ups popovers
-    /// took (the space's, SpacePopoverTones), "-" for one that isn't open.
+    /// `cra://debug?popoverTones=1`: the appearance each open popover took (the space's,
+    /// SpacePopoverTones): Translate, Blocked pop-ups, Extensions, the bookmark card; "-" for one that isn't open.
     func debugPopoverTones() {
-        CraLog.note("popover tones: translate=\(translatePopover.appearanceName) popups=\(blockedPopupsPopover.appearanceName)")
+        CraLog.note("popover tones: translate=\(translatePopover.appearanceName) popups=\(blockedPopupsPopover.appearanceName) "
+                    + "extensions=\(siteControlCenter.appearanceName) bookmark=\(BookmarkEditPopover.appearanceName(in: window))")
     }
 
     func debugTranslate(_ step: String) {
