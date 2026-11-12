@@ -1,0 +1,45 @@
+# The rows cra://settings took over from upstream's SwiftUI panes in the B1 port: Tabs & Spaces ▸
+# Address Bar (#305, saved as showToolbar, no longer a switch in Appearance), Advanced ▸ Command bar
+# (#307), Advanced ▸ Agents with the agent tiles (#193, upstream 241cc8c) and Max ▸ 5-Second
+# Previews (#324). -mcpEnabled NO on the command line keeps MCPServer.setEnabled from writing
+# mcpEnabled into the defaults the installed Cra shares with this test copy.
+budget rss=700
+arg -mcpEnabled
+arg NO
+cra://debug?windowSize=1280x800
+wait 2
+cra://action/settings
+wait 3
+expect-log settings page read its state
+cra://debug?settingsPane=tabs
+wait 1.5
+expect-log settings tab shown \(tabs-and-spaces, existing\)
+cra://debug?settingsPageJS=(()=>{const s=document.querySelector('select[aria-label="Address bar"]');return s?`address ${s.options.length} ${s.value}`:'address none'})()
+expect-log settings page js: address 2 sidebar
+cra://debug?settingsPageJS=craSettings.set('showToolbar',true).then(s=>`toolbar ${s.settings.showToolbar}`)
+expect-log settings page js: toolbar (1|true)
+wait 1
+cra://debug?settingsPageJS=`address now ${document.querySelector('select[aria-label="Address bar"]').value}`
+expect-log settings page js: address now toolbar
+cra://debug?settingsPane=appearance
+wait 1.5
+cra://debug?settingsPageJS=`toolbar switch ${[...document.querySelectorAll('.row .title')].some(t=>t.textContent.startsWith('Show the toolbar'))}`
+expect-log settings page js: toolbar switch false
+cra://debug?settingsPane=advanced
+wait 1.5
+cra://debug?settingsPageJS=`scope row ${document.body.textContent.includes('Search only the current space')}`
+expect-log settings page js: scope row true
+cra://debug?settingsPageJS=craSettings.set('commandBarCurrentSpaceOnly',true).then(s=>`scope ${s.settings.commandBarCurrentSpaceOnly}`)
+expect-log settings page js: scope (1|true)
+cra://debug?settingsPageJS=craSettings.action('mcpEnabled',{on:true}).then(s=>`mcp ${s.mcp.enabled} apps ${s.mcp.apps.length}`)
+expect-log settings page js: mcp (1|true) apps [1-9]
+wait 1
+cra://debug?settingsPageJS=(()=>{const g=document.querySelector('.agent-tiles');return g?`tiles ${g.children.length} cols ${getComputedStyle(g).gridTemplateColumns.split(' ').length}`:'tiles none'})()
+expect-log settings page js: tiles [1-9][0-9]* cols 3
+cra://debug?settingsPageJS=craSettings.action('mcpEnabled',{on:false}).then(s=>`mcp off ${s.mcp.enabled}`)
+expect-log settings page js: mcp off (0|false)
+cra://debug?settingsPane=max
+wait 1.5
+cra://debug?settingsPageJS=`previews row ${document.body.textContent.includes('5-Second Previews')}`
+expect-log settings page js: previews row true
+reject-log fault:
