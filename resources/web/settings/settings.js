@@ -236,11 +236,11 @@
         card('System', [
           row({ title: 'Default browser', detail: 'Links from other apps open in Cra.', trailing: defaultTrailing }),
           row({ title: 'Dock', trailing: dockTrailing }),
-          toggle('launchesAtLogin', 'Open Cra at login'),
+          toggle('launchesAtLogin', 'Open Cra at login', 'Cra opens by itself when you log in to your Mac.'),
         ]),
         card('Startup', [
-          toggle('restoreWindows', 'Restore windows from the previous session'),
-          toggle('startOnNewTab', 'Start on a new tab'),
+          toggle('restoreWindows', 'Restore windows from the previous session', 'When Cra opens, the windows you had open last time come back.'),
+          toggle('startOnNewTab', 'Start on a new tab', 'When Cra opens, it starts on a new tab instead of the tab you used last.'),
         ]),
         card('Downloads', [
           select('downloadChoice', 'Download location', () => {
@@ -252,16 +252,16 @@
           }),
         ], { footnote: 'Each profile can save somewhere else (Profiles).' }),
         card('Quitting', [
-          toggle('warnBeforeQuitting', 'Warn before quitting', null, { disabled: () => !!value('keepInMenuBar') }),
+          toggle('warnBeforeQuitting', 'Warn before quitting', '⌘Q asks “Quit Cra?” first, so pressing it by mistake doesn’t close everything.', { disabled: () => !!value('keepInMenuBar') }),
           toggle('keepInMenuBar', 'Keep Cra in the menu bar', 'In the menu bar, ⌘Q closes Cra’s windows but leaves it running.'),
         ]),
         card('Sleeping tabs', [
-          toggle('tabSleepTimerEnabled', 'Force tabs out of memory'),
+          toggle('tabSleepTimerEnabled', 'Force tabs out of memory', 'A tab you haven’t used for a while is forced out of memory and reloads when you open it.'),
           select('tabSleepAfter', 'After a tab is hidden for', options('tabSleepAfter'), null, { disabled: () => !value('tabSleepTimerEnabled') }),
-          toggle('tabSleepOnMemoryPressure', 'When the Mac is short of memory'),
+          toggle('tabSleepOnMemoryPressure', 'When the Mac is short of memory', 'While macOS is short of memory, the tabs hidden longest are forced out of it, a few at a time.'),
         ], { footnote: 'A tab forced out of memory reloads when you open it. Tabs playing sound, recording, holding text you typed or set to Load on Start stay.' }),
         card('Updates', [
-          toggle('automaticallyUpdates', 'Automatically update Cra', null, { disabled: () => !updates().available }),
+          toggle('automaticallyUpdates', 'Automatically update Cra', 'Cra downloads new versions in the background and installs them the next time it opens.', { disabled: () => !updates().available }),
           button('Check for updates', () => updates().summary || '', 'Check Now', 'checkForUpdates'),
         ]),
         syncCard(),
@@ -321,13 +321,13 @@
           toggle('animateSidebarDocking', 'Animate sidebar docking', 'Showing and hiding the sidebar glides, the page easing into place. Off, it snaps as in Arc.'),
         ]),
         card('Pages', [
-          toggle('toolbarShowsFullURL', 'Show full URLs', null, { disabled: () => !value('showToolbar') }),
-          toggle('edgeToEdgeContent', 'Pages fill the window edge to edge'),
+          toggle('toolbarShowsFullURL', 'Show full URLs', 'The toolbar shows a page’s whole address instead of only its site.', { disabled: () => !value('showToolbar') }),
+          toggle('edgeToEdgeContent', 'Pages fill the window edge to edge', 'Pages fill the window, with no margin or rounded corners around them.'),
           button('Fonts', 'Sizes and typefaces websites use.', 'Customize Fonts…', 'openURL', { url: 'chrome://settings/fonts' }),
         ]),
         card('Sound & websites', [
-          toggle('soundEffects', 'Play Cra sound effects'),
-          toggle('shareThemeWithWebsites', 'Allow websites to get your theme data'),
+          toggle('soundEffects', 'Play Cra sound effects', 'A camera shutter sounds when you capture a screenshot of a page.'),
+          toggle('shareThemeWithWebsites', 'Allow websites to get your theme data', 'Sites that ask can read your space’s colors and match their pages to them.'),
         ]),
       ];
     },
@@ -350,34 +350,34 @@
           }),
         ]),
         card('Tabs', [
-          toggle('newTabsAtTop', 'Add new tabs to the top'),
-          toggle('newTabButtonAtTop', 'Show the New Tab button above tabs'),
-          toggle('hapticFeedbackOnReorder', 'Haptic feedback when reordering tabs'),
-          toggle('middleClickUnloadsTab', 'Middle-click a tab to unload it instead of closing it'),
-          toggle('folderPreviews', 'Preview a folder’s tabs when hovering over it'),
+          toggle('newTabsAtTop', 'Add new tabs to the top', 'A new tab goes above your other tabs instead of below them.'),
+          toggle('newTabButtonAtTop', 'Show the New Tab button above tabs', 'The + New Tab row sits at the top of the tab list, where you can always reach it.'),
+          toggle('hapticFeedbackOnReorder', 'Haptic feedback when reordering tabs', 'The trackpad taps as a dragged tab moves past another one.'),
+          toggle('middleClickUnloadsTab', 'Middle-click a tab to unload it instead of closing it', 'The tab stays in the sidebar with its memory freed, and loads again when you open it.'),
+          toggle('folderPreviews', 'Preview a folder’s tabs when hovering over it', 'Hover over a closed folder to see the tabs inside it.'),
           toggle('autoPictureInPicture', 'Enable Picture in Picture when you leave a video tab', 'For every site you haven’t switched yourself: a site switched in its Extensions menu keeps that until you switch it again.'),
         ], { footnote: 'Right-click a tab ▸ Load on Start to have it load when Cra opens and stay in memory.' }),
         card('Favorites', [
-          toggle('favoritePreviews', 'Preview unread Gmail when hovering its favorite'),
-          toggle('favoriteLogoOutline', 'Outline the open favorite in its logo’s colors'),
-          toggle('sharedFavorites', 'Share favorites across spaces'),
+          toggle('favoritePreviews', 'Preview unread Gmail when hovering its favorite', 'Hover over Gmail in your Favorites to see your unread mail.'),
+          toggle('favoriteLogoOutline', 'Outline the open favorite in its logo’s colors', 'The open favorite gets a rim in its logo’s colors instead of a plain one.'),
+          toggle('sharedFavorites', 'Share favorites across spaces', 'Spaces on the same profile show the same Favorites, as in Arc. Turning it on combines their Favorites; turning it off gives each Space its own copy.'),
         ]),
         card('Spaces', [
-          toggle('showSpaceHeaderOnSingleSpace', 'Show the space header with only one space'),
+          toggle('showSpaceHeaderOnSingleSpace', 'Show the space header with only one space', 'Show the space’s name at the top and its icon at the bottom of the sidebar, even while you have only one space.'),
           button('Your spaces', 'Rename, reorder, theme and delete spaces in the Library.', 'Manage Spaces…', 'manageSpaces'),
         ]),
         card('Archive', [
-          toggle('autoArchiveEnabled', 'Archive tabs you haven’t used'),
+          toggle('autoArchiveEnabled', 'Archive tabs you haven’t used', 'Today tabs you haven’t opened for a while move to the archive. Pinned tabs and Favorites stay.'),
           select('autoArchive', 'After', options('autoArchive'), null, { disabled: () => !value('autoArchiveEnabled') }),
         ]),
         card('Little Windows & Peek', [
-          toggle('openExternalLinksInLittleWindow', 'Links from other apps open in a Little Window'),
-          toggle('littleWindowShortcutEverywhere', 'Open a Little Window from any app with its shortcut'),
-          select('littleWindowArchiveAfter', 'Archive Little Windows after', options('littleWindowArchiveAfter')),
-          toggle('peekLinksToOtherSites', 'Open a Peek window when clicking on links to other sites'),
+          toggle('openExternalLinksInLittleWindow', 'Links from other apps open in a Little Window', 'A link you click in Mail, Slack or another app opens in a small window you can read and close, instead of a new tab in your sidebar.'),
+          toggle('littleWindowShortcutEverywhere', 'Open a Little Window from any app with its shortcut', 'Press its shortcut wherever you are to open a Little Window, even while Cra isn’t in front.'),
+          select('littleWindowArchiveAfter', 'Archive Little Windows after', options('littleWindowArchiveAfter'), 'A Little Window you leave alone closes into the archive, where you can find it again.'),
+          toggle('peekLinksToOtherSites', 'Open a Peek window when clicking on links to other sites', 'A link to another site opens in a Peek over the page, so you can read it and close it without losing your place.'),
           toggle('peekInEveryTab', 'In every tab, not only Favorites and Pinned tabs', null, { disabled: () => !value('peekLinksToOtherSites') }),
-          toggle('peekOnShiftClick', 'Open a Peek window when clicking on links with Shift held'),
-          toggle('openLinksInForeground', '“Open Link in New Tab” switches to the new tab'),
+          toggle('peekOnShiftClick', 'Open a Peek window when clicking on links with Shift held', 'Hold ⇧ while you click any link to open it in a Peek.'),
+          toggle('openLinksInForeground', '“Open Link in New Tab” switches to the new tab', '“Open Link in New Tab” brings the new tab to the front. Off, the page you’re reading stays in front, as in Arc. ⌘-click opens a link behind the page and ⇧⌘-click switches to it either way.'),
         ]),
         routesCard(),
       ];
@@ -409,7 +409,7 @@
       return [
         card('Content blocking', [
           toggle('blockAdsAndTrackers', 'Block ads and trackers', 'Cra’s own lists, on every site you visit.'),
-          toggle('blockCookieBanners', 'Block cookie banners'),
+          toggle('blockCookieBanners', 'Block cookie banners', 'Cookie banners from the common consent tools are hidden. Pages load again with the change.'),
           // Not in Arc or Dia: Cra's Chromium (scripts/cef-patches/fingerprinting-protection.patch).
           toggle('fingerprintingProtection', 'Fingerprinting protection', 'Sites that tell browsers apart by reading back drawings, 3D graphics or sound get faint noise in what they read, different for each site and each time Cra opens. Sites also see 8 processor cores.'),
         ]),
@@ -448,7 +448,7 @@
         card('Websites', [
           // Arc's, under the toolbar too (#363): the band is 60 pt from the card's top, its bar included.
           toggle('pageTopWindowDrag', 'Allow window dragging from the top of webpages', 'Drag the top edge of a page to move the window.'),
-          toggle('boostsEnabled', 'Enable Boosts on websites you visit'),
+          toggle('boostsEnabled', 'Enable Boosts on websites you visit', 'Your Boosts restyle and change the sites they’re made for.'),
         ]),
         card('Command bar', [
           // #307, not in Arc: ⌘T finds tabs in the window's space only (CraCore TabSearchScope).
