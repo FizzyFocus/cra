@@ -9,8 +9,9 @@ wait 3
 expect-log settings tab shown \(general, new\)
 expect-log settings page read its state \(general\)
 # General ▸ Default browser: the browser that opens links now sits clear of Set Pane as Default (it was
-# flush against the button, 12 Nov 2026), and Cra.app is named as Pane's old copy, never "Cra".
-pane://debug?settingsPageJS=(()=>{const b=Array.from(document.querySelectorAll('button')).find(x=>x.textContent.startsWith('Set Pane'));const l=b&&b.previousElementSibling;return !b?'default':!l?'no label':'gap '+Math.round(b.getBoundingClientRect().left-l.getBoundingClientRect().right)+' '+(/\bCra\b/.test(l.textContent)?'cra':'named')})()
+# flush against the button, 12 Nov 2026), and Cra.app is named as Pane's old copy, never "Cra". No & or +
+# in the script: the command is a URL query.
+pane://debug?settingsPageJS=(()=>{const b=Array.from(document.querySelectorAll('button')).find(x=>x.textContent.startsWith('Set Pane'));if(!b)return 'default';const l=b.previousElementSibling;if(!l)return 'no label';return ['gap',Math.round(b.getBoundingClientRect().left-l.getBoundingClientRect().right),l.textContent.split(' ').includes('Cra')?'cra':'named'].join(' ')})()
 expect-log settings page js: (default|no label|gap (1[0-9]|[2-9][0-9]) named)
 pane://debug?settingsPane=search
 wait 1.5
