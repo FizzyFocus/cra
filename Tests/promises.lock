@@ -618,3 +618,4 @@
 #378   Tests/StoreTests.swift::syncPutsAFileThatNeverArrivesRight  b3ca3da9a4ca
 #378   Tests/StoreTests.swift::syncPutsAMixedBundleRight  bf14ae1bdb36
 #387   Tests/Scenarios/favorite-mute.scenario  7b04a5025ba3
+#399   Tests/EmojiLabelTests.swift::wholeEmojiWhenClipped  bec18dc87181
