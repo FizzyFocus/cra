@@ -13,7 +13,10 @@ import Foundation
 ///
 ///     {"v":1,"t":"Trip","i":[{"t":"Flights","u":"https://…"},{"t":"Hotels","i":[…]}]}
 public enum FolderShareLink {
-    public static let prefix = Sharing.base + "/folder#"
+    /// The site whose static page unpacks a shared folder: upstream's (upstream reads it from its
+    /// usage-stats Sharing.base, which this fork leaves out). The folder itself stays after the `#`.
+    public static let site = "https://crabrowser.app"
+    public static let prefix = site + "/folder#"
     public static let version = 1
     /// Names past this are cut, so one long page title doesn't make the link longer than it needs.
     public static let titleLimit = 120

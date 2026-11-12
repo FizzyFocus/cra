@@ -175,7 +175,6 @@ final class SettingsPageBrowser: CraBrowser, NativePage, WKUIDelegate {
     }
     override func sslStatus() -> CraSSLStatus? { nil }
     override func print() {}
-    override func viewSource() {}
     override func notifyMoveOrResizeStarted() {}
 
     override func close() {

@@ -94,6 +94,13 @@ struct SettingsPageTests {
         #expect(SettingsBridge.editableKeys.subtracting(keys).isEmpty)
     }
 
+    /// View ▸ Developer ▸ View Source does nothing on the settings page (upstream #348's ViewSource
+    /// rule, which replaced SettingsPageBrowser's own empty viewSource()).
+    @Test func theSettingsPageHasNoSource() {
+        #expect(ViewSource.address(for: SettingsPage.address) == nil)
+        #expect(ViewSource.address(for: SettingsPage.address + "/privacy") == nil)
+    }
+
     /// Settings ▸ Privacy ▸ Fingerprinting protection (upstream 3e3a82b's switch, on the page here):
     /// off by default, and the page's switch writes it as settings.json reads it.
     @Test func fingerprintingProtectionIsThePrivacySwitch() throws {
