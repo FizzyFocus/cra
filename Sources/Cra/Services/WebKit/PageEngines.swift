@@ -16,7 +16,7 @@ enum PageEngines {
     /// one of them owns, else nil.
     static var nativePage: ((_ frame: NSRect, _ url: String, _ delegate: CraBrowserDelegate?, _ incognito: Bool, _ profilePath: String?) -> CraBrowser?)?
     /// Whether one of those pages owns an address: a page of an engine navigating there (cra://settings
-    /// typed into the bar) gives the tab to it.
+    /// typed into the bar) gives the tab to it, and a tab there never takes a spare page.
     static var nativeOwns: ((String) -> Bool)?
 
     /// The list, with the user's own choices (protected-media.json) on it. `defaults write
@@ -87,6 +87,16 @@ enum PageEngines {
             return CraBrowser(frame: frame, url: url, delegate: delegate, incognito: incognito, profilePath: profilePath,
                               history: ["history": restored.state.base64EncodedString(), "index": restored.index])
         }
+    }
+
+    /// Whether a tab at `url` can take a spare page (SparePage), and the saved history it then gets,
+    /// as makeBrowser would hand it in.
+    static func spareFill(url: String, incognito: Bool, history: PageHistory?) -> (canTake: Bool, history: [String: Any]?) {
+        let engine = sites.engine(for: url)
+        // Pane's own pages (an easel, pane://settings) are never Chromium's: nativeOwns, not only easels.
+        guard SparePage.canTake(engine: engine, isEasel: nativeOwns?(url) ?? false, incognito: incognito) else { return (false, nil) }
+        let restored = history.flatMap { $0.restores(into: engine, at: url) ? $0 : nil }
+        return (true, restored.map { ["history": $0.state.base64EncodedString(), "index": $0.index] })
     }
 
     /// Whether `browser` is one of the engines' pages (not an easel): only those have a history to save.

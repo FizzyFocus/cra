@@ -1,0 +1,26 @@
+# Pane: a tab that takes a spare page (SparePages: made ahead, with no address, before any tab owns it)
+# gets what any new page gets. The Boosts' start script went into the spare when it was made, so its
+# first document starts with the boost's zap, colours and text case on (the banner is hidden while the
+# page is still parsing), and the boost's JS runs once it loads. An extension's content script runs in
+# it, and the extension sees it as the active tab (TabsQueryExtension's context check).
+budget rss=1100 stalls50=40
+seed settings.json {"hasSeenImportPrompt": true, "toolbarDefaultMigrated": true}
+seed boosts.json [{"id":"5A1E7C2B-3D4F-4E6A-8B9C-0D1E2F3A4B5C","host":"127.0.0.1","name":"Spare","enabled":true,"hue":0,"strength":0,"invert":false,"contrast":50,"brightness":50,"saturation":50,"textScale":1,"textCase":"upper","zapped":["#banner"],"css":"body { background: rgb(1, 2, 3) !important; }","js":"window.boostRan = 'yes'"}]
+cra://debug?installExtension=${FIXTURES}/TabsQueryExtension
+relaunch
+cra://open?url=${PAGE}?n=one
+wait 4
+cra://open?url=${ORIGIN}/zap.html
+expect-log takes a spare page
+wait 2
+cra://debug?cdp=Runtime.evaluate&params={"expression":"['parsing',window.bannerWhileParsing,'banner',getComputedStyle(document.getElementById('banner')).display,'keep',getComputedStyle(document.getElementById('keep')).display,'bg',getComputedStyle(document.body).backgroundColor,'case',getComputedStyle(document.getElementById('keep')).textTransform,'js',window.boostRan].join(' ')"}
+expect-log Cra cdp Runtime.evaluate .*"value":"parsing none banner none keep block bg rgb\(1, 2, 3\) case uppercase js yes"
+# The next spare (made 1 s after the last page) goes to an extension page check.
+wait 3
+cra://open?url=${ORIGIN}/extension-context.html?n=spare
+wait 2
+cra://debug?cdp=Runtime.evaluate&params={"expression":"checkExtensionContext('spare')","awaitPromise":true,"returnByValue":true}
+expect-log "value":"spare current=true currentWindow=true last=true type=normal page=spare active=spare"
+cra://debug?removeExtension=${TABS_QUERY_EXTENSION_ID}
+wait 1
+reject-log fault:

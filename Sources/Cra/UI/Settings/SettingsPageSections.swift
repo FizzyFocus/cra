@@ -245,7 +245,10 @@ extension SettingsPageBridge {
             guard let id = uuid("id"), store.profiles.contains(where: { $0.id == id }) else { return .some(nil) }
             let moved = store.spaces(usingProfile: id).count
             guard moved == 0 || args["reassign"]?.bool == true else { return .some("Only Profiles not assigned to any Spaces can be deleted.") }
+            let path = store.profilePath(profile: id)
             store.deleteProfile(id, reassigning: true)
+            // Its spare page (SparePages) held the profile's context open for a tab that can't come now.
+            SparePages.shared.drop(profilePath: path)
             CraLog.note("settings page deleted a profile: \(moved) space\(moved == 1 ? "" : "s") moved to Default")
         case "newProfileDialog":
             // Create a new Profile: Cra's dialog, the same one Spaces ▸ Change Profile opens, in the space's colours.
