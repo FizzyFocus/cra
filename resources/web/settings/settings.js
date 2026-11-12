@@ -194,6 +194,19 @@
     return row({ title, detail: detailEl, trailing: b });
   }
 
+  /// Advanced ▸ Reset Translated-site Prompts (Arc's resetTranslateSettings, #373). Arc says nothing when it
+  /// is done: the button reads “Done” for two seconds instead.
+  function translateResetRow() {
+    const label = 'Reset Translated-site Prompts';
+    const b = el('button', { class: 'btn', type: 'button' }, label);
+    b.addEventListener('click', () => {
+      b.disabled = true;
+      run('resetTranslatedSitePrompts').then(() => { b.textContent = 'Done'; }).catch(() => {})
+        .finally(() => setTimeout(() => { b.textContent = label; b.disabled = false; }, 2000));
+    });
+    return row({ title: 'Translated sites', detail: 'Forget the sites you chose never to translate and the other translate choices, so Chromium offers to translate again.', trailing: b, search: label });
+  }
+
   function card(header, rows, { footnote, trailing } = {}) {
     const head = header ? el('div', { class: 'section-header' }, el('h3', {}, header), trailing || null) : null;
     const body = el('div', { class: 'card' }, rows);
@@ -376,6 +389,8 @@
         card('Little Windows & Peek', [
           toggle('openExternalLinksInLittleWindow', 'Links from other apps open in a Little Window', 'A link you click in Mail, Slack or another app opens in a small window you can read and close, instead of a new tab in your sidebar.'),
           toggle('littleWindowShortcutEverywhere', 'Open a Little Window from any app with its shortcut', 'Press its shortcut wherever you are to open a Little Window, even while Pane isn’t in front.'),
+          // Arc's "Open Little Arc when clicking on links with ⌥⌘ held" (#373, LittleWindowTrigger).
+          toggle('littleWindowOnOptionCommandClick', '⌥⌘-click opens a Little Window', 'Hold ⌥ and ⌘ while you click a link to open it in a Little Window instead of a background tab.'),
           select('littleWindowArchiveAfter', 'Archive Little Windows after', options('littleWindowArchiveAfter'), 'A Little Window you leave alone closes into the archive, where you can find it again.'),
           toggle('peekLinksToOtherSites', 'Open a Peek window when clicking on links to other sites', 'A link to another site opens in a Peek over the page, so you can read it and close it without losing your place.'),
           toggle('peekInEveryTab', 'In every tab, not only Favorites and Pinned tabs', null, { disabled: () => !value('peekLinksToOtherSites') }),
@@ -456,6 +471,11 @@
         card('Command bar', [
           // #307, not in Arc: ⌘T finds tabs in the window's space only (CraCore TabSearchScope).
           toggle('commandBarCurrentSpaceOnly', 'Search only the current space’s tabs', 'Off, ⌘T finds a tab in any space, as in Arc. % then Tab searches one space either way.'),
+        ]),
+        // Arc's two Chromium rows (#373): its own settings page, and resetTranslateSettings.
+        card('Chromium', [
+          button('More Settings', 'Chromium’s own settings page, in a tab.', 'More Settings…', 'openURL', { url: 'chrome://settings' }),
+          translateResetRow(),
         ]),
         mcpCard(),
         card('Import & export', [

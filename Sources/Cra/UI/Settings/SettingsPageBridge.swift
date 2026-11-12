@@ -192,6 +192,9 @@ final class SettingsPageBridge: NSObject, WKScriptMessageHandlerWithReply {
             app.bindings.resetShortcuts(for: id)
         case "resetAllShortcuts":
             app.bindings.resetOverrides()
+        case "resetTranslatedSitePrompts":
+            // Arc's Advanced ▸ Reset Translated-site Prompts (#373): every profile's translate choices.
+            TranslatedSitePrompts.reset(store: store)
         default:
             guard let answer = await runSection(name, args) else { return "Pane doesn’t know “\(name)”." }
             return answer

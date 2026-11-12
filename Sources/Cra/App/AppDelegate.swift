@@ -1136,6 +1136,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             if let history = dict["mcpHistory"] { MCPServer.shared.allowsHistory = history == "on"; return }
             // mcpStop=1: the pill's Stop (every agent disconnects, MCP turns off).
             if dict["mcpStop"] != nil { MCPServer.shared.stopFromPill(); return }
+            // translatePrompts=never:<host>|reset|state: Settings ▸ Advanced ▸ Reset Translated-site Prompts and the
+            // never-translate list it empties.
+            if let t = dict["translatePrompts"] { TranslatedSitePrompts.debug(t, store: store); return }
             // settingsPane=max: Settings opened on that pane (the page's section, or the native window).
             if let p = dict["settingsPane"].flatMap(SettingsPane.init(rawValue:)) {
                 showSettingsWindow(p)
