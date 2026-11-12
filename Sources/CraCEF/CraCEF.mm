@@ -881,59 +881,67 @@ private:
 
 // MARK: - Favicon download
 
-/// The icon URL a browser last got a favicon from, shared with its downloads.
-class FaviconState : public virtual CefBaseRefCounted {
-public:
-    std::string downloaded;
-    IMPLEMENT_REFCOUNTING(FaviconState);
-};
-
+/// Answers -[CraBrowser downloadFavicon:completion:] (on the UI thread, which is the main thread).
 class FaviconCallback : public CefDownloadImageCallback {
 public:
-    FaviconCallback(CraBrowser* owner, CefRefPtr<FaviconState> state, std::string url)
-        : owner_(owner), state_(state), url_(std::move(url)) {}
+    explicit FaviconCallback(void (^completion)(NSImage* _Nullable)) : completion_([completion copy]) {}
 
     void OnDownloadImageFinished(const CefString& image_url, int http_status_code,
                                  CefRefPtr<CefImage> image) override {
-        CraBrowser* owner = owner_;
-        if (!owner || !image || image->IsEmpty()) return;
-        int w = 0, h = 0;
-        CefRefPtr<CefBinaryValue> png = image->GetAsPNG(2.0f, true, w, h);
-        if (!png || png->GetSize() == 0) png = image->GetAsPNG(1.0f, true, w, h);
-        if (!png || png->GetSize() == 0) return;
-        size_t n = png->GetSize();
-        std::vector<uint8_t> bytes(n);
-        png->GetData(bytes.data(), n, 0);
-        NSData* data = [NSData dataWithBytes:bytes.data() length:n];
-        NSImage* img = [[NSImage alloc] initWithData:data];
-        if (!img) return;
-        state_->downloaded = url_;
-        [owner.delegate browser:owner didLoadFavicon:img forURL:NSStringFromCef(image_url)];
+        void (^done)(NSImage* _Nullable) = completion_;
+        completion_ = nil;
+        if (done) done(ImageFromCef(image));
     }
 
 private:
-    __weak CraBrowser* owner_;
-    CefRefPtr<FaviconState> state_;
-    std::string url_;
+    static NSImage* _Nullable ImageFromCef(CefRefPtr<CefImage> image) {
+        if (!image || image->IsEmpty()) return nil;
+        int w = 0, h = 0;
+        CefRefPtr<CefBinaryValue> png = image->GetAsPNG(2.0f, true, w, h);
+        if (!png || png->GetSize() == 0) png = image->GetAsPNG(1.0f, true, w, h);
+        if (!png || png->GetSize() == 0) return nil;
+        size_t n = png->GetSize();
+        std::vector<uint8_t> bytes(n);
+        png->GetData(bytes.data(), n, 0);
+        return [[NSImage alloc] initWithData:[NSData dataWithBytes:bytes.data() length:n]];
+    }
+
+    void (^completion_)(NSImage* _Nullable);
     IMPLEMENT_REFCOUNTING(FaviconCallback);
 };
 
 // MARK: - Browser fetch
 
 typedef void (^CraFetchCompletion)(NSInteger, NSString*, NSString*, NSString*);
+typedef void (^CraFetchDataCompletion)(NSInteger, NSString*, NSData* _Nullable);
 
 /// Collects a CefURLRequest's body. Requests made on the UI thread call back on it.
 class FetchClient : public CefURLRequestClient {
 public:
     explicit FetchClient(CraFetchCompletion completion, bool restricted = false)
         : completion_([completion copy]), restricted_(restricted) {}
+    /// The body as bytes (an icon), cut off past 4 MB; redirects are followed.
+    explicit FetchClient(CraFetchDataCompletion completion) : dataCompletion_([completion copy]), restricted_(false) {}
 
     void OnDownloadData(CefRefPtr<CefURLRequest> request, const void* data, size_t length) override {
-        if (restricted_ && body_.size() + length > 4 * 1024 * 1024) { request->Cancel(); return; }
+        if ((restricted_ || dataCompletion_) && body_.size() + length > 4 * 1024 * 1024) { request->Cancel(); return; }
         body_.append(static_cast<const char*>(data), length);
     }
     void OnRequestComplete(CefRefPtr<CefURLRequest> request) override {
         CefRefPtr<CefResponse> response = request->GetResponse();
+        if (CraFetchDataCompletion done = dataCompletion_) {
+            dataCompletion_ = nil;
+            bool ok = response && request->GetRequestStatus() == UR_SUCCESS;
+            NSInteger status = ok ? response->GetStatus() : 0;
+            NSString* mime = response ? NSStringFromCef(response->GetMimeType()) : @"";
+            NSData* body = ok ? [NSData dataWithBytes:body_.data() length:body_.size()] : nil;
+            CefRefPtr<CefURLRequest> finished = request;
+            dispatch_async(dispatch_get_main_queue(), ^{
+                InFlight().erase(finished);
+                done(status, mime, body);
+            });
+            return;
+        }
         bool redirect = restricted_ && response && response->GetStatus() >= 300 && response->GetStatus() < 400;
         bool ok = response && (request->GetRequestStatus() == UR_SUCCESS || redirect);
         NSInteger status = ok ? response->GetStatus() : 0;
@@ -962,6 +970,7 @@ public:
 
 private:
     CraFetchCompletion completion_;
+    CraFetchDataCompletion dataCompletion_;
     std::string body_;
     bool restricted_;
     IMPLEMENT_REFCOUNTING(FetchClient);
@@ -1230,6 +1239,14 @@ static void RunPageScript(CefRefPtr<CefFrame> frame, const std::string& name, co
     message->GetArgumentList()->SetString(1, script);
     frame->SendProcessMessage(PID_RENDERER, message);
 }
+
+// Answers "icons:<json>": the <link>s of the document that declare an icon, each href resolved
+// against document.baseURI (HTMLLinkElement.href), for FaviconFinder when Chromium's list gave none.
+static const char kPageIconsProbe[] =
+    "(function(send){try{var out=[],ls=document.querySelectorAll('link[rel][href]');"
+    "for(var i=0;i<ls.length&&out.length<16;i++){var r=(ls[i].getAttribute('rel')||'').toLowerCase();"
+    "if(/(^|\\s)(icon|apple-touch-icon|apple-touch-icon-precomposed)(\\s|$)/.test(r)&&ls[i].href)out.push({href:ls[i].href,rel:r});}"
+    "send('icons:'+JSON.stringify(out));}catch(e){}})";
 
 // Answers "bg:<css colour>"; installed once per document, re-run on load, after late
 // stylesheets and when the OS appearance flips.
@@ -1574,9 +1591,10 @@ public:
             "var rgb=getComputedStyle(d).color;d.remove();send('theme:'+rgb);}catch(e){}}"
             "probe();setTimeout(probe,1500);})");
         RunPageScript(frame, "bg", kBackgroundProbe);
+        if ([o.delegate respondsToSelector:@selector(browser:didFindPageIcons:)]) RunPageScript(frame, "", kPageIconsProbe);
     }
 
-    // What the page scripts above send(): "pip:…", "bg:<css colour>" or "theme:<css colour>".
+    // What the page scripts above send(): "pip:…", "bg:<css colour>", "icons:<json>" or "theme:<css colour>".
     void HandlePageMessage(CefRefPtr<CefBrowser> browser, const std::string& m) {
         if (m.compare(0, 4, "pip:") == 0) {
             CraBrowser* o = owner_;
@@ -1617,6 +1635,13 @@ public:
             }
             if (o && hex.length && [o.delegate respondsToSelector:@selector(browser:didReportBackgroundColor:)])
                 [o.delegate browser:o didReportBackgroundColor:hex];
+            return;
+        }
+        const std::string iconsPrefix = "icons:";
+        if (m.compare(0, iconsPrefix.size(), iconsPrefix) == 0) {
+            CraBrowser* o = owner_;
+            if (o && [o.delegate respondsToSelector:@selector(browser:didFindPageIcons:)])
+                [o.delegate browser:o didFindPageIcons:[NSString stringWithUTF8String:m.c_str() + iconsPrefix.size()] ?: @"[]"];
             return;
         }
         const std::string prefix = "theme:";
@@ -1759,18 +1784,10 @@ public:
 
     void OnFaviconURLChange(CefRefPtr<CefBrowser> browser, const std::vector<CefString>& icon_urls) override {
         CraBrowser* o = owner_;
-        if (!o || icon_urls.empty()) return;
-        // Prefer PNG/ICO-looking URLs over SVG, which CEF can't decode.
-        CefString chosen = icon_urls.front();
-        for (const auto& u : icon_urls) {
-            std::string s = u.ToString();
-            if (s.find(".svg") == std::string::npos) { chosen = u; break; }
-        }
-        std::string chosenStr = chosen.ToString();
-        // Skip only an icon that arrived: Chromium drops a download without calling back when the
-        // page replaces its frame while loading (YouTube does), and the next change retries it.
-        if (chosenStr == favicon_->downloaded) return;
-        browser->GetHost()->DownloadImage(chosen, true, 64, false, new FaviconCallback(o, favicon_, chosenStr));
+        if (!o || icon_urls.empty() || ![o.delegate respondsToSelector:@selector(browser:didChangeFaviconURLs:)]) return;
+        NSMutableArray<NSString*>* urls = [NSMutableArray arrayWithCapacity:icon_urls.size()];
+        for (const auto& u : icon_urls) [urls addObject:NSStringFromCef(u)];
+        [o.delegate browser:o didChangeFaviconURLs:urls];
     }
 
     void OnFullscreenModeChange(CefRefPtr<CefBrowser> browser, bool fullscreen) override {
@@ -2330,7 +2347,6 @@ private:
     // Made without a CraBrowser: Document Picture in Picture's client (owner_ is weak, so it can't say).
     const bool ownerless_;
     bool close_requested_ = false;
-    CefRefPtr<FaviconState> favicon_ = new FaviconState();
     CefRefPtr<CefResourceRequestHandler> blocker_;
     IMPLEMENT_REFCOUNTING(CraClient);
 };
@@ -3126,6 +3142,32 @@ static NSView* FindRenderWidgetHostView(NSView* root) {
     if (command <= 0 || !_browser->GetHost()->CanExecuteChromeCommand(command)) return NO;
     _browser->GetHost()->ExecuteChromeCommand(command, CEF_WOD_CURRENT_TAB);
     return YES;
+}
+- (void)downloadFavicon:(NSString*)url completion:(void (^)(NSImage* _Nullable))completion {
+    if (!_browser) { completion(nil); return; }
+    _browser->GetHost()->DownloadImage(CefStringFromNS(url), true, 64, false, new FaviconCallback(completion));
+}
+- (void)fetchImageData:(NSString*)url completion:(void (^)(NSInteger, NSString*, NSData* _Nullable))completion {
+    if (!_browser) { completion(0, @"", nil); return; }
+    CefRefPtr<CefRequest> request = CefRequest::Create();
+    request->SetURL(CefStringFromNS(url));
+    request->SetMethod("GET");
+    // Sent as the page's own image would be: its cookies, the page as first party and referrer.
+    request->SetFlags(UR_FLAG_ALLOW_STORED_CREDENTIALS);
+    std::string page = _browser->GetMainFrame()->GetURL().ToString();
+    if (page.rfind("http://", 0) == 0 || page.rfind("https://", 0) == 0) {
+        request->SetFirstPartyForCookies(page);
+        request->SetReferrer(page, REFERRER_POLICY_DEFAULT);
+    }
+    CefRequest::HeaderMap headers;
+    headers.insert({"Accept", "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8"});
+    request->SetHeaderMap(headers);
+    CefRefPtr<CefURLRequest> r = CefURLRequest::Create(request, new FetchClient(completion), _browser->GetHost()->GetRequestContext());
+    if (!r) { completion(0, @"", nil); return; }
+    FetchClient::InFlight().insert(r);
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 15 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+        if (FetchClient::InFlight().count(r)) r->Cancel();
+    });
 }
 - (void)executeJavaScript:(NSString*)script {
     if (_browser) _browser->GetMainFrame()->ExecuteJavaScript(CefStringFromNS(script), _browser->GetMainFrame()->GetURL(), 0);

@@ -89,6 +89,11 @@ open class CraBrowser {
     /// Scripts run in the page's own world (a Boost's JavaScript), in order.
     public private(set) var scripts: [String] = []
     public func executeJavaScript(_ script: String) { scripts.append(script) }
+    /// Icon fetches the page has asked for, answered by the test (FaviconFinder).
+    public var faviconDownloads: [(url: String, completion: (NSImage?) -> Void)] = []
+    public var imageFetches: [(url: String, completion: (Int, String, Data?) -> Void)] = []
+    public func downloadFavicon(_ url: String, completion: @escaping (NSImage?) -> Void) { faviconDownloads.append((url, completion)) }
+    public func fetchImageData(_ url: String, completion: @escaping (Int, String, Data?) -> Void) { imageFetches.append((url, completion)) }
     public private(set) var lastIsolatedParams = ""
     /// Recorded as "<world>:Runtime.evaluate".
     public func evaluate(inIsolatedWorld world: String, params: String, completion: @escaping (String?, String?) -> Void) {

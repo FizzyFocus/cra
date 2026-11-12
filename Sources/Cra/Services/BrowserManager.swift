@@ -58,6 +58,8 @@ final class TabRuntime {
     var translation: PageTranslation?
     /// Pop-ups Chromium's blocker held back on the page (#357), for the blocked pop-ups button.
     var blockedPopups = BlockedPopups()
+    /// Looks for the page's icon past the first one Chromium lists (FaviconSearch).
+    var favicon: FaviconFinder?
     /// Chrome-style hosting: the page's own window (nil until created, or for Alloy).
     var hostWindow: NSWindow? { browser.hostWindow }
     init(tabID: UUID, browser: CraBrowser) {
@@ -1384,6 +1386,26 @@ final class BrowserManager: NSObject, @preconcurrency CraBrowserDelegate {
         }
     }
 
+    func browser(_ browser: CraBrowser, didChangeFaviconURLs urls: [String]) {
+        faviconFinder(of: browser)?.iconsChanged(urls)
+    }
+
+    func browser(_ browser: CraBrowser, didFindPageIcons json: String) {
+        faviconFinder(of: browser)?.pageLoaded(iconsJSON: json)
+    }
+
+    private func faviconFinder(of browser: CraBrowser) -> FaviconFinder? {
+        guard let id = tabID(of: browser), let rt = runtimes[id], rt.browser === browser else { return nil }
+        if let finder = rt.favicon { return finder }
+        let finder = FaviconFinder(browser: browser) { [weak self, weak browser] image, iconURL in
+            guard let self, let browser else { return }
+            self.browser(browser, didLoadFavicon: image, forURL: iconURL)
+        }
+        rt.favicon = finder
+        return finder
+    }
+
+    /// An icon FaviconFinder found for the page: the tab's own, and the site's for pages not loaded yet.
     func browser(_ browser: CraBrowser, didLoadFavicon image: NSImage, forURL iconURL: String) {
         guard let id = tabID(of: browser), let tab = store.item(id)?.tab else { return }
         guard let site = FaviconKey.key(for: tab.url) ?? tab.faviconKey.map(FaviconKey.siteKey(of:)) else { return }

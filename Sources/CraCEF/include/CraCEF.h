@@ -68,7 +68,6 @@ typedef NS_ENUM(NSInteger, CraChromiumString) {
 - (void)browser:(CraBrowser *)browser didChangeLoading:(BOOL)loading canGoBack:(BOOL)canGoBack canGoForward:(BOOL)canGoForward;
 - (void)browser:(CraBrowser *)browser didChangeProgress:(double)progress;
 - (void)browser:(CraBrowser *)browser didFinishLoadingURL:(NSString *)url title:(NSString *)title statusCode:(NSInteger)statusCode;
-- (void)browser:(CraBrowser *)browser didLoadFavicon:(NSImage *)image forURL:(NSString *)iconURL;
 - (void)browser:(CraBrowser *)browser didChangeStatusMessage:(NSString *)message;
 /// The page's theme colour (meta theme-color or body background) as "#RRGGBB", or "" when unknown.
 - (void)browser:(CraBrowser *)browser didReportThemeColor:(NSString *)hex;
@@ -107,6 +106,13 @@ typedef NS_ENUM(NSInteger, CraChromiumString) {
 - (void)browserDidReceiveFocus:(CraBrowser *)browser;
 - (void)browserDidClose:(CraBrowser *)browser;
 @optional
+/// The page's icons as Chromium lists them (its `<link rel=icon>`s, or /favicon.ico when it declares
+/// none), each time that changes. The delegate fetches them (FaviconFinder): CraCEF downloads none
+/// by itself.
+- (void)browser:(CraBrowser *)browser didChangeFaviconURLs:(NSArray<NSString *> *)urls;
+/// The main frame finished loading: the icons its DOM declares (`rel~=icon`, apple-touch-icon), as
+/// JSON `[{"href": …, "rel": …}]` with each href resolved against document.baseURI.
+- (void)browser:(CraBrowser *)browser didFindPageIcons:(NSString *)json;
 /// The page's context menu: Open Link in New Window, Little Window or Incognito Window.
 - (void)browser:(CraBrowser *)browser requestsWindowWithURL:(NSString *)url kind:(CraLinkWindow)kind;
 /// The page's context menu: Open Link in Split View, a pane beside this page (#257). Without it
@@ -313,6 +319,15 @@ typedef NS_ENUM(NSInteger, CraChromiumString) {
 /// One of Chrome's own commands by its IDC name ("IDC_ROUTE_MEDIA" for Cast…, "IDC_TASK_MANAGER"),
 /// where Chromium can run it for this page. NO when it can't.
 - (BOOL)runChromeCommand:(NSString *)name NS_SWIFT_NAME(runChromeCommand(_:));
+/// Chromium's favicon download of `url` in this page: no cookies, as Chromium's favicon driver
+/// fetches, decoded by the renderer, at most 64 pt at 2x. `image` is nil when nothing decoded.
+/// Chromium may never answer when the page replaces its frame meanwhile.
+- (void)downloadFavicon:(NSString *)url completion:(void (^)(NSImage * _Nullable image))completion;
+/// A GET of `url` in this page's request context (its cookies, the page as first party and
+/// referrer), for the app to decode: the HTTP status (0 when it failed), the MIME type and the
+/// body (at most 4 MB, else nil), on the main queue.
+- (void)fetchImageData:(NSString *)url
+            completion:(void (^)(NSInteger status, NSString *mimeType, NSData * _Nullable data))completion;
 - (void)executeJavaScript:(NSString *)script;
 /// Asks the page for its background colour again (-browser:didReportBackgroundColor:);
 /// pages can switch themes without a load.

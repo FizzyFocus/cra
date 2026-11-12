@@ -651,6 +651,16 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
         }
     }
 
+    /// `cra://debug?faviconState=<label>`: the icon each tab of the focused space shows, as its row
+    /// takes it from the favicon cache: its widest pixels, or none (the globe).
+    func debugFaviconState(_ label: String) {
+        let rows = store.listedTabIDs(in: focusedSpaceID).compactMap { store.item($0) }.map { item in
+            let px = item.tab.flatMap { app.favicons.image(forKey: $0.iconKey) }?.representations.map(\.pixelsWide).max()
+            return "\(item.displayTitle)=\(px.map { "\($0)px" } ?? "none")"
+        }
+        CraLog.note("favicons \(label): \(rows.joined(separator: ", "))")
+    }
+
     func testDragEnded(_ id: UUID, at screenPoint: NSPoint) {
         func list(in v: NSView) -> SpaceListView? {
             if let l = v as? SpaceListView, l.spaceID == focusedSpaceID { return l }

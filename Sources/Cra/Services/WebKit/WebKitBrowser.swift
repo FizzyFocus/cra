@@ -742,30 +742,36 @@ final class WebKitBrowser: CraBrowser, WKNavigationDelegate, WKUIDelegate, WKDow
 
     // MARK: Favicon
 
-    /// The page's own icon (the largest it declares, else /favicon.ico), fetched without cookies.
+    /// The icons the page declares, for the delegate's FaviconFinder; WebKit has no list of its own
+    /// (Chromium's OnFaviconURLChange), so the search starts here.
     @MainActor
     private func loadFavicon() {
         let js = """
-        (() => {
-          const links = [...document.querySelectorAll('link[rel~="icon"], link[rel="apple-touch-icon"], link[rel="shortcut icon"]')];
-          const size = l => Math.max(0, ...(l.getAttribute('sizes') || '').split(/\\s+/).map(s => parseInt(s, 10) || 0));
-          links.sort((a, b) => size(b) - size(a));
-          const svgless = links.filter(l => !/\\.svg(\\?|$)/i.test(l.href));
-          return (svgless[0] || links[0])?.href || new URL('/favicon.ico', location.href).href;
-        })()
+        JSON.stringify([...document.querySelectorAll('link[rel][href]')]
+          .filter(l => /(^|\\s)(icon|apple-touch-icon|apple-touch-icon-precomposed)(\\s|$)/i.test(l.getAttribute('rel') || '') && l.href)
+          .slice(0, 16).map(l => ({href: l.href, rel: l.getAttribute('rel').toLowerCase()})))
         """
         webView?.evaluateJavaScript(js, in: nil, in: Self.world) { [weak self] r in
-            guard let s = (try? r.get()) as? String, let url = URL(string: s), ["http", "https", "data"].contains(url.scheme ?? "") else { return }
-            Self.iconSession.dataTask(with: url) { data, _, _ in
-                guard let data, let image = NSImage(data: data), image.size.width > 0 else { return }
-                DispatchQueue.main.async {
-                    MainActor.assumeIsolated {
-                        guard let self, !self.closed else { return }
-                        self.delegate?.browser(self, didLoadFavicon: image, forURL: s)
-                    }
-                }
-            }.resume()
+            guard let self, !self.closed else { return }
+            self.delegate?.browser?(self, didFindPageIcons: (try? r.get()) as? String ?? "[]")
         }
+    }
+
+    /// WebKit pages' icons are fetched without cookies, and decoded by the app either way.
+    override func downloadFavicon(_ url: String, completion: @escaping (NSImage?) -> Void) {
+        if let inline = WebImagePreview.decodeDataURL(url) { return completion(FaviconImage.decode(inline.data)) }
+        fetchImageData(url) { status, mimeType, data in
+            completion(FaviconSearch.accepts(status: status, mimeType: mimeType) ? data.flatMap(FaviconImage.decode) : nil)
+        }
+    }
+
+    override func fetchImageData(_ url: String, completion: @escaping (Int, String, Data?) -> Void) {
+        guard let source = URL(string: url), ["http", "https"].contains(source.scheme ?? "") else { return completion(0, "", nil) }
+        Self.iconSession.dataTask(with: source) { data, response, _ in
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            let mimeType = response?.mimeType ?? ""
+            DispatchQueue.main.async { completion(status, mimeType, data.flatMap { $0.count <= 4 << 20 ? $0 : nil }) }
+        }.resume()
     }
 
     private static let iconSession: URLSession = {

@@ -1635,6 +1635,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                 main.debugPicks(dict)
                 return
             }
+            if let label = dict["faviconState"] { main.debugFaviconState(label); return }
             // windowEscape=1: Escape as AppKit hands the window one nothing else took (cancelOperation:).
             if dict["windowEscape"] != nil { main.window?.cancelOperation(nil); return }
             // settingsPageJS=<script>: run in the settings page on screen; its answer is logged.

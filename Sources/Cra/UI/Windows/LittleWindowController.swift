@@ -159,6 +159,7 @@ final class LittleWindowController: NSWindowController, NSWindowDelegate, @preco
     private var pageFullscreen = false
     private let shell: LittleShellView
     private var favicon: NSImage?
+    private var faviconFinderInUse: FaviconFinder?
     private var promoted = false
     /// Hosts a page's window.open (a sign-in popup); its URL arrives after it shows.
     private let isPopupHost: Bool
@@ -1548,9 +1549,20 @@ final class LittleWindowController: NSWindowController, NSWindowDelegate, @preco
         store.recordVisit(url: url, title: title)
     }
 
-    func browser(_ browser: CraBrowser, didLoadFavicon image: NSImage, forURL iconURL: String) {
-        favicon = image
-        if let key = FaviconKey.key(for: browser.currentURL) { app.favicons.store(image, forKey: key) }
+    func browser(_ browser: CraBrowser, didChangeFaviconURLs urls: [String]) { faviconFinder(for: browser)?.iconsChanged(urls) }
+    func browser(_ browser: CraBrowser, didFindPageIcons json: String) { faviconFinder(for: browser)?.pageLoaded(iconsJSON: json) }
+
+    /// The page's icon search (FaviconSearch), one per browser the window shows.
+    private func faviconFinder(for browser: CraBrowser) -> FaviconFinder? {
+        guard browser === self.browser else { return nil }
+        if let finder = faviconFinderInUse, finder.browser === browser { return finder }
+        let finder = FaviconFinder(browser: browser) { [weak self, weak browser] image, _ in
+            guard let self, let browser, browser === self.browser else { return }
+            self.favicon = image
+            if let key = FaviconKey.key(for: browser.currentURL) { self.app.favicons.store(image, forKey: key) }
+        }
+        faviconFinderInUse = finder
+        return finder
     }
 
     func browser(_ browser: CraBrowser, didReportThemeColor hex: String) { state.themeColor = hex }

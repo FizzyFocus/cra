@@ -50,7 +50,8 @@
 # ${TABS_CREATE_EXTENSION_ID} (Tests/Fixtures/TabsCreateExtension) expand,
 # and ${STALL}, an address on 127.0.0.1 that takes connections and never answers (a download
 # that never ends), and ${TRICKLE}, one that answers with a 10 MB file to save, sends the first
-# 64 KB and holds the rest back (a download that stays in progress).
+# 64 KB and holds the rest back (a download that stays in progress), and ${ICONSITE}, a web app
+# whose server answers any path it has no file for with its index.html (Tests/Fixtures/IconSite).
 set -uo pipefail
 cd "$(dirname "$0")/.."
 ROOT="$PWD"
@@ -185,7 +186,32 @@ TRICKLER=$!
 disown "$TRICKLER"
 for _ in $(seq 1 50); do TRICKLE_PORT=$(head -1 "$OUT/trickle.log"); [ -n "$TRICKLE_PORT" ] && break; sleep 0.1; done
 TRICKLE="http://127.0.0.1:${TRICKLE_PORT:?trickle port did not open}"
-expand() { local s="$1"; s="${s//\$\{FIXTURES\}/$FIXTURES}"; s="${s//\$\{ORIGIN\}/$ORIGIN}"; s="${s//\$\{PAGE\}/$PAGE}"; s="${s//\$\{WEBKIT\}/$WEBKIT}"; s="${s//\$\{MUSIC\}/$MUSIC}"; s="${s//\$\{STALL\}/$STALL}"; s="${s//\$\{TRICKLE\}/$TRICKLE}"; s="${s//\$\{EXTENSION_ID\}/$EXTENSION_ID}"; s="${s//\$\{SIDE_PANEL_EXTENSION_ID\}/$SIDE_PANEL_EXTENSION_ID}"; s="${s//\$\{DOWNLOAD_EXTENSION_ID\}/$DOWNLOAD_EXTENSION_ID}"; s="${s//\$\{WEB_STORE_COPY_ID\}/$WEB_STORE_COPY_ID}"; s="${s//\$\{TABS_CREATE_EXTENSION_ID\}/$TABS_CREATE_EXTENSION_ID}"; printf '%s' "$s"; }
+# A web app for icon fallbacks (Tests/Fixtures/IconSite), started for a scenario that names it: like
+# a single-page app's server, a path it has no file for answers with index.html (200, text/html), the
+# favicon.png its page declares too (my.eskiz.uz, Nov 2026).
+ICONSITE=""
+ICONSITE_SERVER=""
+if grep -q '[$]{ICONSITE}' "$FILE"; then
+  python3 -I -u -c '
+import functools, http.server, os, socketserver, sys
+class App(http.server.SimpleHTTPRequestHandler):
+    def send_head(self):
+        if not os.path.exists(self.translate_path(self.path)):
+            self.path = "/index.html"
+        return super().send_head()
+class Server(http.server.ThreadingHTTPServer):
+    def server_bind(self):
+        socketserver.TCPServer.server_bind(self)
+        self.server_name, self.server_port = "127.0.0.1", self.server_address[1]
+s = Server(("127.0.0.1", 0), functools.partial(App, directory=sys.argv[1]))
+print(s.server_address[1], flush=True)
+s.serve_forever()' "$FIXTURES/IconSite" >"$OUT/iconsite.log" 2>&1 &
+  ICONSITE_SERVER=$!
+  disown "$ICONSITE_SERVER"
+  for _ in $(seq 1 50); do ICONSITE_PORT=$(head -1 "$OUT/iconsite.log"); [ -n "$ICONSITE_PORT" ] && break; sleep 0.1; done
+  ICONSITE="http://127.0.0.1:${ICONSITE_PORT:?icon site did not start}"
+fi
+expand() { local s="$1"; s="${s//\$\{FIXTURES\}/$FIXTURES}"; s="${s//\$\{ORIGIN\}/$ORIGIN}"; s="${s//\$\{PAGE\}/$PAGE}"; s="${s//\$\{WEBKIT\}/$WEBKIT}"; s="${s//\$\{MUSIC\}/$MUSIC}"; s="${s//\$\{STALL\}/$STALL}"; s="${s//\$\{TRICKLE\}/$TRICKLE}"; s="${s//\$\{ICONSITE\}/$ICONSITE}"; s="${s//\$\{EXTENSION_ID\}/$EXTENSION_ID}"; s="${s//\$\{SIDE_PANEL_EXTENSION_ID\}/$SIDE_PANEL_EXTENSION_ID}"; s="${s//\$\{DOWNLOAD_EXTENSION_ID\}/$DOWNLOAD_EXTENSION_ID}"; s="${s//\$\{WEB_STORE_COPY_ID\}/$WEB_STORE_COPY_ID}"; s="${s//\$\{TABS_CREATE_EXTENSION_ID\}/$TABS_CREATE_EXTENSION_ID}"; printf '%s' "$s"; }
 app_args=()
 while read -r _ a; do app_args+=("$(expand "$a")"); done < <(grep '^arg ' "$FILE")
 while read -r _ f; do mkdir -p "$DATA/Extensions" && cp -R "$(expand "$f")" "$DATA/Extensions/"; done < <(grep '^extension ' "$FILE")
@@ -199,7 +225,7 @@ PIDS+=("$PID")
 
 cleanup() {
   for p in "${PIDS[@]}"; do kill -KILL "$p" 2>/dev/null; done
-  kill "$SERVER" "$STALLER" "$TRICKLER" 2>/dev/null
+  kill "$SERVER" "$STALLER" "$TRICKLER" $ICONSITE_SERVER 2>/dev/null
   cp "$DATA"/cra*.log "$OUT/" 2>/dev/null
   rm -rf "$DATA"
 }

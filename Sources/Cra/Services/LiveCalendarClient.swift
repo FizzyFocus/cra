@@ -178,7 +178,6 @@ private final class HiddenPage: NSObject, @preconcurrency CraBrowserDelegate {
     func browser(_ browser: CraBrowser, didChangeLoading loading: Bool, canGoBack: Bool, canGoForward: Bool) {}
     func browser(_ browser: CraBrowser, didChangeProgress progress: Double) {}
     func browser(_ browser: CraBrowser, didFinishLoadingURL url: String, title: String, statusCode: Int) {}
-    func browser(_ browser: CraBrowser, didLoadFavicon image: NSImage, forURL iconURL: String) {}
     func browser(_ browser: CraBrowser, didChangeStatusMessage message: String) {}
     func browser(_ browser: CraBrowser, didReportThemeColor hex: String) {}
     func browser(_ browser: CraBrowser, didChangeFullscreen fullscreen: Bool) {}

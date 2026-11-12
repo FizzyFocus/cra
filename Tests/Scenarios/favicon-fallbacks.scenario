@@ -1,0 +1,37 @@
+# A tab's icon when what the page declares doesn't decode (my.eskiz.uz, 11 Nov 2026: its
+# <link rel=icon href=favicon.png> got the web app's index.html back, and the tab kept the globe).
+# Cra tries Chromium's list, then the site's /favicon.ico in the tab's own session, then what the
+# loaded page's DOM declares (a touch icon); an SVG Chromium can't read is read by the app.
+budget rss=600 stalls50=10
+cra://debug?windowSize=1280x800
+wait 1.5
+# The declared icon is the app's own page: /favicon.ico (a 16 + 32 px .ico) shows instead.
+cra://open?url=${ICONSITE}/dashboard
+expect-log favicon 127\.0\.0\.1: favicon\.ico via session
+# An SVG-only page shows its SVG, not /favicon.ico.
+cra://open?url=${ICONSITE}/svg.html
+expect-log favicon 127\.0\.0\.1: icon\.svg via (renderer|session)
+# A plain PNG icon comes through Chromium's download, as before.
+cra://open?url=${ORIGIN}/plain-icon.html
+expect-log favicon 127\.0\.0\.1: icon-orange\.png via renderer
+# Only a touch icon, and no /favicon.ico on that server: the loaded page's touch icon.
+cra://open?url=${ORIGIN}/touch-icon.html
+expect-log favicon 127\.0\.0\.1: icon-blue\.png via
+# A WebKit tab (${WEBKIT}, a DRM service in this run) finds its icon the same way, without cookies.
+cra://open?url=${WEBKIT}/plain-icon.html
+expect-log loaded localhost \(HTTP 200\)
+expect-log favicon localhost: icon-orange\.png via
+wait 1
+cra://debug?faviconState=loaded
+expect-log favicons loaded: .*Dashboard=32px
+expect-log favicons loaded: .*SVG icon=[0-9]+px
+expect-log favicons loaded: .*Plain icon=[0-9]+px
+expect-log favicons loaded: .*Touch icon=[0-9]+px
+# Kept: after a relaunch, before any page loads, every tab still shows its own icon.
+relaunch
+wait 3
+cra://debug?faviconState=relaunched
+expect-log favicons relaunched: .*Dashboard=32px
+expect-log favicons relaunched: .*SVG icon=[0-9]+px
+expect-log favicons relaunched: .*Plain icon=[0-9]+px
+expect-log favicons relaunched: .*Touch icon=[0-9]+px

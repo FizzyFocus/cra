@@ -29,6 +29,7 @@ enum BrowserManagerLifecycleTests {
     @MainActor
     static func main() async {
         await tabFaviconsCase()
+        faviconFallbackCase()
         let store = SidebarStore()
         let manager = BrowserManager(store: store, favicons: FaviconCache(), container: NSView())
         let observer = Observer()
@@ -161,6 +162,64 @@ enum BrowserManagerLifecycleTests {
         pageHistoryCase()
         await permissionWaitsForItsTabCase()
         print("Browser manager lifecycle: \(checks) checks passed")
+    }
+
+    /// A page whose declared icon isn't one (my.eskiz.uz, 11 Nov 2026: its favicon.png answered with
+    /// the app's index.html) gets its /favicon.ico through the tab's session, and keeps it.
+    @MainActor
+    private static func faviconFallbackCase() {
+        let store = SidebarStore()
+        let cache = FaviconCache()
+        let manager = BrowserManager(store: store, favicons: cache, container: NSView())
+        defer { manager.closeAll() }
+        let ico = try! Data(contentsOf: URL(fileURLWithPath: "Tests/Fixtures/IconSite/favicon.ico"))
+        let svg = try! Data(contentsOf: URL(fileURLWithPath: "Tests/Fixtures/IconSite/icon.svg"))
+        let html = try! Data(contentsOf: URL(fileURLWithPath: "Tests/Fixtures/IconSite/index.html"))
+
+        let app = store.createTab(url: "https://my.eskiz.uz/dashboard").id
+        let browser = manager.ensureRuntime(for: app)!.browser
+        manager.browser(browser, didChangeFaviconURLs: ["https://my.eskiz.uz/favicon.png"])
+        browser.faviconDownloads.removeFirst().completion(nil)
+        expect(store.item(app)?.tab?.faviconKey.flatMap { cache.image(forKey: $0) } == nil, "nothing shows while the search runs")
+        expect(browser.imageFetches.map(\.url) == ["https://my.eskiz.uz/favicon.ico"], "the declared icon failing, /favicon.ico is next")
+        browser.imageFetches.removeFirst().completion(200, "image/x-icon", ico)
+        let key = store.item(app)?.tab?.faviconKey
+        let icon = key.flatMap { cache.image(forKey: $0) }
+        expect(key == FaviconKey.key(site: "my.eskiz.uz", tabID: app), "the icon is the tab's own")
+        expect(icon?.representations.first?.pixelsWide == 32, "the .ico's largest size is kept (32 px)")
+        // The same list on the site's next page fetches nothing again.
+        manager.browser(browser, didChangeFaviconURLs: ["https://my.eskiz.uz/favicon.png"])
+        manager.browser(browser, didFindPageIcons: #"[{"href":"https://my.eskiz.uz/favicon.png","rel":"icon"}]"#)
+        expect(browser.faviconDownloads.isEmpty && browser.imageFetches.isEmpty, "a found icon isn't looked for again")
+
+        // An answer that is a web page is never an icon, whatever its type says.
+        let other = store.createTab(url: "https://spa.example/").id
+        let otherBrowser = manager.ensureRuntime(for: other)!.browser
+        manager.browser(otherBrowser, didChangeFaviconURLs: ["https://spa.example/icon.png"])
+        otherBrowser.faviconDownloads.removeFirst().completion(nil)
+        otherBrowser.imageFetches.removeFirst().completion(200, "text/html; charset=utf-8", html)
+        otherBrowser.imageFetches.removeFirst().completion(200, "image/png", html)
+        expect(otherBrowser.imageFetches.isEmpty && store.item(other)?.tab?.faviconKey.flatMap { cache.image(forKey: $0) } == nil,
+               "a page served for an icon leaves the tab without one")
+
+        // An SVG Chromium's download can't read is read by the app, at 128 px.
+        let vector = store.createTab(url: "https://vector.example/").id
+        let vectorBrowser = manager.ensureRuntime(for: vector)!.browser
+        manager.browser(vectorBrowser, didChangeFaviconURLs: ["https://vector.example/icon.svg"])
+        vectorBrowser.faviconDownloads.removeFirst().completion(nil)
+        expect(vectorBrowser.imageFetches.first?.url == "https://vector.example/icon.svg", "the SVG is fetched for the app")
+        vectorBrowser.imageFetches.removeFirst().completion(200, "image/svg+xml", svg)
+        let drawn = store.item(vector)?.tab?.faviconKey.flatMap { cache.image(forKey: $0) }
+        expect(drawn?.representations.first?.pixelsWide == 128, "the SVG is drawn at 128 px")
+
+        // A retired browser's late answer changes nothing.
+        let retired = store.createTab(url: "https://late.example/").id
+        let retiredBrowser = manager.ensureRuntime(for: retired)!.browser
+        manager.browser(retiredBrowser, didChangeFaviconURLs: ["https://late.example/i.png"])
+        let late = retiredBrowser.faviconDownloads.removeFirst()
+        manager.unload(retired)
+        late.completion(NSImage(contentsOfFile: "Tests/Fixtures/Pages/icon-blue.png"))
+        expect(store.item(retired)?.tab?.faviconKey.flatMap { cache.image(forKey: $0) } == nil, "an unloaded tab's late icon is dropped")
     }
 
     @MainActor
