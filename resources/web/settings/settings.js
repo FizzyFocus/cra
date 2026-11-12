@@ -204,7 +204,7 @@
       run('resetTranslatedSitePrompts').then(() => { b.textContent = 'Done'; }).catch(() => {})
         .finally(() => setTimeout(() => { b.textContent = label; b.disabled = false; }, 2000));
     });
-    return row({ title: 'Translated sites', detail: 'Forget the sites you chose never to translate and the other translate choices, so Chromium offers to translate again.', trailing: b, search: label });
+    return row({ title: 'Translated sites', detail: 'Forget the sites and languages you chose always or never to translate, in every profile, so Pane offers to translate them again.', trailing: b, search: label });
   }
 
   function card(header, rows, { footnote, trailing } = {}) {
@@ -389,8 +389,9 @@
         card('Little Windows & Peek', [
           toggle('openExternalLinksInLittleWindow', 'Links from other apps open in a Little Window', 'A link you click in Mail, Slack or another app opens in a small window you can read and close, instead of a new tab in your sidebar.'),
           toggle('littleWindowShortcutEverywhere', 'Open a Little Window from any app with its shortcut', 'Press its shortcut wherever you are to open a Little Window, even while Pane isn’t in front.'),
-          // Arc's "Open Little Arc when clicking on links with ⌥⌘ held" (#373, LittleWindowTrigger).
-          toggle('littleWindowOnOptionCommandClick', '⌥⌘-click opens a Little Window', 'Hold ⌥ and ⌘ while you click a link to open it in a Little Window instead of a background tab.'),
+          // Arc's "Open Little Arc when clicking on links with ⌥⌘ held" (#373, LittleWindowTrigger). Off by
+          // default: a ⌘⌥-click opens Split View otherwise (#298).
+          toggle('littleWindowOnOptionCommandClick', '⌥⌘-click opens a Little Window', 'Hold ⌥ and ⌘ while you click a link to open it in a Little Window instead of Split View.'),
           select('littleWindowArchiveAfter', 'Archive Little Windows after', options('littleWindowArchiveAfter'), 'A Little Window you leave alone closes into the archive, where you can find it again.'),
           toggle('peekLinksToOtherSites', 'Open a Peek window when clicking on links to other sites', 'A link to another site opens in a Peek over the page, so you can read it and close it without losing your place.'),
           toggle('peekInEveryTab', 'In every tab, not only Favorites and Pinned tabs', null, { disabled: () => !value('peekLinksToOtherSites') }),
