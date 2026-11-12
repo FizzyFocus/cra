@@ -1295,8 +1295,9 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
         // slid out at the edge: that one is the sidebar, whose rows stay in reach of a Peek (#242, #295).
         var wanted = panels.compactMap { $0 } + peeks.flatMap(\.peekWindows) + (floatingSidebar?.attachedPanels ?? [])
         // The address field's dropdown over the floating sidebar's field: above the sidebar, or the
-        // sidebar covered its left part and cut off what was typed (11 Nov 2026).
-        if commandPanel.isVisible, commandPanel.parent === window { wanted.append(commandPanel) }
+        // sidebar covered its left part and cut off what was typed (11 Nov 2026); and the command bar ⌘T
+        // opened from a Peek stays above the Peek (#379).
+        if commandPanel.parent === window, commandPanel.isVisible || commandBar.isOpen { wanted.append(commandPanel) }
         // Chromium's install and removal prompts (#349) hang over everything, as a sheet does.
         wanted += ChromiumDialogs.dialogs(over: window)
         // Already the last children, in order, and showing: re-adding each one rebuilt the
@@ -4083,6 +4084,12 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
         let panel = commandPanel!
         // Let CommandBarView's fade-out (0.08 s) play before the panel goes away.
         panel.orderOut(nil)
+        // ⌘T from a Peek and Escape: the keys go back to the Peek still over its tab (#379).
+        if let peek = peeks.first(where: { !$0.isParked && $0.window?.isVisible == true }) {
+            peek.window?.makeKeyAndOrderFront(nil)
+            peek.focusPage()
+            return
+        }
         window?.makeKeyAndOrderFront(nil)
         currentBrowser?.setFocused(true)
     }
