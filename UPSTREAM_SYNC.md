@@ -5,10 +5,9 @@ work **commit by commit and never merges it**: `git merge upstream/main` would w
 (the sidebar, Library drawer, settings tab, themes) and its rebrand. This file is the record of what
 became of every upstream commit, so nothing is ported twice or lost.
 
-- **Decided through:** `b980028` (upstream/main on 11 Nov 2026). Every upstream commit up to it is under
+- **Decided through:** `dc4ed11` (upstream/main on 12 Nov 2026). Every upstream commit up to it is under
   Ported or Skipped.
-- **Triaged through:** `dc4ed11` (upstream/main on 12 Nov 2026). The 49 commits after `b980028` are under
-  Pending, sorted into A, B and C, waiting for a decision.
+- **Triaged through:** `dc4ed11`. Nothing is Pending.
 - **Merge base:** `9927600`.
 
 ## How to sync
@@ -29,7 +28,7 @@ became of every upstream commit, so nothing is ported twice or lost.
 
 ## Ported
 
-### Cherry-picked (53): `git cherry-pick -x`, the trailer names the upstream commit
+### Cherry-picked (87): `git cherry-pick -x`, the trailer names the upstream commit
 
 | Upstream | Pane | What |
 |---|---|---|
@@ -86,7 +85,56 @@ became of every upstream commit, so nothing is ported twice or lost.
 | `deb7808` | `45be80a` | Blocked pop-ups: a tab the page opens itself leaves the button, and an address shows once (#357) |
 | `109c697` | `44be647` | Picked tabs: Archive Items is Arc's menu for an Easel among the picks, not a pinned tab (#356) |
 | `b980028` | `51ce1c3` | Share links: Arc's "Send this Folder to anyone" warning before Share Folder… and Share N Items… (#356, #357) |
+| `e9e4b7d` | `c16f8a6` | Arc parity: Find and Replace is skip (does nothing in Arc 1.172's Easels or pages) |
+| `cba9995` | `db4a384` | Copy URL: a scenario types ⇧⌘C with tabs ⌘/⇧-clicked and reads the clipboard (#322) |
+| `747ad0a` | `98f4fc6` | Music notes: muted and Reduce Motion keep them floating, as in Arc 1.172.2; parity row done (#303) |
+| `7665a0f` | `481109f` | Logi Options+'s Back and Forward gestures navigate the page under the pointer, and switch spaces over the side |
+| `ebce13c` | `98f6ee8` | Sync: a folder left with files from two writes is put right after a minute, not waited on for ever (#378) |
+| `ea617f9` | `3503754` | Sync: a file gone from the bundle is put right too, and a Mac not yet asked never writes over another Mac's bu |
+| `ad76399` | `12b45cc` | Import: offer Chrome and Firefox from their data alone, as Arc, Dia and Zen are |
+| `7cd69db` | `022ad01` | Favorites: Arc's Mute / Unmute row in a favorite's menu, after Rename… (#387) |
+| `5c6439a` | `c4937c8` | Sidebar: a space's emoji keeps its bottom row when macOS clips labels to their frame (#399) |
+| `915260b` | `81f385f` | Picked tabs: test that Open in Split View splits the picks, and note that Arc's ⌃⇧= ignores them (#386) |
+| `ac12d60` | `29707cc` | Window managers: Cra's page and floating sidebar are part of its window, so Moves moves the whole window (#391 |
+| `5a93a4c` | `18110bb` | Tab switcher: a tab opened in the background is next on ⌃Tab, as in Arc (#394) |
+| `4d9beb0` | `217cc65` | Mute: a muted tab stays quiet on its next page and after a relaunch (#387) |
+| `192b41e` | `0b5436e` | Window switchers: one page is one Cra window, locked for #401 |
+| `dc4ed11` | `7d6e45c` | MCP: page_upload finds the file input behind an uploader's button, label or drop zone, in open shadow roots an |
+| `9629fd1` | `3f84e5e` | Expand Current Split: the focused pane takes the window and the others keep Arc's 220 pt minimum |
+| `61f209d` | `f2a5f67` | Open in <space> ⌘O is Arc's Tabs row: after Pin Tab, only while a Little Window or Peek is in front |
+| `72a30bf` | `4d55115` | Sidebar rows and Favorites tiles push in while pressed, as in Arc 1.172 (#367) |
+| `8ad3f9e` | `e9a754b` | Swipe back: a two-finger swipe on a tab a link opened closes it to the tab it came from, as Back does and as i |
+| `e18f093` | `bbc3388` | Settings: Show full URL, More Settings… and Reset Translated-site Prompts, and ⌥⌘-click opens a Little Window  |
+| `84accc5` | `c318626` | Settings: ⌥⌘-click reads the click's own keys, and Reset Translated-site Prompts reaches every profile and Arc |
+| `43afe0e` | `360ee42` | ⌘T in a Peek opens the browser window's New Tab bar with its tabs; ⌘L still edits the Peek (#379) |
+| `9ce8012` | `1808e61` | Permission requests ask in Arc's card over the page's top left corner, not a sheet over the whole window (#371 |
+| `c0981c0` | `4f508e8` | Peek: ⌘-click Expand loads the page in the tab the Peek came from, behind a Links setting off by default (#380 |
+| `c810a20` | `b25c807` | Favorites: a Peek from a favorite puts its page's favicon on the tile's top right corner, as Arc 1.172.2 does  |
+| `a866227` | `d5e0dc0` | Picture in Picture: a double click on the video returns to its tab (#383) |
+| `f052e7c` | `7e162fd` | Picture in Picture: Arc's scrubber along the bottom of the window (#384) |
+| `fccc893` | `e6643af` | Peek buttons rise under the pointer and give under a press, as Arc 1.172.2's do; ⌘W and ⌘O press theirs (#385) |
+| `fb6d039` | `ae7493e` | Previews: recent pages on Linear, Notion, Figma and Confluence, on favorites and pinned tabs, with Arc's check |
+| `115e806` | `dce0233` | Shortcuts: Arc's choice per shortcut of who gets the keys, Prefer Cra, Use Both or Prefer Websites (#374) |
+| `b517a00` | `09a31bd` | Previews: Outlook Mail, Outlook Calendar and Notion Calendar, read with the page's own sign-in, completing Arc |
+| `2b39a45` | `8668f71` | Ask on Page: Arc Max's find-or-ask card on ⌘F, answered by the Mac's Apple Intelligence (#393) |
+| `546d50a` | `d1aa626` | Picture in Picture: resize up to the full display, and always rest on one display (#388) |
+| `dc6d118` | `0189ce5` | Ask on Page: the card as Arc drew it, from the reporter's capture (#393) |
 
+The 12 Nov 2026 sync (34 picks, branch `upstream-sync-nov12`) adapted these to Pane; each commit's "Fork port:"
+paragraph has the detail:
+
+- Settings rows from upstream's SwiftUI panes are in `pane://settings` and `SettingsBridge.editableKeys`: Tabs &
+  Spaces ▸ Little Windows & Peek (⌥⌘-click opens a Little Window, ⌘-click Expand opens in the tab), a Previews
+  card with Arc's seven (Folders and Gmail moved into it, Google Calendar got a row), Advanced ▸ Chromium (More
+  Settings…, Reset Translated-site Prompts), Max ▸ Ask on Page, and a priority pop-up per shortcut in Shortcuts
+  (Prefer Pane / Use Both / Prefer Websites; "Edit the shortcut" opens `pane://settings/shortcuts?action=<id>`).
+  "Show full URL when Toolbar is enabled" was not added: Appearance's Show full URLs is the same setting.
+- The permission card keeps Arc's layout in Pane's popover look (SpacePopoverTones, frosted material).
+- Preview cards' new lines use CardStyle.text (light or dark with the sidebar), not upstream's white.
+- The Tabs menu keeps Pane's Bookmark This Page… row before New Folder…; `expandSplitPane` is under Split View.
+- `Sharing.swift` (usage stats) hunks stayed out; AskOnPageTests checks the settings page instead of UsageStats.
+- ShortcutPriority's titles and lines say `Brand.name` (Prefer Pane); #374's locked test expects Pane's words.
+- `9c566c9` (Pane's own, after `ebce13c`): the sync's newer-version error names Pane.
 ### Hand-ported (4): Pane's own code after the upstream commit
 
 | Upstream | Pane | What |
@@ -134,76 +182,25 @@ For good unless the reason changes. "Never touch" areas are the owner's call (11
 | `2e0134f` | Component snapshots re-recorded at 2x | Pane re-records its own snapshots after its UI pass |
 | `dd2c4e4` | README: Easels and Boosts | Upstream's README |
 | `7ee415b` | Install with Homebrew (victorkildahl/tap/cra) | Installs upstream Cra, not Pane |
-
-## Pending
-
-New on upstream since `b980028`, triaged on 12 Nov 2026 against main `028904a`. "Conflicts" is a dry
-run of each commit alone onto main: *clean*, *lock/docs* (only `Tests/promises.lock` or docs, trivial),
-or the code files. "Needs" is an earlier pending commit it builds on. "settings.js" means its
-settings rows were written for upstream's SwiftUI panes, which Pane replaced with the
-`pane://settings` page: they are hand-ported there.
-
-### A: bug fixes, engine, tests (small, low risk)
-
-| Upstream | What | Conflicts |
-|---|---|---|
-| `7665a0f` | Logi Options+ Back/Forward gestures navigate the page under the pointer, switch spaces over the sidebar (#369) | clean |
-| `ebce13c` | Sync: a folder left with files from two writes is put right after a minute (#378) | clean |
-| `ea617f9` | Sync: a file gone from the bundle is put right; a Mac not yet asked never writes over another's (#378) | SettingsSync, SettingsSyncService (Pane's sync folder change); needs `ebce13c` |
-| `5a93a4c` | ⌃Tab: a tab opened in the background is next (#394) | clean |
-| `ad76399` | Import: offer Chrome and Firefox from their data alone | clean |
-| `dc4ed11` | MCP page_upload finds the file input behind an uploader's button, label or drop zone | clean |
-| `5c6439a` | A space's emoji keeps its bottom row when macOS clips labels (#399) | lock/docs |
-| `ac12d60` | Window managers: Moves moves the whole window, page and floating sidebar (#391) | lock/docs |
-| `192b41e` | Window switchers: one page is one window (#401) | lock/docs |
-| `747ad0a` | Music notes keep floating when muted and with Reduce Motion (#303) | lock/docs |
-| `4d9beb0` | A muted tab stays quiet on its next page and after a relaunch (#387) | AppDelegate, CraCEF; needs `7cd69db` |
-| `cba9995` | Scenario: ⇧⌘C with picked tabs copies their links (#322) | lock/docs |
-| `915260b` | Scenario: Open in Split View splits picked tabs (#386) | lock/docs |
-| `e9e4b7d` | Arc parity notes: Find and Replace is a skip | clean |
-
-### B: new features
-
-| Upstream | What | Conflicts |
-|---|---|---|
-| `72a30bf` | Sidebar rows and Favorites tiles push in while pressed (#367) | clean |
-| `a866227` | Picture in Picture: a double click returns to the video's tab (#383) | clean |
-| `f052e7c` | Picture in Picture: Arc's scrubber along the bottom (#384) | AppDelegate, PictureInPictureChrome |
-| `546d50a` | Picture in Picture: resize up to the full display, rest on one display (#388) | PiP files; needs `a866227` |
-| `c810a20` | Favorites: a Peek from a favorite badges the tile with its page's favicon (#381) | lock/docs |
-| `7cd69db` | Favorites: Mute / Unmute row in a favorite's menu (#387) | AppDelegate |
-| `1fd954f` | Mouse back/forward over the sidebar reach the Library before the first space (#233) | AppDelegate |
-| `9629fd1` | Expand Current Split: the focused pane takes the window (220 pt minimum for the rest) | AppDelegate; shortcut row → ShortcutGroups |
-| `61f209d` | Open in <space> ⌘O as Arc's Tabs row, only over a Little Window or Peek | AppDelegate; shortcut row → ShortcutGroups |
-| `8ad3f9e` | Swipe back on a tab a link opened closes it to the tab it came from (#370) | MainWindowController |
-| `43afe0e` | ⌘T in a Peek opens the window's New Tab bar; ⌘L still edits the Peek (#379) | MainWindowController |
-| `9ce8012` | Permission requests in Arc's card at the page's top left, not a sheet (#371) | MainWindowController |
-| `fccc893` | Peek buttons rise under the pointer and give under a press (#385) | LittleWindowController |
-| `9dd665f` | Share N Items…: "N Items" title, "Copied Folder URL" toast (#356) | AppDialog; links are crabrowser.app's |
-| `8d1f2b9` | Zap as in Arc 1.172.2: confirm popover, shelf of zapped elements | ShellView (Pane's docking/drawer code) |
-| `761153e` | Boosts gallery: Share Boost… and Open in Cra from crabrowser.app/boosts | AppDelegate; depends on upstream's site, would need Pane wording |
-| `e4b7447` | Easels: Arc's colours, picker, menus, undo, link cards, live captures (large) | AppDelegate |
-| `e18f093` | Settings: Show full URL, More Settings…, Reset Translated-site Prompts; ⌥⌘-click opens a Little Window (#373) | settings.js; Sharing hunks out |
-| `84accc5` | Follow-up to #373: ⌥⌘-click reads the click's keys; reset reaches every profile | needs `e18f093` |
-| `c0981c0` | Peek: ⌘-click Expand loads in the tab the Peek came from, Links setting off by default (#380) | settings.js |
-| `b478731` | Profiles: per-profile "New documents" app and a "New Google Doc"-style command (#375) | settings.js; settings.json format (fixture) |
-| `fb6d039` | Previews: recent pages on Linear, Notion, Figma, Confluence (#376) | settings.js; SpaceColumnView |
-| `b517a00` | Previews: Outlook Mail/Calendar and Notion Calendar (#376) | needs `fb6d039` |
-| `115e806` | Shortcuts: per-shortcut Prefer Pane / Use Both / Prefer Websites (#374) | settings.js; keybindings.json format (fixture) |
-| `2b39a45` | Ask on Page: find-or-ask card on ⌘F answered by Apple Intelligence, on device (#393) | settings.js (Max); MainWindowController |
-| `dc6d118` | Ask on Page: the card as Arc drew it (#393) | needs `2b39a45` |
-| `0b20792` | Spaces: a PNG or SVG as a space's icon (#395) | SidebarView, SpaceMenuIcon (not in Pane) |
-| `167c05a` | Toolbar: "Hide the toolbar until you need it" (not in Arc, #405) | settings.js; ShellView, MainWindowController |
-
-### C: collide with Pane's own UI
-
-| Upstream | What | Why it collides |
-|---|---|---|
-| `80cdfe7` | Settings back in a native 684 × 650 window with ten tabs, member card, "Share Cra" (#372, #377) | Pane's Settings is the `pane://settings` tab; most of its 20 files are panes Pane deleted. Suggest skip |
-| `caaa884` | Settings' first tab carries the user's first name (#372) | Needs `80cdfe7`. Suggest skip |
-| `8f146f3` | Command bar: rows under a still pointer keep the top row selected (#382) | Command bar: never touch; its HoverGate logic could be hand-ported alone |
+| `1fd954f` | Mouse back/forward over the sidebar reach the Library before the first space (#233) | Owner's call (12 Nov sync) |
+| `9dd665f` | Share N Items…: "N Items" title, "Copied Folder URL" toast (#356) | Owner's call (12 Nov sync); its links are crabrowser.app's |
+| `8d1f2b9` | Zap as in Arc 1.172.2: confirm popover, shelf of zapped elements | Owner's call (12 Nov sync); collides with ShellView's docking and drawer code |
+| `761153e` | Boosts gallery: Share Boost… and Open in Cra from crabrowser.app/boosts | Owner's call (12 Nov sync); depends on upstream's site |
+| `e4b7447` | Easels: Arc's colours, picker, menus, undo, link cards, live captures | Owner's call (12 Nov sync) |
+| `b478731` | Profiles: per-profile "New documents" app and a "New Google Doc"-style command (#375) | Owner's call (12 Nov sync) |
+| `0b20792` | Spaces: a PNG or SVG as a space's icon (#395) | Owner's call (12 Nov sync) |
+| `167c05a` | Toolbar: "Hide the toolbar until you need it" (not in Arc, #405) | Owner's call (12 Nov sync); not in Arc |
+| `80cdfe7` | Settings back in a native 684 × 650 window with ten tabs, member card, "Share Cra" (#372, #377) | Pane's Settings is the `pane://settings` tab |
+| `caaa884` | Settings' first tab carries the user's first name (#372) | Needs `80cdfe7` |
+| `8f146f3` | Command bar: rows under a still pointer keep the top row selected (#382) | Command bar: never touch |
 | `ffd7de6` | Themes: dark colours without the purple cast (#392) | Pane's theme pipeline (default tint, opacity, new-space tones); changes every dark space |
 | `02d8f9a` | Themes: Dark keeps the picked colour (#392) | Needs `ffd7de6` |
 | `904c9ca` | Themes: Light keeps the picked colour (#392) | Needs `02d8f9a` |
-| `ed26238` | Peek: ⌘S toggles the window's sidebar, the Peek follows the slide (#402) | ShellView's docking and full-screen sidebar |
+| `ed26238` | Peek: ⌘S toggles the window's sidebar, the Peek follows the slide (#402) | Collides with ShellView's docking and full-screen sidebar |
 
+## Pending
+
+None: every upstream commit through `dc4ed11` is Ported or Skipped (12 Nov 2026). New upstream commits go here
+when triaged, sorted as before: A (bug fixes, engine, tests: small, low risk), B (new features) and C (collide
+with Pane's own UI), each row with the files it would conflict in on main (`scripts/upstream-audit.py --conflicts`)
+and the earlier pending commit it needs.
