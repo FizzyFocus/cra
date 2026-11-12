@@ -981,6 +981,11 @@ final class BrowserManager: NSObject, @preconcurrency CraBrowserDelegate {
         delegate?.browserManagerDidUpdate(id)
     }
 
+    func browser(_ browser: CraBrowser, didChangePictureInPictureTime position: Double, duration: Double) {
+        guard browser.isInPictureInPicture else { return }
+        PictureInPictureChrome.shared.time = (position, duration)
+    }
+
     /// Picture in Picture's "back to tab": select the tab, bring its window up
     /// and put the video back in the page (also when the tab was already selected).
     private func bringToFront(_ tabID: UUID) {
@@ -1030,8 +1035,10 @@ final class BrowserManager: NSObject, @preconcurrency CraBrowserDelegate {
                 backToTab: { [weak self] in self?.bringToFront(id) },
                 togglePlayback: { [weak browser] in browser?.togglePictureInPicturePlayback() },
                 skip: { [weak browser] s in browser?.skipPictureInPicture(by: s) },
+                seek: { [weak browser] s in browser?.seekPictureInPicture(to: s) },
                 close: { [weak browser] in browser?.closePictureInPicture() })
             PictureInPictureChrome.shared.isPlaying = browser.isPictureInPicturePlaying
+            PictureInPictureChrome.shared.time = (0, 0)   // the page says where its video is right after
             PictureInPictureChrome.shared.address = PictureInPictureLayout.address(of: browser.currentURL)
             PictureInPictureChrome.shared.videoEntered()
         } else {
