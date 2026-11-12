@@ -304,6 +304,21 @@ final class SettingsPageFiles: NSObject, WKURLSchemeHandler {
 }
 
 extension SettingsPageBrowser {
+    /// PageEngines' hook, after EaselBrowser.register(): cra://settings gets the settings page and
+    /// every other address goes to the hook before it (an easel's canvas). A page of an engine
+    /// navigating to either (typed into the bar) gives the tab to it. Kept here, not in
+    /// EaselBrowser, so that file still builds on its own in scripts/test-easel-canvas.sh.
+    @MainActor static func register() {
+        let earlier = PageEngines.nativePage
+        PageEngines.nativePage = { frame, url, delegate, incognito, profilePath in
+            if SettingsPage.owns(url) {
+                return SettingsPageBrowser(frame: frame, url: url, delegate: delegate, incognito: incognito, profilePath: profilePath)
+            }
+            return earlier?(frame, url, delegate, incognito, profilePath)
+        }
+        PageEngines.nativeOwns = { SettingsPage.owns($0) || Easel.id(fromURL: $0) != nil }
+    }
+
     /// The tab's icon: a gear, as the favicon cache's for the page's address.
     @MainActor static func registerIcon(in favicons: FaviconCache) {
         guard let key = FaviconKey.key(for: SettingsPage.address), favicons.image(forKey: key) == nil else { return }

@@ -95,6 +95,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         if startOnNewTab { store.selectTab(nil, window: store.activeWindowID) }
         // Before any page is made: an easel's tab opens its canvas.
         EaselBrowser.register()
+        SettingsPageBrowser.register()
         SettingsPageBrowser.registerIcon(in: favicons)
         // Dialogs take the colours of the space of the window they open over (DialogTheme).
         DialogTheme.resolve = { [weak self] parent in
