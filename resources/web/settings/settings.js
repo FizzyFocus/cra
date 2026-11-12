@@ -212,14 +212,16 @@
   const build = {
     general() {
       const sys = () => (S && S.system) || {};
-      const defaultTrailing = el('span');
+      // The browser that opens links now, then the button, side by side (the name sat flush
+      // against the button when it was a bare inline span).
+      const defaultTrailing = el('span', { class: 'trailing-group' });
       control(() => {
         const s = sys();
         if (s.isDefaultBrowser) defaultTrailing.replaceChildren(el('span', { class: 'status', html: icon('check') + 'Pane is your default browser' }));
         else {
           const b = el('button', { class: 'btn primary', type: 'button', disabled: s.isPromptingDefault }, s.isPromptingDefault ? 'Confirm in the Dialog…' : 'Set Pane as Default');
           b.addEventListener('click', () => run('defaultBrowser').catch(() => {}));
-          defaultTrailing.replaceChildren(...(s.defaultBrowserName ? [el('span', { class: 'value' }, s.defaultBrowserName)] : []), b);
+          defaultTrailing.replaceChildren(...(s.defaultBrowserName ? [el('span', { class: 'current-default', title: `Links open in ${s.defaultBrowserName} now` }, `Currently ${s.defaultBrowserName}`)] : []), b);
         }
       });
       const dockTrailing = el('span');

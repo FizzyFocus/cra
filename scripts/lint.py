@@ -35,6 +35,11 @@ gains a finding fails, one that loses one is reported so the baseline can come d
       was drawn edge to edge: Finder and the idle Dock fit it onto the grid themselves, but where
       the running app's tile drew the file as it is, Cra stood a fifth larger than Arc beside it
       (11 Nov 2026). scripts/make-app-icons.swift writes them all.
+  pane-bundle
+      resources/Info.plist not what Pane ships as (12 Nov 2026): it opens http, https, pane and
+      cra (Cra's alias) and both public.html and public.xhtml, without which macOS leaves it out
+      of System Settings ▸ Desktop & Dock ▸ Default web browser; and no Sparkle feed or key of
+      upstream Cra (VictorKildahl/cra), whose releases would replace Pane with Cra.
   core-platform-import
       Packages/CraCore importing AppKit, Cocoa, SwiftUI, UIKit or CraCEF. The core is models and
       decisions that build and test without a window or Chromium (#51); what needs one stays in
@@ -54,6 +59,7 @@ gains a finding fails, one that loses one is reported so the baseline can come d
 """
 import collections
 import os
+import plistlib
 import re
 import struct
 import sys
@@ -147,6 +153,16 @@ def findings():
                 hit("app-icon-size", f"resources/app-icons/{n}", 1)
             if not on_icon_grid(data):
                 hit("app-icon-grid", f"resources/app-icons/{n}", 1)
+    info_path = os.path.join(ROOT, "resources", "Info.plist")
+    if os.path.isfile(info_path):
+        with open(info_path, "rb") as f:
+            info = plistlib.load(f)
+        schemes = {s for t in info.get("CFBundleURLTypes", []) for s in t.get("CFBundleURLSchemes", [])}
+        types = {u for t in info.get("CFBundleDocumentTypes", []) for u in t.get("LSItemContentTypes", [])}
+        for missing in sorted({"http", "https", "pane", "cra"} - schemes) + sorted({"public.html", "public.xhtml"} - types):
+            hit("pane-bundle", f"resources/Info.plist:{missing}", 1)
+        if "VictorKildahl" in info.get("SUFeedURL", "") or info.get("SUPublicEDKey") == "/ZvLn/gEyw0MSGRKJif47YTqQPI1WhxGYbF/nOBHu7E=":
+            hit("pane-bundle", "resources/Info.plist:upstream-update-feed", 1)
     bundled = os.path.join(ROOT, "resources", "AppIcon.icns")
     if os.path.isfile(bundled):
         with open(bundled, "rb") as f:

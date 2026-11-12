@@ -76,3 +76,11 @@ and `InternalScheme` for the scheme (`pane://` canonical, `cra://` an alias ever
 pages like it). Debug log lines (`Cra windows:`, `Cra cdp …`) and the `Cra Safe Storage` Keychain
 item keep their names: scenarios match the logs, and the patched CEF reads that item.
 `LegacyDataMigration` copies Cra's data folder, defaults and WebKit stores on Pane's first launch.
+
+## Upstream sync
+
+Upstream's commits come in one by one (`git cherry-pick -x`, or a hand-port that names the
+upstream SHA), never by `git merge upstream/main`. [UPSTREAM_SYNC.md](UPSTREAM_SYNC.md) records
+every upstream commit as Ported, Skipped (with why) or Pending, and how far it is decided;
+`scripts/upstream-audit.py --new --conflicts` lists what it doesn't account for yet. Update the
+file in the same commit as a port or a skip.

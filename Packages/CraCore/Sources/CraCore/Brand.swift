@@ -16,6 +16,12 @@ public enum Brand {
         public static let bundleIdentifier = "dk.kildahl.cra"
         public static let devBundleIdentifier = "dk.kildahl.cra.dev"
     }
+
+    /// How a person sees the app `bundleID` names, given the name macOS shows for it: Cra.app is
+    /// the copy of Pane from before the rebrand, so Settings says so rather than "Cra".
+    public static func displayName(ofApp name: String, bundleID: String?) -> String {
+        [Legacy.bundleIdentifier, Legacy.devBundleIdentifier].contains(bundleID ?? "") ? "\(Self.name) (old copy)" : name
+    }
 }
 
 /// Pane's own URL scheme: `pane://settings`, `pane://open?url=…`, `pane://debug?…`. Cra's

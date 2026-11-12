@@ -61,11 +61,8 @@ sed -e "s/__VERSION__/$VERSION/" -e "s/__BUILD__/$BUILD_NUMBER/" resources/Info.
 # a provisioning profile for it (docs/release.md, "iCloud sync"). The data folder stays Pane's,
 # so run such a build with CRA_DATA_DIR.
 [ -n "${CRA_BUNDLE_ID:-}" ] && /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $CRA_BUNDLE_ID" "$APP/Contents/Info.plist"
-# Only release builds (scripts/release.sh) check the update feed; a dev build would
-# otherwise replace itself with the latest release. Intel copies have their own feed,
-# since each update archive holds one CPU's app (scripts/appcast.sh).
-[ "$ARCH" = x86_64 ] && /usr/libexec/PlistBuddy -c "Set :SUFeedURL https://github.com/VictorKildahl/cra/releases/latest/download/appcast-intel.xml" "$APP/Contents/Info.plist"
-[ "${CRA_RELEASE:-}" = 1 ] || /usr/libexec/PlistBuddy -c "Delete :SUFeedURL" "$APP/Contents/Info.plist"
+# No update feed: Pane has none of its own yet, and upstream Cra's was removed (12 Nov 2026) so a
+# release build never replaces Pane with a Cra release (resources/Info.plist, lint pane-bundle).
 # Google API key for Safe Browsing (docs/release.md); CraCEF hands it to Chromium.
 [ -n "${CRA_GOOGLE_API_KEY:-}" ] && /usr/libexec/PlistBuddy -c "Add :CraGoogleAPIKey string $CRA_GOOGLE_API_KEY" "$APP/Contents/Info.plist"
 echo -n "APPL????" > "$APP/Contents/PkgInfo"
@@ -215,10 +212,12 @@ echo "Built $FINAL_APP"
 
 # Optional copy outside ~/Documents (an app that runs from Documents makes macOS ask
 # for folder access and blocks the main thread until answered).
+# The installed copy is the one macOS should know: registered (-f), so it is listed under System
+# Settings ▸ Desktop & Dock ▸ Default web browser and opens pane:// and web links. `just install`.
 if [ -n "${CRA_INSTALL_DIR:-}" ]; then
   INSTALL_APP="$CRA_INSTALL_DIR/Pane.app"
   mkdir -p "$CRA_INSTALL_DIR"
   rsync -a --delete "$FINAL_APP/" "$INSTALL_APP/"
-  "$LSREGISTER" -u "$INSTALL_APP" >/dev/null 2>&1 || true
-  echo "Installed $INSTALL_APP"
+  "$LSREGISTER" -f "$INSTALL_APP" >/dev/null 2>&1 || true
+  echo "Installed and registered $INSTALL_APP"
 fi

@@ -140,4 +140,12 @@ struct BrandTests {
         #expect(SettingsSync.bundleFolder(in: URL(fileURLWithPath: "/Dropbox/Cra")) { _ in false }.path == "/Dropbox/Cra")
         #expect(SettingsSync.bundleFolder(in: URL(fileURLWithPath: "/Dropbox/Pane")) { _ in false }.path == "/Dropbox/Pane")
     }
+
+    /// Settings ▸ General shows the browser that opens links now; Cra.app is Pane's old copy.
+    @Test func defaultBrowserNames() {
+        #expect(Brand.displayName(ofApp: "Safari", bundleID: "com.apple.Safari") == "Safari")
+        #expect(Brand.displayName(ofApp: "Cra", bundleID: "dk.kildahl.cra") == "Pane (old copy)")
+        #expect(Brand.displayName(ofApp: "CraDev", bundleID: "dk.kildahl.cra.dev") == "Pane (old copy)")
+        #expect(Brand.displayName(ofApp: "Cra", bundleID: nil) == "Cra", "only Cra's own bundle is Pane's old copy")
+    }
 }

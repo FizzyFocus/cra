@@ -31,7 +31,6 @@ bootstrap() {
       -c "Set :CFBundleName $NAME" -c "Set :CFBundleDisplayName $NAME" \
       -c "Delete :CFBundleURLTypes" -c "Delete :CFBundleDocumentTypes" \
       -c "Delete :UTExportedTypeDeclarations" "$APP/Contents/Info.plist"
-  $PB -c "Delete :SUFeedURL" "$APP/Contents/Info.plist"
   echo -n "APPL????" > "$APP/Contents/PkgInfo"
   [ -f resources/AppIcon.icns ] && cp resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
   local fw="$APP/Contents/Frameworks/Chromium Embedded Framework.framework"

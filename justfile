@@ -21,6 +21,11 @@ fetch:
 build *args:
     scripts/build.sh "$@"
 
+# Builds Pane.app and installs it in /Applications, registered as a browser with macOS
+[group('build')]
+install *args:
+    CRA_INSTALL_DIR=/Applications scripts/build.sh "$@"
+
 # Opens build/Pane.app, building it if missing: [--rebuild [debug] [app arguments…]]
 [group('build')]
 run *args:

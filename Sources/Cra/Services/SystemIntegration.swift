@@ -12,15 +12,19 @@ final class SystemIntegration {
     static let shared = SystemIntegration()
 
     private(set) var isDefaultBrowser = false
-    /// The app that opens web links now, when it is not Cra.
+    /// The app that opens web links now, when it is not this Pane.
     private(set) var defaultBrowserURL: URL?
     private(set) var isInDock = false
     private(set) var launchesAtLogin = false
     /// The system's "change your default web browser" dialog is up.
     private(set) var isPromptingDefault = false
 
+    /// What Settings shows next to Set Pane as Default: "Safari", or "Pane (old copy)" for Cra.app.
     var defaultBrowserName: String? {
-        defaultBrowserURL.map { FileManager.default.displayName(atPath: $0.path).replacingOccurrences(of: ".app", with: "") }
+        defaultBrowserURL.map {
+            Brand.displayName(ofApp: FileManager.default.displayName(atPath: $0.path).replacingOccurrences(of: ".app", with: ""),
+                              bundleID: Bundle(url: $0)?.bundleIdentifier)
+        }
     }
 
     private init() {

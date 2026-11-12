@@ -47,11 +47,9 @@
 	<key>NSSupportsAutomaticGraphicsSwitching</key>
 	<true/>
 	<!-- Software updates: Sparkle with Arc's settings (8-hour checks, background downloads).
-	     scripts/build.sh drops SUFeedURL outside release builds. -->
-	<key>SUFeedURL</key>
-	<string>https://github.com/VictorKildahl/cra/releases/latest/download/appcast.xml</string>
-	<key>SUPublicEDKey</key>
-	<string>/ZvLn/gEyw0MSGRKJif47YTqQPI1WhxGYbF/nOBHu7E=</string>
+	     Pane has no update feed of its own yet: upstream Cra's (VictorKildahl/cra) SUFeedURL and
+	     SUPublicEDKey were removed on 12 Nov 2026, so no build can replace Pane with a Cra
+	     release. With neither key SoftwareUpdater stays off, as in a dev build. lint: pane-bundle. -->
 	<key>SUEnableAutomaticChecks</key>
 	<true/>
 	<key>SUAutomaticallyUpdate</key>
@@ -100,6 +98,9 @@
 			</array>
 		</dict>
 	</array>
+	<!-- macOS lists a browser under System Settings ▸ Desktop & Dock ▸ Default web browser only
+	     when it opens http, https and both HTML types (Arc, Chrome, Safari all claim public.xhtml).
+	     lint: pane-bundle. -->
 	<key>CFBundleDocumentTypes</key>
 	<array>
 		<dict>
@@ -107,9 +108,12 @@
 			<string>HTML document</string>
 			<key>CFBundleTypeRole</key>
 			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
 			<key>LSItemContentTypes</key>
 			<array>
 				<string>public.html</string>
+				<string>public.xhtml</string>
 			</array>
 		</dict>
 	</array>
