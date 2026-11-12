@@ -385,7 +385,10 @@
           toggle('folderPreviews', 'Folders', 'Hover over a closed folder to see the tabs inside it.'),
           toggle('calendarHoverPreview', 'Google Calendar', 'Hover over Google Calendar in your Favorites or pinned tabs to see today’s events.'),
           toggle('favoritePreviews', 'Google Mail', 'Hover over Gmail in your Favorites or pinned tabs to see your unread mail.'),
+          toggle('outlookCalendarPreviews', 'Outlook Calendar', 'Hover over Outlook Calendar to see today’s events, read with the page’s own sign-in.'),
+          toggle('outlookMailPreviews', 'Outlook Mail', 'Hover over Outlook Mail to see your unread mail, read with the page’s own sign-in.'),
           toggle('recentPagesPreviews', 'Recent pages on Linear, Notion, and Figma', 'Hover over Linear, Notion, Figma or Confluence in your Favorites or pinned tabs to see the pages you visited there last.'),
+          toggle('notionCalendarPreviews', 'Notion Calendar', 'Hover over Notion Calendar to see today’s events from your Google calendar, as Arc does.'),
         ], { footnote: 'Save a click: hover over a folder, a pinned tab or a favorite to preview what you need from that site.' }),
         card('Spaces', [
           toggle('showSpaceHeaderOnSingleSpace', 'Show the space header with only one space', 'Show the space’s name at the top and its icon at the bottom of the sidebar, even while you have only one space.'),
