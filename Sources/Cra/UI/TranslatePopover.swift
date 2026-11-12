@@ -13,7 +13,9 @@ struct TranslateActions {
 /// content with 10 pt insets. A 32 pt badge (`textformat.alt`) 11 pt from the top, the question in
 /// 14 pt from 50 pt in, centred on it, and two 104 × 32 pt buttons 7 pt apart: Options, flat (a
 /// menu: Choose Another Language ▸, Never Translate This Site | Language Settings), and Translate,
-/// raised (Show Original on a translated page). Arc opens it only from its button.
+/// raised (Show Original on a translated page). Arc opens it only from its button. In this fork it
+/// is drawn in the window's space's colours (SpacePopoverTones): the popover's own frosted material,
+/// light or dark with the space, the badge, text and buttons in the space's dialog tones.
 @MainActor
 final class TranslatePopover: NSObject, NSPopoverDelegate {
     private var popover: NSPopover?
@@ -36,14 +38,15 @@ final class TranslatePopover: NSObject, NSPopoverDelegate {
         p.behavior = .transient
         p.animates = true
         p.delegate = self
-        p.appearance = NSAppearance(named: SystemAppearance.shared.isDark ? .darkAqua : .aqua)
+        let tones = SpacePopoverTones(window: view.window)
+        p.appearance = tones.appearance
         var acts = actions
         func closing(_ f: @escaping () -> Void) -> () -> Void { { [weak p] in p?.performClose(nil); f() } }
         acts.translate = { [weak p] target in p?.performClose(nil); actions.translate(target) }
         acts.showOriginal = closing(actions.showOriginal)
         acts.neverTranslateSite = closing(actions.neverTranslateSite)
         acts.languageSettings = closing(actions.languageSettings)
-        let v = TranslatePopoverView(state: state, actions: acts)
+        let v = TranslatePopoverView(state: state, actions: acts, tones: tones)
         let host = NSViewController()
         host.view = v
         host.preferredContentSize = v.frame.size
@@ -69,6 +72,7 @@ final class TranslatePopoverView: NSView {
     static let size = NSSize(width: 236, height: 102)
     private let state: PageTranslation
     private let actions: TranslateActions
+    private let tones: SpacePopoverTones
     private let badge = NSView()
     private let glyph = NSImageView()
     private let label = NSTextField(wrappingLabelWithString: "")
@@ -76,11 +80,12 @@ final class TranslatePopoverView: NSView {
     let options: TranslatePopoverButton
     let primary: TranslatePopoverButton
 
-    init(state: PageTranslation, actions: TranslateActions) {
+    init(state: PageTranslation, actions: TranslateActions, tones: SpacePopoverTones) {
         self.state = state
         self.actions = actions
-        options = TranslatePopoverButton(title: "Options", prominent: false)
-        primary = TranslatePopoverButton(title: state.translated ? "Show Original" : "Translate", prominent: true)
+        self.tones = tones
+        options = TranslatePopoverButton(title: "Options", prominent: false, tones: tones)
+        primary = TranslatePopoverButton(title: state.translated ? "Show Original" : "Translate", prominent: true, tones: tones)
         super.init(frame: NSRect(origin: .zero, size: Self.size))
         wantsLayer = true
         badge.wantsLayer = true
@@ -103,20 +108,14 @@ final class TranslatePopoverView: NSView {
 
     override var isFlipped: Bool { true }
 
-    /// The popover's own appearance (it follows macOS, as Arc's does), not the app's.
+    /// The space's tones over the popover's own material: no fill, so it stays frosted as the Site
+    /// Control Center does.
     override func viewDidChangeEffectiveAppearance() {
         super.viewDidChangeEffectiveAppearance()
-        let ink = TranslatePopoverButton.ink(for: self)
-        // Arc's material (an SDK-15 popover): grey 110 over a white page in dark mode, with the
-        // window's tint coming through. SDK 26's glass is far lighter, so the body is filled the
-        // way the Site Control Center's is, translucent like Arc's.
-        let dark = ink == .white
-        layer?.backgroundColor = (dark ? NSColor(srgbRed: 0.23, green: 0.23, blue: 0.24, alpha: 0.86)
-                                       : NSColor(srgbRed: 0.96, green: 0.96, blue: 0.965, alpha: 0.86)).cgColor
-        // Arc's ink over the material: 209 on 110 in dark mode; the badge 118.
-        badge.layer?.backgroundColor = ink.withAlphaComponent(0.06).cgColor
-        glyph.contentTintColor = ink.withAlphaComponent(0.82)
-        label.textColor = ink.withAlphaComponent(0.8)
+        layer?.backgroundColor = NSColor.clear.cgColor
+        badge.layer?.backgroundColor = tones.badge.cgColor
+        glyph.contentTintColor = tones.body
+        label.textColor = tones.title
     }
 
     override func viewDidMoveToWindow() {
@@ -162,21 +161,26 @@ final class TranslatePopoverView: NSView {
 
     private func showOptions() {
         let m = optionsMenu()
+        // Light or dark with the space, as the popover it hangs from.
+        m.appearance = tones.appearance
         m.popUp(positioning: nil, at: NSPoint(x: 0, y: options.bounds.height + 4), in: options)
     }
 }
 
-/// The popover's buttons (Arc): Options a flat fill with a 4 pt radius, Translate a raised bezel
-/// (lighter fill, hairline border, 5.5 pt radius); 14 pt semibold labels.
+/// The popover's buttons (Arc's shapes): Options a flat fill with a 4 pt radius, Translate a raised
+/// bezel (hairline border, 5.5 pt radius); 14 pt semibold labels. Their colours are the space's dialog
+/// buttons' (SpacePopoverTones): Options the secondary, Translate the primary in the space's hue.
 final class TranslatePopoverButton: NSView {
     var action: () -> Void = {}
     private let label = NSTextField(labelWithString: "")
     private let prominent: Bool
+    private let tones: SpacePopoverTones
     private var hovering = false { didSet { refresh() } }
     private var pressed = false { didSet { refresh() } }
 
-    init(title: String, prominent: Bool) {
+    init(title: String, prominent: Bool, tones: SpacePopoverTones) {
         self.prominent = prominent
+        self.tones = tones
         super.init(frame: .zero)
         wantsLayer = true
         layer?.cornerRadius = prominent ? 5.5 : 4
@@ -195,18 +199,11 @@ final class TranslatePopoverButton: NSView {
 
     var title: String { label.stringValue }
 
-    /// White on the dark material, black on the light one.
-    static func ink(for view: NSView) -> NSColor {
-        view.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? .white : .black
-    }
-
     private func refresh() {
-        let ink = Self.ink(for: self)
-        label.textColor = ink.withAlphaComponent(prominent ? 0.88 : 0.82)
-        // Over the popover's material: 118 on 110 (Options) and 148 on 110 (Translate) in dark mode.
-        let base: CGFloat = prominent ? 0.3 : 0.06
-        layer?.backgroundColor = ink.withAlphaComponent(base + (pressed ? 0.08 : hovering ? 0.04 : 0)).cgColor
-        layer?.borderColor = NSColor.black.withAlphaComponent(0.3).cgColor
+        label.textColor = prominent ? tones.primaryText : tones.secondaryText
+        let base = prominent ? tones.primaryFill : tones.secondaryFill
+        layer?.backgroundColor = tones.fill(base, prominent: prominent, hovering: hovering, pressed: pressed).cgColor
+        layer?.borderColor = tones.primaryStroke.cgColor
         layer?.borderWidth = prominent ? 1 : 0
     }
 
