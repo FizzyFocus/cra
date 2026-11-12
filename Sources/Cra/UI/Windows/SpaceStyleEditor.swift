@@ -299,8 +299,14 @@ private struct ColorPad: View {
                     AppearanceToggles(appearance: $pad.appearance).padding(.top, 24)
                     Spacer()
                     HStack(spacing: 16) {
-                        // Down to none (the unthemed look) and up to three; a new space starts on none.
-                        padButton("minus", enabled: !pad.key.isEmpty) { pad.key.removeLast() }
+                        // Down to none and up to three; a new space starts on none. Taking the last colour
+                        // goes back to that unthemed pad: Light, painted the default tint (removingColour).
+                        padButton("minus", enabled: !pad.key.isEmpty) {
+                            let r = SpaceColorPresets.removingColour(key: pad.key, appearance: pad.appearance, intensity: pad.intensity, noise: pad.noise)
+                            var p = pad
+                            (p.key, p.appearance, p.intensity, p.noise) = (r.key, r.appearance, r.intensity, r.noise)
+                            pad = p
+                        }
                         padButton("plus", enabled: pad.key.count < 3) { addColor() }
                     }
                     .padding(.bottom, 20)

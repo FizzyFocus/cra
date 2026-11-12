@@ -100,4 +100,20 @@ struct SpaceColorPresetsTests {
         let w = SpaceColorWheel.hsb(hex)
         #expect(SpaceColorWheel.hex(hue: w.hue, saturation: w.saturation, brightness: w.brightness) == hex)
     }
+
+    /// The editor's − (this fork's take on upstream c1aadf7): with colours left it only takes the last
+    /// one; taking the only one puts the pad back on a new space's unthemed pad whatever look it had,
+    /// so the space is painted the default tint (#DCF3FC) in Light again, its opacity its own.
+    @Test func removingTheLastColourGoesBackToUnthemed() {
+        let two = SpaceColorPresets.removingColour(key: ["#8389FF", "#FF8389"], appearance: "dark", intensity: 0.4, noise: 0.3)
+        #expect(two.key == ["#8389FF"] && two.appearance == "dark" && two.intensity == 0.4 && two.noise == 0.3)
+        let last = SpaceColorPresets.removingColour(key: ["#8389FF"], appearance: "dark", intensity: 0.4, noise: 0.3)
+        #expect(last.key.isEmpty && last.appearance == "light")
+        let theme = SpaceThemeVariants.theme(key: last.key, intensity: last.intensity, noise: last.noise, appearance: last.appearance, opacity: 0.7)
+        #expect(theme == SpaceColorPresets.newSpaceTheme(opacity: 0.7))
+        let painted = theme.paintingUnthemed(with: SpaceColorPresets.defaultTint)
+        #expect(!painted.isDark && painted.colors.allSatisfy { $0.uppercased() == SpaceColorPresets.defaultTint } && painted.opacity == 0.7)
+        let none = SpaceColorPresets.removingColour(key: [], appearance: "auto", intensity: 0.5, noise: 0.1)
+        #expect(none.key.isEmpty && none.appearance == "auto", "an empty pad has nothing to take")
+    }
 }

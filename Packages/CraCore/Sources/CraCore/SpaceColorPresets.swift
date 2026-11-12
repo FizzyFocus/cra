@@ -58,7 +58,24 @@ public enum SpaceColorPresets {
     /// colour in (`firstPadColour`).
     /// `opacity`: how see-through it starts (Settings ▸ Appearance), a subtle frost by default.
     public static func newSpaceTheme(opacity: Double? = AppSettings.defaultSpaceOpacityDefault) -> SpaceTheme {
-        SpaceThemeVariants.theme(key: [], intensity: 0.8, noise: 0, appearance: "light", opacity: opacity)
+        SpaceThemeVariants.theme(key: [], intensity: unthemedIntensity, noise: unthemedNoise, appearance: unthemedAppearance, opacity: opacity)
+    }
+
+    /// The pad a new space starts on: no colours, Light, this intensity and no grain. Painted with
+    /// Settings ▸ Appearance ▸ Default color (`defaultTint`, #DCF3FC unless changed).
+    public static let unthemedAppearance = "light"
+    public static let unthemedIntensity = 0.8
+    public static let unthemedNoise = 0.0
+
+    /// The theme editor's − (the pad's colours, look, intensity and grain after it): the last colour
+    /// goes, and taking the only one left puts the pad back where a new space starts (no colours,
+    /// Light, default intensity, no grain), so the space is painted the default tint again whatever
+    /// look it had. Upstream (c1aadf7, #300) turned an empty pad into Arc's colourless purple theme.
+    public static func removingColour(key: [String], appearance: String, intensity: Double, noise: Double)
+        -> (key: [String], appearance: String, intensity: Double, noise: Double) {
+        guard !key.isEmpty else { return (key, appearance, intensity, noise) }
+        let rest = Array(key.dropLast())
+        return rest.isEmpty ? ([], unthemedAppearance, unthemedIntensity, unthemedNoise) : (rest, appearance, intensity, noise)
     }
 
     /// A space with nothing on its pad is painted this (AppSettings.defaultSpaceTint): Arc's light
