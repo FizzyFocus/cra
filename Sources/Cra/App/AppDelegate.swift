@@ -767,24 +767,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             if let url { store.createTab(url: url, select: true, window: hidden.windowID) }
             return
         }
-        var frame: String?
-        if let current = main?.window, current.isVisible, !current.styleMask.contains(.fullScreen) {
-            var f = current.frame.offsetBy(dx: 22, dy: -22)
-            if let screen = (current.screen ?? NSScreen.main)?.visibleFrame, !screen.contains(f) {
-                f.origin = NSPoint(x: screen.minX + 22, y: screen.maxY - f.height - 22)
-            }
-            frame = NSStringFromRect(f)
-        }
-        let session = incognito ? store.addIncognitoWindow(frame: frame)
+        // A continuation of the window in use: its sidebar, full screen, size and place (NewWindowLayout).
+        let layout = NewWindowLayout.from(main?.newWindowSource)
+        let sourceScreen = main?.window?.screen?.frame ?? .zero
+        let frame = layout.frame.map { NSStringFromRect($0) }
+        CraLog.note("new \(incognito ? "incognito " : blank ? "blank " : "")window: sidebar \(layout.sidebarVisible ? "docked" : "hidden")"
+                    + (layout.fullScreen ? ", full screen" : "") + (layout.frame == nil ? ", default place" : ""))
+        var session = incognito ? store.addIncognitoWindow(frame: frame)
             : blank ? store.addBlankWindow(frame: frame)
             : store.addWindow(spaceID: store.focusedSpaceID(window: store.lastNormalWindowID), frame: frame)
-        let c = showNewWindow(session)
-        if let url { store.createTab(url: url, select: true, window: c.windowID) } else { c.openCommandBar(.newTab) }
+        if session.sidebarVisible != layout.sidebarVisible {
+            session.sidebarVisible = layout.sidebarVisible
+            store.updateWindow(session.id) { $0.sidebarVisible = layout.sidebarVisible }
+        }
+        let c = showNewWindow(session) { c in if layout.fullScreen { c.prepareForFullScreen(screen: sourceScreen) } }
+        let open = { [weak self, weak c] in
+            guard let self, let c else { return }
+            if let url { self.store.createTab(url: url, select: true, window: c.windowID) } else { c.openCommandBar(.newTab) }
+        }
+        if layout.fullScreen { c.enterFullScreen(then: open) } else { open() }
     }
 
     @discardableResult
-    private func showNewWindow(_ session: WindowSession) -> MainWindowController {
+    private func showNewWindow(_ session: WindowSession, beforeShowing prepare: (MainWindowController) -> Void = { _ in }) -> MainWindowController {
         let c = MainWindowController(app: self, session: session)
+        prepare(c)
         mainWindows.append(c)
         store.activeWindowID = c.windowID
         c.showWindow(nil)

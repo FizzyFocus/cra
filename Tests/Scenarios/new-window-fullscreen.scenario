@@ -1,0 +1,26 @@
+# ⌘N and ⇧⌘N from a full-screen window go full screen too, into a Space of their own, instead of
+# opening as a rectangle over the full-screen one (12 Nov 2026; CraCore NewWindowLayout). The new
+# window shows at its screen's size from its first frame, and its command bar opens once it is
+# there (checked by the log: an open bar closes when Cra loses focus, which a test copy behind
+# other apps may). It takes over a Space, so it runs only with CRA_SCENARIO_SCREEN=1 (CI).
+requires screen
+home
+seed settings.json {"hasSeenImportPrompt": true, "toolbarDefaultMigrated": true}
+cra://debug?windowSize=1200x800
+wait 1.5
+cra://debug?fullscreen=1
+wait 3
+cra://debug?windowState=source
+expect-log window state source: main0 fullscreen=1
+cra://action/newWindow
+expect-log new window: sidebar docked, full screen
+expect-log new window goes full screen like the one it came from
+expect-log new window is full screen: its command bar opens
+wait 1
+cra://debug?windowState=normal
+expect-log window state normal: main1 fullscreen=1
+cra://action/newIncognitoWindow
+expect-log new incognito window: sidebar docked, full screen
+wait 4
+cra://debug?windowState=incognito
+expect-log window state incognito: main2 fullscreen=1

@@ -1,0 +1,25 @@
+# A new window takes after the window in use (12 Nov 2026: ⇧⌘N from a window with its sidebar
+# hidden opened docked, and its command bar was a white card on the dark Incognito window): ⌘N and
+# ⇧⌘N keep the sidebar hidden, open at the same size one step on (CraCore NewWindowLayout), and an
+# Incognito window's command bar is dark whatever macOS uses (CommandBarTones.appearance).
+# Full screen is new-window-fullscreen's (it takes over a Space).
+home
+seed settings.json {"hasSeenImportPrompt": true, "toolbarDefaultMigrated": true}
+cra://debug?windowSize=1200x800
+wait 1.5
+cra://action/toggleSidebar
+wait 1
+cra://debug?windowState=source
+expect-log window state source: main0 .*size=1200x800 .*docked=0
+cra://action/newWindow
+expect-log new window: sidebar hidden$
+wait 2
+cra://debug?windowState=normal
+expect-log window state normal: main1 .*size=1200x800 .*docked=0
+cra://action/newIncognitoWindow
+expect-log new incognito window: sidebar hidden$
+wait 2
+cra://debug?windowState=incognito
+expect-log window state incognito: main2 .*size=1200x800 .*docked=0
+cra://debug?commandBarState=incognito
+expect-log command bar incognito: open=1 .* dark=1

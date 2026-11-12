@@ -4662,6 +4662,55 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
         commandBar.close()
     }
 
+    /// This window as the next new window takes after it (CraCore NewWindowLayout); nil while it
+    /// isn't on screen.
+    var newWindowSource: NewWindowLayout.Source? {
+        guard let window, window.isVisible, !window.isMiniaturized else { return nil }
+        return NewWindowLayout.Source(frame: window.frame, windowedFrame: store.window(windowID).frame.map(NSRectFromString),
+                                      fullScreen: window.styleMask.contains(.fullScreen), fullScreenForPage: enteredFullscreenForContent,
+                                      sidebarVisible: sidebarVisible, visibleFrame: (window.screen ?? NSScreen.main)?.visibleFrame ?? .zero)
+    }
+
+    /// What runs once the window has gone full screen (or couldn't): a new window's command bar,
+    /// placed for the full-screen frame rather than the one it was shown at.
+    private var afterEnteringFullScreen: (() -> Void)?
+
+    /// Where a window born in full screen goes the first time it leaves: the frame it would have
+    /// had as a window (its session's), not the screen-sized one it was shown at.
+    private var leaveFullScreenTo: NSRect?
+
+    /// A new window that goes full screen like the one it came from is shown at its screen's size,
+    /// so the first thing seen is the window filling the screen, not a smaller one over the
+    /// full-screen Space it came from (12 Nov 2026: a cascaded rectangle showed for ~100 ms).
+    func prepareForFullScreen(screen: NSRect) {
+        guard let window, !screen.isEmpty else { return }
+        leaveFullScreenTo = store.window(windowID).frame.map(NSRectFromString)
+        window.setFrame(screen, display: false)
+        // Not its frame as a window: the session keeps the one it would have had.
+        frameSaveWork?.cancel()
+        frameSaveWork = nil
+    }
+
+    /// A new window opened from a full-screen one (NewWindowLayout): into a full-screen Space of its
+    /// own, as soon as it is on screen, rather than a rectangle over the one it came from.
+    func enterFullScreen(then done: @escaping () -> Void) {
+        guard let window, !window.styleMask.contains(.fullScreen) else { return done() }
+        afterEnteringFullScreen = done
+        CraLog.note("new window goes full screen like the one it came from")
+        window.toggleFullScreen(nil)
+        // Neither "entered" nor "failed" came (another transition in the way): the bar opens anyway.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in self?.runAfterEnteringFullScreen() }
+    }
+
+    private func runAfterEnteringFullScreen() {
+        guard let done = afterEnteringFullScreen else { return }
+        afterEnteringFullScreen = nil
+        CraLog.note("new window \(window?.styleMask.contains(.fullScreen) == true ? "is full screen" : "didn't go full screen"): its command bar opens")
+        done()
+    }
+
+    func windowDidFailToEnterFullScreen(_ window: NSWindow) { runAfterEnteringFullScreen() }
+
     // The sidebar header's toggle moves into the traffic lights' place while they are gone (Arc).
     func windowWillEnterFullScreen(_ notification: Notification) {
         ArcTooltipController.shared.holdForTransition(1)
@@ -4673,7 +4722,10 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
         sidebarUI.windowFullscreen = false
         shell.windowFullscreen = false
     }
-    func windowDidEnterFullScreen(_ notification: Notification) { shell.needsLayout = true }
+    func windowDidEnterFullScreen(_ notification: Notification) {
+        shell.needsLayout = true
+        runAfterEnteringFullScreen()
+    }
     func windowDidExitFullScreen(_ notification: Notification) {
         // Left with the green button or ⌃⌘F while a video was fullscreen: the page leaves too.
         if let id = contentFullscreenTab { browsers.runtime(for: id)?.browser.exitFullscreen() }
@@ -4684,6 +4736,11 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
             sidebarUI.pageFullscreen = false
         }
         enteredFullscreenForContent = false
+        // Born in full screen: to the frame it would have had as a window.
+        if let frame = leaveFullScreenTo {
+            leaveFullScreenTo = nil
+            window?.setFrame(frame, display: true, animate: true)
+        }
         // Back at the frame it had before: zoomed or not.
         updateWindowFill()
         shell.needsLayout = true
