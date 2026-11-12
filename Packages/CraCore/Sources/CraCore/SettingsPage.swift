@@ -139,7 +139,7 @@ public enum SettingsBridge {
         // Tabs & Spaces
         "newTabsAtTop", "newTabButtonAtTop", "hapticFeedbackOnReorder", "middleClickUnloadsTab", "folderPreviews",
         "favoritePreviews", "favoriteLogoOutline", "autoPictureInPicture", "showSpaceHeaderOnSingleSpace",
-        "littleWindowShortcutEverywhere", "littleWindowOnOptionCommandClick", "littleWindowArchiveAfter", "peekLinksToOtherSites", "peekInEveryTab",
+        "littleWindowShortcutEverywhere", "littleWindowOnOptionCommandClick", "littleWindowArchiveAfter", "peekLinksToOtherSites", "peekInEveryTab", "peekExpandInSourceTab",
         "peekOnShiftClick", "openLinksInForeground", "autoArchiveEnabled", "autoArchive",
         // Privacy
         "blockAdsAndTrackers", "blockCookieBanners", "fingerprintingProtection", "httpsOnly", "perfHidesSiteNames", "allowAppleEventsJavaScript",

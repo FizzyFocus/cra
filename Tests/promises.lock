@@ -637,6 +637,9 @@
 #378   Tests/StoreTests.swift::syncPutsAMixedBundleRight  bf14ae1bdb36
 #379   Packages/CraCore/Tests/CraCoreTests/CommandBarOpeningTests.swift::commandTInAPeekIsTheBrowserWindowsNewTab  4550cf2a85ca
 #379   Tests/Scenarios/peek-command-t.scenario  e1634d743ed3
+#380   Packages/CraCore/Tests/CraCoreTests/PeekExpandTests.swift::commandClickLoadsInTheSourceTabOnlyWhenTurnedOn  fc0ceb5cb908
+#380   Packages/CraCore/Tests/CraCoreTests/PeekExpandTests.swift::offByDefault  c73dab54bddc
+#380   Tests/Scenarios/peek-expand-in-tab.scenario  e12b76e33b6c
 #386   Tests/Scenarios/picked-tabs-split.scenario  cd33102969a4
 #387   Tests/Scenarios/favorite-mute.scenario  7b04a5025ba3
 #387   Tests/Scenarios/muted-tab-restores.scenario  84b90b5d2da8

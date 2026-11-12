@@ -396,6 +396,8 @@
           toggle('peekLinksToOtherSites', 'Open a Peek window when clicking on links to other sites', 'A link to another site opens in a Peek over the page, so you can read it and close it without losing your place.'),
           toggle('peekInEveryTab', 'In every tab, not only Favorites and Pinned tabs', null, { disabled: () => !value('peekLinksToOtherSites') }),
           toggle('peekOnShiftClick', 'Open a Peek window when clicking on links with Shift held', 'Hold ⇧ while you click any link to open it in a Peek.'),
+          // Not in Arc (#380), off by default: Expand makes a new tab as in Arc (CraCore PeekExpand).
+          toggle('peekExpandInSourceTab', '⌘-click Expand opens in the tab', 'Hold ⌘ while you click a Peek’s Expand button to open the page in the tab you were peeking from, instead of a new tab. Back takes that tab to where it was, and a pinned tab keeps its pinned page.'),
           toggle('openLinksInForeground', '“Open Link in New Tab” switches to the new tab', '“Open Link in New Tab” brings the new tab to the front. Off, the page you’re reading stays in front, as in Arc. ⌘-click opens a link behind the page and ⇧⌘-click switches to it either way.'),
         ]),
         routesCard(),
