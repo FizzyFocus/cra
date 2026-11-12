@@ -1,0 +1,20 @@
+# ⌥⌘N's card is only its command bar, as Arc's is: it makes no page until a row opens one, and that
+# page loads the row's address directly (12 Nov 2026). The card used to make an about:blank page at
+# once, and Chromium put that page's window on screen over the card for a frame or two before the
+# card took it in: a frosted rectangle flashing on the card ~200 ms after it opened.
+budget rss=700 stalls50=20
+seed settings.json {"hasSeenImportPrompt": true, "toolbarDefaultMigrated": true}
+pace 0.5
+
+cra://action/newLittleWindow
+wait 1.5
+cra://debug?littleShown=card
+expect-log little shown card: windows=1 .* card=1 size=490x329 .* page=0
+
+# A row opens a page in the same window, at that address.
+cra://debug?littleCard=go:${PAGE}?n=card
+wait 2.5
+cra://debug?littleShown=page
+expect-log little shown page: windows=1 .* card=0 .* page=1 .*address=127\.0\.0\.1
+cra://debug?pageWindows=page
+expect-log page windows page: shown=[1-9] away=0

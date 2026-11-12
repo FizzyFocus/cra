@@ -341,10 +341,14 @@ final class LittleWindowController: NSWindowController, NSWindowDelegate, @preco
             let sid = state.targetSpaceID
             state.profileID = app.store.isIncognito(space: sid) ? nil : app.store.profile(app.store.space(sid)?.profileID)?.id
         }
-        // Chromium, or WebKit for a DRM service; a popup host takes its opener's engine.
-        let b = PageEngines.makeBrowser(frame: shell.page.bounds, url: url.map { $0.isEmpty ? "about:blank" : $0 }, delegate: self,
-                                        incognito: false, profilePath: app.store.profilePath(profile: state.profileID), opener: opener)
-        attach(b)
+        // Chromium, or WebKit for a DRM service; a popup host takes its opener's engine. ⌥⌘N's card is
+        // only its command bar, as Arc's is: its page is made when a row opens one (navigate), at that
+        // address. Made with the card, Chromium showed the window of its about:blank over the card for a
+        // frame or two before the card took it in (12 Nov 2026).
+        if !isCard {
+            attach(PageEngines.makeBrowser(frame: shell.page.bounds, url: url.map { $0.isEmpty ? "about:blank" : $0 }, delegate: self,
+                                           incognito: false, profilePath: app.store.profilePath(profile: state.profileID), opener: opener))
+        }
         state.url = (url == "about:blank" ? "" : url) ?? ""
     }
 
@@ -552,14 +556,15 @@ final class LittleWindowController: NSWindowController, NSWindowDelegate, @preco
         }
     }
 
-    /// For cra://debug?littleShown: whether the window is the card, its size, and how far its
-    /// top-right corner is from its screen's visible area's (#337).
+    /// For cra://debug?littleShown: whether the window is the card, its size, how far its top-right
+    /// corner is from its screen's visible area's (#337), and whether it has a page yet (the card
+    /// doesn't until a row opens one).
     var debugCard: String {
         guard let window else { return "card=-" }
         let f = window.frame, vf = (window.screen ?? placementScreen).visibleFrame
-        return String(format: "card=%d size=%.0fx%.0f corner=%.0f,%.0f strip=%d lights=%d", isCard ? 1 : 0, f.width, f.height,
+        return String(format: "card=%d size=%.0fx%.0f corner=%.0f,%.0f strip=%d lights=%d page=%d", isCard ? 1 : 0, f.width, f.height,
                       vf.maxX - f.maxX, vf.maxY - f.maxY, shell.hidesBar ? 0 : 1,
-                      window.standardWindowButton(.closeButton)?.isHidden == false ? 1 : 0)
+                      window.standardWindowButton(.closeButton)?.isHidden == false ? 1 : 0, browser == nil ? 0 : 1)
     }
 
     /// For cra://debug?devToolsShown: the page's DevTools as they are on screen, read from Chromium's
@@ -1082,7 +1087,13 @@ final class LittleWindowController: NSWindowController, NSWindowDelegate, @preco
     private func navigate(_ url: String) {
         expandCard()
         state.url = url
-        browser?.loadURL(url)
+        if let browser {
+            browser.loadURL(url)
+        } else {
+            // The card's first page, made at its address (no about:blank in between).
+            attach(PageEngines.makeBrowser(frame: shell.page.bounds, url: url, delegate: self, incognito: false,
+                                           profilePath: store.profilePath(profile: state.profileID)))
+        }
         focusPage()
     }
 
@@ -1239,8 +1250,9 @@ final class LittleWindowController: NSWindowController, NSWindowDelegate, @preco
 
     /// A page can't move between profiles: a new browser in the other one loads its address.
     private func reload(inProfile id: UUID?) {
-        guard browser != nil else { return }
         state.profileID = id
+        // The card has no page yet: the one a row opens is made in this profile.
+        guard browser != nil else { return }
         replacePage(at: hasPage ? currentURL : "about:blank")
     }
 
