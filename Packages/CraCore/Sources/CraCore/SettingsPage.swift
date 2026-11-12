@@ -62,6 +62,20 @@ public enum SettingsPage {
         section == .general ? address : "\(address)/\(section.rawValue)"
     }
 
+    /// Shortcuts with one command picked out (Use Both's "Edit the shortcut", #374): the page filters
+    /// its list to `action` (`?action=<id>`; the section is still the path's).
+    public static func shortcutURL(action: String) -> String {
+        var c = URLComponents(string: url(.shortcuts))!
+        c.queryItems = [URLQueryItem(name: "action", value: action)]
+        return c.string ?? url(.shortcuts)
+    }
+
+    /// The command `url` picks out in Shortcuts, as shortcutURL wrote it.
+    public static func shortcutAction(of url: String) -> String? {
+        guard owns(url), section(of: url) == .shortcuts else { return nil }
+        return URLComponents(string: url)?.queryItems?.first { $0.name == "action" }?.value.flatMap { $0.isEmpty ? nil : $0 }
+    }
+
     /// The tab's title.
     public static let title = "Settings"
 }

@@ -97,6 +97,17 @@ struct SettingsPageTests {
         #expect(LinkDestination(settingsToken: "elsewhere") == nil)
     }
 
+    /// Use Both's "Edit the shortcut" (#374) opens Shortcuts on its command: the section stays the
+    /// path's, the command rides in the query and reads back.
+    @Test func editTheShortcutOpensShortcutsOnItsCommand() {
+        let url = SettingsPage.shortcutURL(action: "closeTab")
+        #expect(url == "pane://settings/shortcuts?action=closeTab")
+        #expect(SettingsPage.section(of: url) == .shortcuts)
+        #expect(SettingsPage.shortcutAction(of: url) == "closeTab")
+        #expect(SettingsPage.shortcutAction(of: SettingsPage.url(.shortcuts)) == nil)
+        #expect(SettingsPage.shortcutAction(of: SettingsPage.url(.general) + "?action=closeTab") == nil)
+    }
+
     /// Every key the page writes is one settings.json has, so none is silently dropped.
     @Test func editableKeysAreSettings() throws {
         let keys = Set(try SettingsBridge.json(AppSettings()).keys)

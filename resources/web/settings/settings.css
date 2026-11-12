@@ -267,6 +267,9 @@ input[type="range"]::-webkit-slider-thumb {
 .row.shortcut:hover { background: var(--hover); }
 .row.shortcut .detail { color: var(--accent); font-size: 11.5px; }
 .row.shortcut .edit { opacity: 0; transition: opacity 0.12s ease; }
+/* Who gets a shortcut's keys (#374): a compact pop-up beside its keys. */
+.row.shortcut select.priority { height: 24px; font-size: 11.5px; padding: 0 24px 0 8px; background-position: right 7px center; max-width: 150px; }
+.row.shortcut.focused { background: color-mix(in srgb, var(--accent) 12%, transparent); }
 .row.shortcut:hover .edit, .row.shortcut.recording .edit, .row.shortcut.changed .edit { opacity: 1; }
 .chords { display: inline-flex; align-items: center; gap: 8px; }
 .chord { display: inline-flex; align-items: center; gap: 4px; }

@@ -4302,19 +4302,21 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
 
     /// ⌘, (Settings…): the settings page (cra://settings) in a tab, on `section` when given. The
     /// space on screen's settings tab comes to the front if it has one; otherwise a new tab opens.
-    func openSettingsTab(_ section: SettingsPage.Section?) {
+    /// `address`: a page address to load instead of the section's own (Shortcuts on one command).
+    func openSettingsTab(_ section: SettingsPage.Section?, address: String? = nil) {
         dismissTransientUI()
         let existing = store.allTabs().first { item in
             item.tab.map { SettingsPage.owns($0.url) } == true && store.spaceID(ofItem: item.id) == focusedSpaceID
         }
         if let item = existing {
             if let section {
-                if let page = browsers.runtime(for: item.id)?.browser { page.loadURL(SettingsPage.url(section)) }
-                else { store.updateTab(item.id, url: SettingsPage.url(section)) }
+                let url = address ?? SettingsPage.url(section)
+                if let page = browsers.runtime(for: item.id)?.browser { page.loadURL(url) }
+                else { store.updateTab(item.id, url: url) }
             }
             store.selectTab(item.id, window: windowID)
         } else {
-            store.createTab(url: SettingsPage.url(section ?? .general), select: true, window: windowID)
+            store.createTab(url: address ?? SettingsPage.url(section ?? .general), select: true, window: windowID)
         }
         CraLog.note("settings tab shown (\((section ?? .general).rawValue), \(existing == nil ? "new" : "existing"))")
     }

@@ -72,6 +72,9 @@
 
   let S = null;
   let current = 'general';
+  // Shortcuts on one command (Use Both's "Edit the shortcut", #374): pane://settings/shortcuts?action=<id>.
+  let focusAction = new URLSearchParams(location.search).get('action');
+  if (focusAction) { try { history.replaceState(null, '', location.pathname); } catch (e) { /* stays */ } }
   let query = '';
   let controls = [];
   const listShown = new Map();
@@ -417,8 +420,23 @@
       const count = el('span', { class: 'toolbar-count' });
       let f = '';
       filter.addEventListener('input', () => { f = filter.value.trim().toLowerCase(); listShown.delete(listEl); update(); });
-      list(listEl, () => S && { shortcuts: S.shortcuts, recording: S.recording, groups: S.shortcutGroups, f }, (host, data) => {
+      list(listEl, () => S && { shortcuts: S.shortcuts, recording: S.recording, groups: S.shortcutGroups, priorities: S.shortcutPriorities, f }, (host, data) => {
+        let focus = null;
+        if (focusAction) {
+          focus = (data.shortcuts || []).find((x) => x.id === focusAction) || null;
+          focusAction = null;
+          if (focus) {
+            filter.value = focus.name;
+            f = data.f = focus.name.toLowerCase();
+            // Shown filtered: the next state push mustn't draw it again and drop the highlight.
+            listShown.set(host, JSON.stringify(data));
+          }
+        }
         const n = renderShortcuts(host, data, f);
+        if (focus) {
+          const r = host.querySelector(`[data-action="${CSS.escape(focus.id)}"]`);
+          if (r) { r.classList.add('focused'); r.scrollIntoView({ block: 'center' }); }
+        }
         count.textContent = f ? `${n} of ${(data.shortcuts || []).length}` : `${(data.shortcuts || []).length} commands`;
       });
       const resetAll = el('button', { class: 'btn small', type: 'button' }, 'Reset All');
@@ -427,7 +445,8 @@
       return [
         el('section', { class: 'block toolbar' },
           el('div', { class: 'toolbar-row' }, field, count, resetAll),
-          el('p', { class: 'footnote' }, 'Click a command, then press its new keys. Escape cancels, Delete removes the shortcut.')),
+          el('p', { class: 'footnote' }, 'Click a command, then press its new keys. Escape cancels, Delete removes the shortcut.'),
+          priorityNote()),
         listEl,
       ];
     },
@@ -921,6 +940,30 @@
   }
 
   /// One shortcut as macOS key caps, one cap a key (⇧ ⌘ D), like the sidebar's tooltips.
+  /// Arc 1.172's choice per shortcut of who gets its keys while a website wants them too (#374): Prefer
+  /// Pane, Use Both, Prefer Websites. Only a command with a shortcut has one; picking doesn't record keys.
+  function priorityMenu(s, priorities) {
+    if (s.priority == null || !(priorities || []).length) return null;
+    const m = el('select', { class: 'priority', 'aria-label': `Who gets ${s.name}’s keys` },
+      priorities.map((p) => el('option', { value: p.value }, p.label)));
+    m.value = s.priority;
+    const chosen = priorities.find((p) => p.value === s.priority);
+    m.title = chosen ? chosen.detail : '';
+    m.addEventListener('click', (e) => e.stopPropagation());
+    m.addEventListener('change', () => run('setShortcutPriority', { id: s.id, priority: m.value }).catch(() => {}));
+    return m;
+  }
+
+  /// What the three choices mean, in Arc's lines (CraCore ShortcutPriority).
+  function priorityNote() {
+    const p = el('p', { class: 'footnote' });
+    control(() => {
+      const all = (S && S.shortcutPriorities) || [];
+      p.textContent = all.length ? `The menu beside a shortcut chooses who gets its keys when a website wants them too. ${all.map((x) => `${x.label}: ${x.detail.charAt(0).toLowerCase()}${x.detail.slice(1)}`).join(' ')}` : '';
+    });
+    return p;
+  }
+
   function keyCaps(caps) { return el('span', { class: 'chord' }, caps.map((c) => el('kbd', { class: 'keycap' }, c))); }
 
   /// The groups in their order (CraCore ShortcutGroups), each a card; returns how many commands show.
@@ -940,8 +983,10 @@
         else keys = el('span', { class: 'chord' }, el('span', { class: 'keycap-none' }, 'Add shortcut'));
         const tools = el('span', { class: 'edit' },
           s.overridden ? iconButton('reset', `Back to Pane’s shortcut for ${s.name}`, (e) => { e.stopPropagation(); run('resetShortcut', { id: s.id }).catch(() => {}); }) : null);
-        return row({ title: s.name, detail: s.overridden ? 'Changed' : null, trailing: [tools, keys], cls: `shortcut${recording ? ' recording' : ''}${s.overridden ? ' changed' : ''}`,
+        const r = row({ title: s.name, detail: s.overridden ? 'Changed' : null, trailing: [tools, priorityMenu(s, data.priorities), keys], cls: `shortcut${recording ? ' recording' : ''}${s.overridden ? ' changed' : ''}`,
           search: `${s.name} ${s.keys.join(' ')}`, onclick: () => run(recording ? 'stopRecording' : 'recordShortcut', { id: s.id }).catch(() => {}) });
+        r.dataset.action = s.id;
+        return r;
       });
       blocks.push(el('section', { class: 'block' }, el('div', { class: 'section-header' }, el('h3', {}, section), el('span', { class: 'header-count' }, String(items.length))),
         el('div', { class: 'card' }, rows)));

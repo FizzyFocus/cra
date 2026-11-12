@@ -192,6 +192,11 @@ final class SettingsPageBridge: NSObject, WKScriptMessageHandlerWithReply {
             app.bindings.resetShortcuts(for: id)
         case "resetAllShortcuts":
             app.bindings.resetOverrides()
+        case "setShortcutPriority":
+            // Who gets the keys when a page wants them too (#374): Prefer Pane, Use Both, Prefer Websites.
+            guard let id = args["id"]?.string, app.bindings.action(id) != nil,
+                  let p = args["priority"]?.string.flatMap(ShortcutPriority.init(rawValue:)) else { return nil }
+            app.bindings.setPriority(p, for: id)
         case "resetTranslatedSitePrompts":
             // Arc's Advanced ▸ Reset Translated-site Prompts (#373): every profile's translate choices.
             TranslatedSitePrompts.reset(store: store)
@@ -277,6 +282,8 @@ final class SettingsPageBridge: NSObject, WKScriptMessageHandlerWithReply {
     private struct Watched: Equatable {
         var settings: AppSettings
         var shortcuts: [KeyAction]
+        /// Who gets each action's keys (#374), in the actions' order.
+        var priorities: [ShortcutPriority]
         var system: [Bool]
         var updates: String
         var dns: String
@@ -292,6 +299,7 @@ final class SettingsPageBridge: NSObject, WKScriptMessageHandlerWithReply {
             guard let app else { return nil }
             let sys = SystemIntegration.shared
             return Watched(settings: app.store.settings, shortcuts: app.bindings.actions,
+                           priorities: app.bindings.actions.map { app.bindings.priority(of: $0.id) },
                            system: [sys.isDefaultBrowser, sys.isPromptingDefault, sys.isInDock, sys.launchesAtLogin],
                            updates: SoftwareUpdater.shared.lastCheckSummary,
                            dns: SecureDNSSetting.shared.prefs.map { "\($0)" } ?? "",
@@ -378,8 +386,11 @@ final class SettingsPageBridge: NSObject, WKScriptMessageHandlerWithReply {
         // Grouped as Settings ▸ Shortcuts shows them (CraCore ShortcutGroups), each key a cap of its own.
         let shortcuts: [[String: Any]] = bindings.actions.filter { $0.section != .none || !$0.shortcuts.isEmpty }.map { a in
             ["id": a.id, "name": a.name, "section": ShortcutGroups.group(id: a.id, section: a.section.rawValue),
-             "keys": a.shortcuts.map(\.display), "caps": a.shortcuts.map(\.caps), "overridden": bindings.isOverridden(a.id)]
+             "keys": a.shortcuts.map(\.display), "caps": a.shortcuts.map(\.caps), "overridden": bindings.isOverridden(a.id),
+             // Only an action with a shortcut has a choice of who gets its keys (#374).
+             "priority": a.shortcuts.isEmpty ? NSNull() as Any : bindings.priority(of: a.id).rawValue as Any]
         }
+        let priorities: [[String: Any]] = ShortcutPriority.allCases.map { ["value": $0.rawValue, "label": $0.title, "detail": $0.subtitle] }
         func choices<T: RawRepresentable>(_ all: [T], _ label: (T) -> String) -> [[String: Any]] where T.RawValue == String {
             all.map { ["value": $0.rawValue, "label": label($0)] }
         }
@@ -426,6 +437,7 @@ final class SettingsPageBridge: NSObject, WKScriptMessageHandlerWithReply {
             "sites": sites,
             "shortcuts": shortcuts,
             "shortcutGroups": ShortcutGroups.order,
+            "shortcutPriorities": priorities,
             "recording": recording as Any? ?? NSNull(),
         ]) { _, new in new }
     }
