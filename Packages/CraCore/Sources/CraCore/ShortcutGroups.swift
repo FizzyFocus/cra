@@ -11,7 +11,7 @@ public enum ShortcutGroups {
                                           "previousSplitPane"]
     static let developer: Set<String> = ["devTools", "inspectElement", "jsConsole", "viewSource", "toggleDeveloperMode",
                                          "clearCache", "clearCookies", "hardReload", "taskManager", "allowAppleEventsJavaScript"]
-    static let split: Set<String> = ["addSplitView", "closeSplitPane", "flipSplitOrientation", "separateFromSplit"]
+    static let split: Set<String> = ["addSplitView", "closeSplitPane", "flipSplitOrientation", "separateFromSplit", "expandSplitPane"]
     static let sections = ["app": "Pane", "file": "File", "edit": "Edit", "view": "View", "tabs": "Tabs", "spaces": "Spaces",
                            "archive": "Archive", "window": "Window", "help": "Help"]
 
