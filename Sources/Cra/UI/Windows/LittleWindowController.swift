@@ -1597,7 +1597,7 @@ final class LittleWindowController: NSWindowController, NSWindowDelegate, @preco
     /// Shift-click is a plain click (1.171, 3 Nov 2026).
     /// In a Peek, a target=_blank link leaves it for a tab (PeekTrigger.leavesPeek, #202).
     func browser(_ browser: CraBrowser, opensPeekForURL url: String, shiftClick: Bool, newTab: Bool) -> Bool {
-        if url.lowercased().hasPrefix("cra:") { return false }
+        if InternalScheme.isInternal(url) { return false }
         if isPeek, PeekTrigger.leavesPeek(url, shiftClick: shiftClick, newTab: newTab) {
             openTabFromPeek(url, inBackground: false)
             return true
@@ -1611,7 +1611,7 @@ final class LittleWindowController: NSWindowController, NSWindowDelegate, @preco
     /// as tabs in its window's space.
     func browser(_ browser: CraBrowser, requestsNewTabWithURL url: String, inBackground background: Bool) {
         // cra:// is Cra's scripting scheme; a page must not drive it.
-        if url.lowercased().hasPrefix("cra:") { return }
+        if InternalScheme.isInternal(url) { return }
         if isPeek { openTabFromPeek(url, inBackground: background); return }
         app.openLittleWindow(url: url, activate: !background, opener: browser)
         if background { window?.makeKeyAndOrderFront(nil) }
@@ -1633,7 +1633,7 @@ final class LittleWindowController: NSWindowController, NSWindowDelegate, @preco
     /// A popup that needs its opener (a sign-in window) stays a Little Window, over a Peek too:
     /// closing the Peek for a tab would close the page waiting on it.
     func browser(_ browser: CraBrowser, popupHostForURL url: String, inBackground background: Bool) -> CraBrowser? {
-        if url.lowercased().hasPrefix("cra:") { return nil }
+        if InternalScheme.isInternal(url) { return nil }
         if isPeek, background {
             openTabFromPeek(url, inBackground: true)
             return nil

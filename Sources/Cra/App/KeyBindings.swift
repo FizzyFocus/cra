@@ -310,8 +310,8 @@ final class KeyBindingRegistry {
             KeyAction(id: "essentialShortcuts", name: "Essential Keyboard Shortcuts", section: .help, shortcuts: [],
                       triggers: ["shortcuts", "keyboard shortcuts", "hotkeys"], symbol: "keyboard"),
             // Arc: Help ▸ Troubleshooting ▸ Reveal Arc Data, Copy Arc Info.
-            KeyAction(id: "revealData", name: "Reveal Cra Data", section: .help, shortcuts: [], triggers: ["data folder", "reveal data"]),
-            KeyAction(id: "copyAppInfo", name: "Copy Cra Info", section: .help, shortcuts: [], triggers: ["version", "copy info"]),
+            KeyAction(id: "revealData", name: "Reveal Pane Data", section: .help, shortcuts: [], triggers: ["data folder", "reveal data"]),
+            KeyAction(id: "copyAppInfo", name: "Copy Pane Info", section: .help, shortcuts: [], triggers: ["version", "copy info"]),
         ]
         // Arc: Switch to Split View 1–4 (⌃⇧1…4), the panes of the open split.
         for n in 1...4 {

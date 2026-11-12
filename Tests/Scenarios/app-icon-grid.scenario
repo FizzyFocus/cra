@@ -2,13 +2,13 @@
 # with a clear margin, the size of Arc's beside it, also once Chromium's download view takes the
 # tile (it draws the bundle's icon under its badge; ⌘-Tab shows that tile). AppIcon.icns was drawn
 # edge to edge until 11 Nov 2026 and stood a fifth larger where it was drawn as it is; lint's
-# app-icon-grid rule checks the file. Segments (the bundled icon) comes in through the argument
-# domain, so the run never writes the installed Cra's defaults. body= and appIcon= are how much of
+# app-icon-grid rule checks the file. Arctic (the bundled icon) comes in through the argument
+# domain, so the run never writes the installed Pane's defaults. body= and appIcon= are how much of
 # the canvas the drawing fills: 81 % on the grid.
 home
 seed settings.json {"hasSeenImportPrompt": true, "toolbarDefaultMigrated": true}
 arg -appIcon
-arg segments
+arg arctic
 cra://debug?dockTile=before
 expect-log dock tile before: view=none appIcon=8[01]%
 # A download puts Chromium's view on the tile, drawing the bundled icon under its badge.

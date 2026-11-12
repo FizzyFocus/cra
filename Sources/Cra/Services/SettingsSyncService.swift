@@ -166,7 +166,7 @@ final class SettingsSyncService {
     }
 
     private static func bundleFolder(inContainer container: URL) -> URL {
-        container.appendingPathComponent("Documents", isDirectory: true).appendingPathComponent(SettingsSync.folderName, isDirectory: true)
+        bundleFolder(in: container.appendingPathComponent("Documents", isDirectory: true))
     }
 
     /// The user turned on iCloud sync.
@@ -289,9 +289,10 @@ final class SettingsSyncService {
         return true
     }
 
-    /// `<picked>/Cra`, or `picked` itself when the user pointed at the Cra folder.
+    /// `<picked>/Pane` (or a `<picked>/Cra` synced before the rebrand), or `picked` itself when the
+    /// user pointed at that folder.
     private static func bundleFolder(in picked: URL) -> URL {
-        picked.lastPathComponent == SettingsSync.folderName ? picked : picked.appendingPathComponent(SettingsSync.folderName, isDirectory: true)
+        SettingsSync.bundleFolder(in: picked) { FileManager.default.fileExists(atPath: $0.path) }
     }
 
     // MARK: Bundles

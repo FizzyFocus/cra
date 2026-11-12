@@ -433,7 +433,7 @@ private struct AddressPreview: View {
             RoundedRectangle(cornerRadius: 9, style: .continuous).fill(p.pillFill)
                 .frame(height: 34)
                 .overlay(alignment: .leading) {
-                    Text("crabrowser.app").font(.system(size: 12.5)).foregroundStyle(p.textPrimary).padding(.leading, 11)
+                    Text("pane.uz").font(.system(size: 12.5)).foregroundStyle(p.textPrimary).padding(.leading, 11)
                 }
                 .padding(.horizontal, 8)
         } else {
@@ -442,7 +442,7 @@ private struct AddressPreview: View {
                 HStack(spacing: 8) {
                     Image(systemName: "sidebar.left").font(.system(size: 11)).foregroundStyle(ink.opacity(0.45))
                     navButtons(p, ink: ink)
-                    Text("crabrowser.app").font(.system(size: 10.5)).foregroundStyle(ink.opacity(0.6))
+                    Text("pane.uz").font(.system(size: 10.5)).foregroundStyle(ink.opacity(0.6))
                     Spacer()
                 }
                 .padding(.horizontal, 10)

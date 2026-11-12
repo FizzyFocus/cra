@@ -2,27 +2,36 @@ import CraCore
 import Foundation
 import Testing
 
-/// Settings is the page cra://settings (10 Nov 2026), its sections after a slash, and it writes
+/// Settings is the page pane://settings (10 Nov 2026; cra://settings before the rebrand), its sections after a slash, and it writes
 /// settings through SettingsBridge.
 struct SettingsPageTests {
     @Test func addressAndSections() {
-        #expect(SettingsPage.owns("cra://settings"))
-        #expect(SettingsPage.owns("cra://settings/"))
-        #expect(SettingsPage.owns("CRA://Settings/privacy"))
-        #expect(!SettingsPage.owns("cra://debug?windowState=x"))
+        #expect(SettingsPage.owns("pane://settings"))
+        #expect(SettingsPage.owns("pane://settings/"))
+        #expect(SettingsPage.owns("PANE://Settings/privacy"))
+        #expect(!SettingsPage.owns("pane://debug?windowState=x"))
         #expect(!SettingsPage.owns("https://settings.example.com"))
         #expect(!SettingsPage.owns("chrome://settings"))
-        #expect(SettingsPage.section(of: "cra://settings") == .general)
-        #expect(SettingsPage.section(of: "cra://settings/search-engines") == .search)
-        #expect(SettingsPage.section(of: "cra://settings/tabs-and-spaces/") == .tabs)
-        #expect(SettingsPage.section(of: "cra://settings/nonsense") == .general)
-        #expect(SettingsPage.url(.general) == "cra://settings")
-        #expect(SettingsPage.url(.shortcuts) == "cra://settings/shortcuts")
+        #expect(SettingsPage.section(of: "pane://settings") == .general)
+        #expect(SettingsPage.section(of: "pane://settings/search-engines") == .search)
+        #expect(SettingsPage.section(of: "pane://settings/tabs-and-spaces/") == .tabs)
+        #expect(SettingsPage.section(of: "pane://settings/nonsense") == .general)
+        #expect(SettingsPage.url(.general) == "pane://settings")
+        #expect(SettingsPage.url(.shortcuts) == "pane://settings/shortcuts")
         #expect(SettingsPage.Section.allCases.map(\.title)
             == ["General", "Search Engines", "Appearance", "Tabs & Spaces", "Shortcuts", "Privacy", "Advanced",
                 "Profiles", "Extensions", "Plugins", "Max", "Performance"])
-        #expect(SettingsPage.section(of: "cra://settings/performance") == .performance, "every section is in the page")
+        #expect(SettingsPage.section(of: "pane://settings/performance") == .performance, "every section is in the page")
         for s in SettingsPage.Section.allCases { #expect(SettingsPage.section(of: SettingsPage.url(s)) == s) }
+    }
+
+    /// Cra's address (a saved tab, a bookmark, upstream code) is still the settings page (12 Nov 2026).
+    @Test func craAddressIsAnAlias() {
+        #expect(SettingsPage.owns("cra://settings"))
+        #expect(SettingsPage.owns("CRA://Settings/privacy"))
+        #expect(!SettingsPage.owns("cra://debug?windowState=x"))
+        #expect(SettingsPage.section(of: "cra://settings/search-engines") == .search)
+        #expect(SettingsPage.section(of: "cra://settings/nonsense") == .general)
     }
 
     @Test func messagesFromThePage() {

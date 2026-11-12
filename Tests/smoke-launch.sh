@@ -2,10 +2,10 @@
 # Launch the built app three times on a throwaway data folder (no pages, a page opened, the page
 # restored) and quit it each time like ⌘Q, just after a settings write or resize. Fails if it dies, hangs,
 # exits with an error or leaves a crash report: the only check that sees a CHECK inside Chromium.
-#   Tests/smoke-launch.sh [path/to/Cra.app]     (default build/Cra.app)
+#   Tests/smoke-launch.sh [path/to/Pane.app]     (default build/Pane.app)
 set -euo pipefail
 cd "$(dirname "$0")/.."
-APP="${1:-build/Cra.app}"
+APP="${1:-build/Pane.app}"
 EXE="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$APP/Contents/Info.plist")"
 TEST_DIR="$(mktemp -d /tmp/cra-smoke.XXXXXX)"
 DATA="$TEST_DIR/data"

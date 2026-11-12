@@ -7,7 +7,7 @@
 	<key>CFBundleExecutable</key>
 	<string>CraDockTile</string>
 	<key>CFBundleIdentifier</key>
-	<string>dk.kildahl.cra.docktile</string>
+	<string>uz.pane.browser.docktile</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>

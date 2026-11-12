@@ -2,8 +2,8 @@
 # Full distributable build: build, sign, notarize, package, notarize the DMG, and
 # write the Sparkle appcast for the update archive, once per CPU.
 #   CRA_VERSION=0.1.0 CRA_SIGN_IDENTITY="Developer ID Application: …" scripts/release.sh
-# Every release ships Apple silicon (Cra.dmg, Cra.zip, appcast.xml) and Intel
-# (Cra-Intel.dmg, Cra-Intel.zip, appcast-intel.xml). CRA_ARCHS="arm64" (or "x86_64")
+# Every release ships Apple silicon (Pane.dmg, Pane.zip, appcast.xml) and Intel
+# (Pane-Intel.dmg, Pane-Intel.zip, appcast-intel.xml). CRA_ARCHS="arm64" (or "x86_64")
 # builds one; the Release workflow runs one per job and merges them.
 # Without CRA_SIGN_IDENTITY it still produces an ad-hoc build and packages, so
 # the pipeline can be exercised before certificates exist. The appcast needs the
@@ -29,13 +29,13 @@ fi
 rm -rf build/dist
 for ARCH in $ARCHS; do
   CRA_ARCH="$ARCH" scripts/build.sh release
-  # build.sh's rule: the host CPU builds build/Cra.app, the other one build/<arch>/Cra.app.
-  if [ "$ARCH" = "$(uname -m)" ]; then APP="build/Cra.app"; else APP="build/$ARCH/Cra.app"; fi
+  # build.sh's rule: the host CPU builds build/Pane.app, the other one build/<arch>/Pane.app.
+  if [ "$ARCH" = "$(uname -m)" ]; then APP="build/Pane.app"; else APP="build/$ARCH/Pane.app"; fi
   SUFFIX="$(scripts/asset-suffix.sh "$APP")"
 
   if [ "$IDENTITY" != "-" ]; then
     # Notarize the app first (as a zip), staple it, then package the stapled app.
-    TMPZIP="$(mktemp -d /tmp/cra-notarize.XXXXXX)/Cra.zip"
+    TMPZIP="$(mktemp -d /tmp/cra-notarize.XXXXXX)/Pane.zip"
     ditto -c -k --keepParent "$APP" "$TMPZIP"
     scripts/notarize.sh "$TMPZIP" "$APP"
     rm -rf "$(dirname "$TMPZIP")"
@@ -44,9 +44,9 @@ for ARCH in $ARCHS; do
   scripts/package.sh "$APP"
 
   if [ "$IDENTITY" != "-" ]; then
-    scripts/notarize.sh "build/dist/Cra$SUFFIX.dmg"
+    scripts/notarize.sh "build/dist/Pane$SUFFIX.dmg"
     # Re-zip the stapled app so the zip download carries the ticket too.
-    ditto -c -k --keepParent "$APP" "build/dist/Cra$SUFFIX.zip"
+    ditto -c -k --keepParent "$APP" "build/dist/Pane$SUFFIX.zip"
     # On its own line so set -e fails the release when Gatekeeper rejects the app.
     spctl --assess --type execute --verbose=2 "$APP"
     echo "Gatekeeper accepts $APP"
@@ -54,8 +54,8 @@ for ARCH in $ARCHS; do
     echo "Ad-hoc build: not notarized. Set CRA_SIGN_IDENTITY and notary credentials for a distributable build." >&2
   fi
   # Installed copies update from the zip; the appcast must sign the final one.
-  scripts/appcast.sh "build/dist/Cra$SUFFIX.zip" "$APP" "${CRA_RELEASE_NOTES:-}"
+  scripts/appcast.sh "build/dist/Pane$SUFFIX.zip" "$APP" "${CRA_RELEASE_NOTES:-}"
 done
-(cd build/dist && shasum -a 256 Cra*.zip Cra*.dmg > SHA256SUMS.txt)
+(cd build/dist && shasum -a 256 Pane*.zip Pane*.dmg > SHA256SUMS.txt)
 echo "Release artifacts in build/dist:"
 ls -la build/dist

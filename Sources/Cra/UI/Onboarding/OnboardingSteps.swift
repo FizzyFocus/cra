@@ -47,7 +47,7 @@ struct CoverStep: View {
                     .tracking(-0.8)
                     .foregroundStyle(c.title)
                     .lineSpacing(2)
-                Text("Cra is a native macOS browser with a sidebar instead of a tab strip. Spaces, pinned tabs, a command bar that learns, and an archive that tidies up after you.")
+                Text("Pane is a native macOS browser with a sidebar instead of a tab strip. Spaces, pinned tabs, a command bar that learns, and an archive that tidies up after you.")
                     .font(.system(size: 15))
                     .lineSpacing(3)
                     .foregroundStyle(c.body)
@@ -68,8 +68,8 @@ struct PrivacyStep: View {
     let c: ImportColors
     var body: some View {
         ZStack(alignment: .topLeading) {
-            TwoLineHeader(title: "Privacy in Cra,\nyou're in control",
-                          subtitle: "Cra works fully signed out. Your spaces, tabs and archive are plain files on your Mac.", c: c)
+            TwoLineHeader(title: "Privacy in Pane,\nyou're in control",
+                          subtitle: "Pane works fully signed out. Your spaces, tabs and archive are plain files on your Mac.", c: c)
             SelectableRow(c: c, checked: model.blockAdsAndTrackers, toggle: { model.blockAdsAndTrackers.toggle() }) {
                 RowSymbol(name: "hand.raised.fill", c: c)
                 RowTitle(title: "Block third-party ads and trackers",
@@ -96,7 +96,7 @@ struct UnlockStep: View {
                        subtitle: model.unlockReadsSidebar
                            ? "Dia encrypts your spaces, tabs and passwords, so macOS will ask for your computer password."
                            : many ? "Some data is encrypted, so macOS will ask for your computer password once for each selected profile."
-                                  : "Some data is encrypted, so macOS will ask for your computer password to bring it securely into Cra.", c: c)
+                                  : "Some data is encrypted, so macOS will ask for your computer password to bring it securely into Pane.", c: c)
             if many {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 8) {
@@ -268,8 +268,8 @@ struct CredentialsResultStep: View {
                     .font(.system(size: 44)).foregroundStyle(ok ? c.ink.opacity(0.9) : .orange)
                 Text(ok ? "You're all set" : "Something went wrong")
                     .font(.system(size: 29, weight: .regular, design: .serif)).tracking(-0.6).foregroundStyle(c.title)
-                Text(ok ? "Your passwords and cookies are now available in Cra. Start browsing and you'll be signed in to your sites."
-                        : "Cra was unable to import your passwords and cookies. You can try again now or skip this step.")
+                Text(ok ? "Your passwords and cookies are now available in Pane. Start browsing and you'll be signed in to your sites."
+                        : "Pane was unable to import your passwords and cookies. You can try again now or skip this step.")
                     .font(.system(size: 15)).lineSpacing(2.5).foregroundStyle(c.body)
                     .frame(width: 420, alignment: .leading)
             }
@@ -298,7 +298,7 @@ struct PinnedTabsStep: View {
     var body: some View {
         ZStack(alignment: .topLeading) {
             StepHeader(title: "Keep your favorites handy",
-                       subtitle: "Pin the apps you use most so they're always a click away in Cra.", c: c)
+                       subtitle: "Pin the apps you use most so they're always a click away in Pane.", c: c)
             ScrollView {
                 LazyVGrid(columns: cols, spacing: 10) {
                     ForEach(model.pinCandidates) { p in

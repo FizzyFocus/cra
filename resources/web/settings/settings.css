@@ -1,4 +1,4 @@
-/* Cra ▸ Settings (cra://settings): Chrome's settings layout in Arc's look. Light and dark follow
+/* Cra ▸ Settings (pane://settings): Chrome's settings layout in Arc's look. Light and dark follow
    the page's colour scheme; Cra sets data-theme when Settings ▸ Appearance says Light or Dark. */
 :root {
   --accent: #5E5CE6;

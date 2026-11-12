@@ -1,4 +1,4 @@
-// Cra ▸ Settings (cra://settings). The page reads and writes Cra's settings through
+// Cra ▸ Settings (pane://settings). The page reads and writes Cra's settings through
 // window.craSettings, a bridge to the app (SettingsPageBrowser): state() reads everything,
 // set(key, value) writes one setting, action(name, args) asks Cra to do something (a sheet, a file
 // picker, another page). Cra calls craSettings._update(state) whenever a setting changes, here or
@@ -11,7 +11,7 @@
   const handler = () => window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.craSettings;
   const call = (message) => {
     const h = handler();
-    return h ? h.postMessage(message) : Promise.reject(new Error('Settings opens in Cra.'));
+    return h ? h.postMessage(message) : Promise.reject(new Error('Settings opens in Pane.'));
   };
   const bridge = {
     state: () => call({ op: 'state' }),
@@ -106,7 +106,7 @@
   }
 
   window.craSettingsToast = (text) => toast(text);
-  const fail = (e) => toast(typeof e === 'string' ? e : (e && e.message) || 'Cra couldn’t change that.');
+  const fail = (e) => toast(typeof e === 'string' ? e : (e && e.message) || 'Pane couldn’t change that.');
 
   function write(key, v) {
     return bridge.set(key, v).then((s) => { if (s) apply(s); }).catch((e) => { fail(e); update(); });
@@ -215,9 +215,9 @@
       const defaultTrailing = el('span');
       control(() => {
         const s = sys();
-        if (s.isDefaultBrowser) defaultTrailing.replaceChildren(el('span', { class: 'status', html: icon('check') + 'Cra is your default browser' }));
+        if (s.isDefaultBrowser) defaultTrailing.replaceChildren(el('span', { class: 'status', html: icon('check') + 'Pane is your default browser' }));
         else {
-          const b = el('button', { class: 'btn primary', type: 'button', disabled: s.isPromptingDefault }, s.isPromptingDefault ? 'Confirm in the Dialog…' : 'Set Cra as Default');
+          const b = el('button', { class: 'btn primary', type: 'button', disabled: s.isPromptingDefault }, s.isPromptingDefault ? 'Confirm in the Dialog…' : 'Set Pane as Default');
           b.addEventListener('click', () => run('defaultBrowser').catch(() => {}));
           defaultTrailing.replaceChildren(...(s.defaultBrowserName ? [el('span', { class: 'value' }, s.defaultBrowserName)] : []), b);
         }
@@ -226,7 +226,7 @@
       control(() => {
         if (sys().inDock) dockTrailing.replaceChildren(el('span', { class: 'status', html: icon('check') + 'In the Dock' }));
         else {
-          const b = el('button', { class: 'btn', type: 'button' }, 'Add Cra to Dock');
+          const b = el('button', { class: 'btn', type: 'button' }, 'Add Pane to Dock');
           b.addEventListener('click', () => run('addToDock').catch(() => {}));
           dockTrailing.replaceChildren(b);
         }
@@ -234,13 +234,13 @@
       const updates = () => (S && S.updates) || {};
       return [
         card('System', [
-          row({ title: 'Default browser', detail: 'Links from other apps open in Cra.', trailing: defaultTrailing }),
+          row({ title: 'Default browser', detail: 'Links from other apps open in Pane.', trailing: defaultTrailing }),
           row({ title: 'Dock', trailing: dockTrailing }),
-          toggle('launchesAtLogin', 'Open Cra at login', 'Cra opens by itself when you log in to your Mac.'),
+          toggle('launchesAtLogin', 'Open Pane at login', 'Pane opens by itself when you log in to your Mac.'),
         ]),
         card('Startup', [
-          toggle('restoreWindows', 'Restore windows from the previous session', 'When Cra opens, the windows you had open last time come back.'),
-          toggle('startOnNewTab', 'Start on a new tab', 'When Cra opens, it starts on a new tab instead of the tab you used last.'),
+          toggle('restoreWindows', 'Restore windows from the previous session', 'When Pane opens, the windows you had open last time come back.'),
+          toggle('startOnNewTab', 'Start on a new tab', 'When Pane opens, it starts on a new tab instead of the tab you used last.'),
         ]),
         card('Downloads', [
           select('downloadChoice', 'Download location', () => {
@@ -252,8 +252,8 @@
           }),
         ], { footnote: 'Each profile can save somewhere else (Profiles).' }),
         card('Quitting', [
-          toggle('warnBeforeQuitting', 'Warn before quitting', '⌘Q asks “Quit Cra?” first, so pressing it by mistake doesn’t close everything.', { disabled: () => !!value('keepInMenuBar') }),
-          toggle('keepInMenuBar', 'Keep Cra in the menu bar', 'In the menu bar, ⌘Q closes Cra’s windows but leaves it running.'),
+          toggle('warnBeforeQuitting', 'Warn before quitting', '⌘Q asks “Quit Pane?” first, so pressing it by mistake doesn’t close everything.', { disabled: () => !!value('keepInMenuBar') }),
+          toggle('keepInMenuBar', 'Keep Pane in the menu bar', 'In the menu bar, ⌘Q closes Pane’s windows but leaves it running.'),
         ]),
         card('Sleeping tabs', [
           toggle('tabSleepTimerEnabled', 'Force tabs out of memory', 'A tab you haven’t used for a while is forced out of memory and reloads when you open it.'),
@@ -261,11 +261,10 @@
           toggle('tabSleepOnMemoryPressure', 'When the Mac is short of memory', 'While macOS is short of memory, the tabs hidden longest are forced out of it, a few at a time.'),
         ], { footnote: 'A tab forced out of memory reloads when you open it. Tabs playing sound, recording, holding text you typed or set to Load on Start stay.' }),
         card('Updates', [
-          toggle('automaticallyUpdates', 'Automatically update Cra', 'Cra downloads new versions in the background and installs them the next time it opens.', { disabled: () => !updates().available }),
+          toggle('automaticallyUpdates', 'Automatically update Pane', 'Pane downloads new versions in the background and installs them the next time it opens.', { disabled: () => !updates().available }),
           button('Check for updates', () => updates().summary || '', 'Check Now', 'checkForUpdates'),
         ]),
         syncCard(),
-        appIconCard(),
       ];
     },
 
@@ -313,6 +312,8 @@
           button('Space theme', 'The colors, gradient and grain of the space on screen.', 'Edit Theme…', 'editTheme'),
           select('websiteAppearance', 'Websites', options('websiteAppearance'), 'Websites, Easels and this page use light or dark.'),
         ]),
+        // Appearance ▸ App Icon (12 Nov 2026, with Pane's icons; was under General).
+        appIconCard(),
         card('Spaces', [
           defaultTintRow(),
           row({ title: 'Default opacity', detail: 'How much of the desktop a new space’s theme lets through.', trailing: el('div', { class: 'slider' }, opacity, shown), search: 'transparency vibrancy' }),
@@ -326,7 +327,7 @@
           button('Fonts', 'Sizes and typefaces websites use.', 'Customize Fonts…', 'openURL', { url: 'chrome://settings/fonts' }),
         ]),
         card('Sound & websites', [
-          toggle('soundEffects', 'Play Cra sound effects', 'A camera shutter sounds when you capture a screenshot of a page.'),
+          toggle('soundEffects', 'Play Pane sound effects', 'A camera shutter sounds when you capture a screenshot of a page.'),
           toggle('shareThemeWithWebsites', 'Allow websites to get your theme data', 'Sites that ask can read your space’s colors and match their pages to them.'),
         ]),
       ];
@@ -356,7 +357,7 @@
           toggle('middleClickUnloadsTab', 'Middle-click a tab to unload it instead of closing it', 'The tab stays in the sidebar with its memory freed, and loads again when you open it.'),
           toggle('folderPreviews', 'Preview a folder’s tabs when hovering over it', 'Hover over a closed folder to see the tabs inside it.'),
           toggle('autoPictureInPicture', 'Enable Picture in Picture when you leave a video tab', 'For every site you haven’t switched yourself: a site switched in its Extensions menu keeps that until you switch it again.'),
-        ], { footnote: 'Right-click a tab ▸ Load on Start to have it load when Cra opens and stay in memory.' }),
+        ], { footnote: 'Right-click a tab ▸ Load on Start to have it load when Pane opens and stay in memory.' }),
         card('Favorites', [
           toggle('favoritePreviews', 'Preview unread Gmail when hovering its favorite', 'Hover over Gmail in your Favorites to see your unread mail.'),
           toggle('favoriteLogoOutline', 'Outline the open favorite in its logo’s colors', 'The open favorite gets a rim in its logo’s colors instead of a plain one.'),
@@ -372,7 +373,7 @@
         ]),
         card('Little Windows & Peek', [
           toggle('openExternalLinksInLittleWindow', 'Links from other apps open in a Little Window', 'A link you click in Mail, Slack or another app opens in a small window you can read and close, instead of a new tab in your sidebar.'),
-          toggle('littleWindowShortcutEverywhere', 'Open a Little Window from any app with its shortcut', 'Press its shortcut wherever you are to open a Little Window, even while Cra isn’t in front.'),
+          toggle('littleWindowShortcutEverywhere', 'Open a Little Window from any app with its shortcut', 'Press its shortcut wherever you are to open a Little Window, even while Pane isn’t in front.'),
           select('littleWindowArchiveAfter', 'Archive Little Windows after', options('littleWindowArchiveAfter'), 'A Little Window you leave alone closes into the archive, where you can find it again.'),
           toggle('peekLinksToOtherSites', 'Open a Peek window when clicking on links to other sites', 'A link to another site opens in a Peek over the page, so you can read it and close it without losing your place.'),
           toggle('peekInEveryTab', 'In every tab, not only Favorites and Pinned tabs', null, { disabled: () => !value('peekLinksToOtherSites') }),
@@ -395,7 +396,7 @@
         count.textContent = f ? `${n} of ${(data.shortcuts || []).length}` : `${(data.shortcuts || []).length} commands`;
       });
       const resetAll = el('button', { class: 'btn small', type: 'button' }, 'Reset All');
-      resetAll.addEventListener('click', () => pageDialog({ title: 'Reset every shortcut?', message: 'Every command goes back to Cra’s own shortcut. Ones you added are removed.',
+      resetAll.addEventListener('click', () => pageDialog({ title: 'Reset every shortcut?', message: 'Every command goes back to Pane’s own shortcut. Ones you added are removed.',
         confirmLabel: 'Reset All', destructive: true }).then((r) => { if (r.ok) run('resetAllShortcuts').catch(() => {}); }));
       return [
         el('section', { class: 'block toolbar' },
@@ -408,19 +409,19 @@
     privacy() {
       return [
         card('Content blocking', [
-          toggle('blockAdsAndTrackers', 'Block ads and trackers', 'Cra’s own lists, on every site you visit.'),
+          toggle('blockAdsAndTrackers', 'Block ads and trackers', 'Pane’s own lists, on every site you visit.'),
           toggle('blockCookieBanners', 'Block cookie banners', 'Cookie banners from the common consent tools are hidden. Pages load again with the change.'),
           // Not in Arc or Dia: Cra's Chromium (scripts/cef-patches/fingerprinting-protection.patch).
-          toggle('fingerprintingProtection', 'Fingerprinting protection', 'Sites that tell browsers apart by reading back drawings, 3D graphics or sound get faint noise in what they read, different for each site and each time Cra opens. Sites also see 8 processor cores.'),
+          toggle('fingerprintingProtection', 'Fingerprinting protection', 'Sites that tell browsers apart by reading back drawings, 3D graphics or sound get faint noise in what they read, different for each site and each time Pane opens. Sites also see 8 processor cores.'),
         ]),
         card('Connections', [
-          toggle('httpsOnly', 'Always use secure connections', 'Pages load over HTTPS, and Cra asks before one that can’t.'),
+          toggle('httpsOnly', 'Always use secure connections', 'Pages load over HTTPS, and Pane asks before one that can’t.'),
           select('secureDNS', 'Secure DNS', () => {
             const d = (S && S.dns) || { providers: [] };
             return [{ value: 'automatic', label: 'Automatic' }, { value: 'off', label: 'Off' }]
               .concat(d.providers.map((p) => ({ value: 'provider:' + p.id, label: p.name })))
               .concat(d.choice === 'custom' ? [{ value: 'custom', label: 'Custom' }] : []);
-          }, (() => { const d = el('span'); control(() => { d.textContent = (S && S.dns && S.dns.summary) || 'How Cra looks up a site before it loads.'; }); return d; })(), {
+          }, (() => { const d = el('span'); control(() => { d.textContent = (S && S.dns && S.dns.summary) || 'How Pane looks up a site before it loads.'; }); return d; })(), {
             current: () => (S && S.dns && S.dns.choice) || 'automatic',
             disabled: () => !(S && S.dns && S.dns.available) || (S.dns && S.dns.managed),
             onchange: (v) => run('secureDNS', { choice: v }).catch(() => {}).finally(update),
@@ -440,10 +441,10 @@
       const launch = () => (S && S.extra) || {};
       return [
         card('Engine', [
-          toggle('chromeEngine', 'Chrome engine for pages', 'Extensions and Chrome DevTools. Restart Cra to apply a change.'),
+          toggle('chromeEngine', 'Chrome engine for pages', 'Extensions and Chrome DevTools. Restart Pane to apply a change.'),
           toggle('hardwareAcceleration', 'Use hardware acceleration when available', () => (value('hardwareAcceleration') !== launch().accelerationAtLaunch
-            ? 'Takes effect the next time Cra opens.' : 'Pages draw on the graphics card. Off can help with a glitching display.')),
-          button('Restart', 'Close and open Cra again, with the windows you have open.', 'Restart Cra', 'relaunch'),
+            ? 'Takes effect the next time Pane opens.' : 'Pages draw on the graphics card. Off can help with a glitching display.')),
+          button('Restart', 'Close and open Pane again, with the windows you have open.', 'Restart Pane', 'relaunch'),
         ]),
         card('Websites', [
           // Arc's, under the toolbar too (#363): the band is 60 pt from the card's top, its bar included.
@@ -461,7 +462,7 @@
         ]),
         card('Diagnostics', [
           toggle('perfRecording', 'Record performance', 'Saved on this Mac only; nothing leaves it.'),
-          button('Diagnostics', 'A file with Cra’s logs for a bug report, site names left out.', 'Export Diagnostics…', 'exportDiagnostics'),
+          button('Diagnostics', 'A file with Pane’s logs for a bug report, site names left out.', 'Export Diagnostics…', 'exportDiagnostics'),
         ]),
         card('About', [
           row({ title: 'Version', detail: (() => { const d = el('span'); control(() => { d.textContent = (S && S.version) || ''; }); return d; })() }),
@@ -528,7 +529,7 @@
         card('Profiles', [profiles], { footnote: 'Profiles keep logins, cookies and site data apart. A Space picks its Profile in Spaces ▸ Change Profile. Spaces on the same Profile share their logins. Only Profiles no Space uses can be deleted.' }),
         create,
         card('Downloads', [downloads], { footnote: 'Where each Profile saves downloaded files.' }),
-        card('Languages', [languages], { footnote: 'The languages websites show their pages in for each Profile, most wanted first. Cra itself stays in English.' }),
+        card('Languages', [languages], { footnote: 'The languages websites show their pages in for each Profile, most wanted first. Pane itself stays in English.' }),
         card('Your data and settings', [dataRows]),
       ];
     },
@@ -542,7 +543,7 @@
         h.replaceChildren(...x.list.map((e) => {
           const r = row({ title: `${e.name} ${e.version}`, detail: e.description || null, search: e.name,
             trailing: actionButton(e.managedByChrome ? 'Remove…' : 'Remove', 'removeExtension', { id: e.id }) });
-          const ic = el('span', { class: 'favicon ext-icon' }, el('img', { alt: '', src: `cra://settings/extension-icon/${encodeURIComponent(e.id)}` }));
+          const ic = el('span', { class: 'favicon ext-icon' }, el('img', { alt: '', src: `pane://settings/extension-icon/${encodeURIComponent(e.id)}` }));
           ic.querySelector('img').addEventListener('error', (ev) => { ev.target.replaceWith(el('span', { html: icon('extensions') })); });
           r.prepend(ic);
           return r;
@@ -551,7 +552,7 @@
       const manager = actionButton('Open Chrome’s Extension Manager', 'openURL', { url: 'chrome://extensions' });
       control(() => { manager.disabled = !X().chromeEngine; });
       return [
-        card('Installed extensions', [host], { footnote: () => (X().chromeEngine ? (X().needsRestart ? 'Restart Cra to apply the change.' : 'Extensions load when Cra starts.') : 'Extensions need the Chrome engine (Advanced).') }),
+        card('Installed extensions', [host], { footnote: () => (X().chromeEngine ? (X().needsRestart ? 'Restart Pane to apply the change.' : 'Extensions load when Pane starts.') : 'Extensions need the Chrome engine (Advanced).') }),
         el('div', { class: 'card-actions' }, actionButton('Add Unpacked Extension…', 'addExtension'), manager),
       ];
     },
@@ -611,7 +612,7 @@
     },
 
     performance() {
-      const recording = toggle('perfRecording', 'Record performance in the background', 'Off, Cra measures itself only while this page is open, so nothing wakes it up meanwhile.');
+      const recording = toggle('perfRecording', 'Record performance in the background', 'Off, Pane measures itself only while this page is open, so nothing wakes it up meanwhile.');
       const body = el('div');
       list(body, () => S && [S.settings && S.settings.perfRecording, S.performance], (h) => {
         const p = (S && S.performance) || {};
@@ -633,7 +634,7 @@
       const copy = el('button', { class: 'btn', type: 'button' }, 'Copy Summary');
       copy.addEventListener('click', () => run('perfCopySummary').then(() => toast('Summary copied')).catch(() => {}));
       return [
-        card(null, [recording], { footnote: 'Cra measures itself on this Mac: freezes, CPU and memory per process, tab timings. Nothing leaves the Mac unless you export it.' }),
+        card(null, [recording], { footnote: 'Pane measures itself on this Mac: freezes, CPU and memory per process, tab timings. Nothing leaves the Mac unless you export it.' }),
         body,
         card('Export', [
           toggle('perfHidesSiteNames', 'Hide site names', 'Sites in the exported files become site-1, site-2… in every file, logs included.'),
@@ -670,7 +671,7 @@
     return row({ title: 'Default color', detail: 'What a space with no color of its own is painted, see-through as the space is.', trailing: [reset, chips], search: 'default space color tint theme pastel' });
   }
 
-  // MARK: General ▸ Sync and App Icon, Tabs & Spaces ▸ Air Traffic Control
+  // MARK: General ▸ Sync, Appearance ▸ App Icon, Tabs & Spaces ▸ Air Traffic Control
 
   // Advanced ▸ Agents: the local MCP server (upstream 31187f8, #193). Off by default; Cra asks once
   // per agent, and scripts and history stay off unless switched on here.
@@ -678,32 +679,32 @@
     const host = el('div');
     list(host, () => S && S.mcp, (h, m) => {
       if (!m) return;
-      const rows = [row({ title: 'Allow local agents to control Cra', detail: `Connected agents can read pages and act using your signed-in sessions. ${m.status}`,
+      const rows = [row({ title: 'Allow local agents to control Pane', detail: `Connected agents can read pages and act using your signed-in sessions. ${m.status}`,
         trailing: switchControl(m.enabled, false, (on) => run('mcpEnabled', { on }).catch(() => update())), search: 'mcp agents claude cursor codex' })];
       if (m.enabled) {
         // Add Cra to an agent (upstream 241cc8c): a tile per popular agent writes Cra into its MCP
         // settings; right-click for Remove and Show Settings File. Other Agent lists the rest.
         const caption = (a) => ({ current: '✓ Added', outdated: 'Update', unreadable: 'Can’t edit its settings' }[a.state] || (a.installed ? (a.detail || 'Add') : 'Not on this Mac'));
-        const help = (a) => (!a.installed ? `Cra didn’t find ${a.name} on this Mac.` : {
-          current: `Cra is in ${a.name}’s MCP settings.`, outdated: `${a.name} has Cra at another location. Click to point it at this Cra.`,
-          unreadable: `${a.name}’s settings file isn’t one Cra can change safely. Copy the configuration and add it by hand.`,
-        }[a.state] || `Add Cra to ${a.name}’s MCP settings.`);
+        const help = (a) => (!a.installed ? `Pane didn’t find ${a.name} on this Mac.` : {
+          current: `Pane is in ${a.name}’s MCP settings.`, outdated: `${a.name} has Pane at another location. Click to point it at this Pane.`,
+          unreadable: `${a.name}’s settings file isn’t one Pane can change safely. Copy the configuration and add it by hand.`,
+        }[a.state] || `Add Pane to ${a.name}’s MCP settings.`);
         const tiles = el('div', { class: 'agent-tiles' }, ...(m.apps || []).filter((a) => a.popular).map((a) => el('button', {
           class: `agent-tile ${a.state}`, type: 'button', disabled: !a.installed, title: help(a), 'aria-label': a.name,
           onclick: () => run('mcpAgentAdd', { id: a.id }).catch(() => {}),
           oncontextmenu: (e) => { e.preventDefault(); run('mcpAgentMenu', { id: a.id }).catch(() => {}); },
-        }, a.hasIcon ? el('img', { class: 'agent-icon', alt: '', src: `cra://settings/agent-icon/${encodeURIComponent(a.id)}` }) : el('span', { class: 'agent-icon terminal' }, '>_'),
+        }, a.hasIcon ? el('img', { class: 'agent-icon', alt: '', src: `pane://settings/agent-icon/${encodeURIComponent(a.id)}` }) : el('span', { class: 'agent-icon terminal' }, '>_'),
         el('span', { class: 'agent-text' }, el('span', { class: 'agent-name' }, a.name), el('span', { class: 'agent-state' }, caption(a))))));
         rows.push(el('div', { class: 'row agent-block', dataset: { search: 'add cra to an agent mcp claude code cowork codex cursor t3 conductor' } },
-          el('div', { class: 'label' }, el('div', { class: 'title' }, 'Add Cra to an agent'),
-            el('div', { class: 'detail' }, 'Cra writes itself into the agent’s MCP settings. Each agent asks before it uses Cra the first time.')),
+          el('div', { class: 'label' }, el('div', { class: 'title' }, 'Add Pane to an agent'),
+            el('div', { class: 'detail' }, 'Pane writes itself into the agent’s MCP settings. Each agent asks before it uses Pane the first time.')),
           tiles,
           el('div', { class: 'agent-actions' },
             el('button', { class: 'btn small', type: 'button', onclick: () => run('mcpAgentMenu').catch(() => {}) }, 'Other Agent…'),
             el('button', { class: 'btn small', type: 'button', onclick: () => run('mcpCopyConfiguration').then(() => toast('MCP configuration copied')).catch(() => {}) }, 'Copy MCP Configuration')),
           m.message ? el('p', { class: `footnote${m.messageIsError ? ' error' : ''}` }, m.message) : null));
         rows.push(row({ title: 'Last tool', detail: m.lastTool || 'None' }));
-        rows.push(row({ title: 'Let agents run JavaScript in pages', detail: 'A script can read anything a page holds, including passwords Cra fills in.',
+        rows.push(row({ title: 'Let agents run JavaScript in pages', detail: 'A script can read anything a page holds, including passwords Pane fills in.',
           trailing: switchControl(m.scripts, false, (on) => run('mcpScripts', { on }).catch(() => update())) }));
         rows.push(row({ title: 'Let agents read your history',
           trailing: switchControl(m.history, false, (on) => run('mcpHistory', { on }).catch(() => update())) }));
@@ -735,7 +736,7 @@
       if (y.location === 'folder') rows.push(row({ title: 'Sync folder', detail: y.folder, trailing: actionButton('Stop Syncing', 'syncStop') }));
       else if (!y.location) rows.push(row({ title: 'Or sync through a folder in Dropbox, OneDrive or a similar service', trailing: actionButton('Use a Folder…', 'syncFolder') }));
       if (y.location) rows.push(row({ title: y.status, cls: y.failed ? 'error' : '', trailing: y.otherDevices.length ? el('span', { class: 'value wide' }, 'Also on ' + y.otherDevices.join(', ')) : null }));
-      rows.push(row({ title: 'Settings file', detail: 'Your sidebar, settings and shortcuts in a “Cra” folder.', trailing: [actionButton('Export…', 'syncExport'), actionButton('Import…', 'syncImport')] }));
+      rows.push(row({ title: 'Settings file', detail: 'Your sidebar, settings and shortcuts in a “Pane” folder.', trailing: [actionButton('Export…', 'syncExport'), actionButton('Import…', 'syncImport')] }));
       h.replaceChildren(...rows);
     });
     return card('Sync', [host], { footnote: () => (S && S.sync && S.sync.notice) || 'Spaces, pinned tabs, favorites, folders, settings and shortcuts sync. Logins, cookies, history and extensions stay on each Mac.' });
@@ -749,7 +750,7 @@
       h.replaceChildren(...a.list.map((i) => {
         const custom = i.id === 'custom';
         const img = custom && !a.hasCustom ? el('span', { class: 'icon-empty', html: icon('plus') })
-          : el('img', { alt: '', src: `cra://settings/app-icon/${encodeURIComponent(i.id)}?v=${a.selected}${a.hasCustom}` });
+          : el('img', { alt: '', src: `pane://settings/app-icon/${encodeURIComponent(i.id)}?v=${a.selected}${a.hasCustom}` });
         return el('button', { class: `icon-tile${a.selected === i.id ? ' selected' : ''}`, type: 'button', title: i.name,
           onclick: () => run('appIcon', { id: i.id }).catch(() => {}) }, el('span', { class: 'icon-frame' }, img), el('span', { class: 'icon-name' }, i.name));
       }));
@@ -758,7 +759,7 @@
     return card('App Icon', [
       el('div', { class: 'row tiles-row', dataset: { search: 'app icon dock' } }, tiles),
       row({ title: 'Your own icon', trailing: [remove, actionButton('Choose Image…', 'appIconChoose')], search: 'custom icon image' }),
-    ], { footnote: 'Pick any image. It’s sized to match the other icons in the Dock, and the Dock keeps it after Cra quits.' });
+    ], { footnote: 'Pick any image. It’s sized to match the other icons in the Dock, and the Dock keeps it after Pane quits.' });
   }
 
   function destinationSelects(token, spaces, onchange) {
@@ -789,7 +790,7 @@
         const match = el('select', { 'aria-label': 'Match' }, ...r.matchStyles.map((m) => el('option', { value: m.value }, m.label)));
         match.value = route.match;
         match.addEventListener('change', () => run('editRoute', { id: route.id, match: match.value }).catch(() => {}));
-        const text = el('input', { class: 'text-input', value: route.text, placeholder: 'crabrowser.app', spellcheck: 'false', 'aria-label': 'URL' });
+        const text = el('input', { class: 'text-input', value: route.text, placeholder: 'pane.uz', spellcheck: 'false', 'aria-label': 'URL' });
         text.addEventListener('change', () => run('editRoute', { id: route.id, text: text.value.trim() }).catch(() => {}));
         const dest = destinationSelects(route.destination, r.spaces, (v) => run('editRoute', { id: route.id, destination: v }).catch(() => {}));
         return el('div', { class: 'row route', dataset: { search: `air traffic control route ${route.text}` } },
@@ -844,7 +845,7 @@
     f.classList.add('letter');
     f.replaceChildren(document.createTextNode(letter));
     if (!host) return;
-    const img = el('img', { alt: '', src: `cra://settings/favicon/${encodeURIComponent(host)}` });
+    const img = el('img', { alt: '', src: `pane://settings/favicon/${encodeURIComponent(host)}` });
     img.addEventListener('load', () => { f.classList.remove('letter'); f.style.background = ''; f.firstChild && f.firstChild.nodeType === 3 && f.firstChild.remove(); });
     img.addEventListener('error', () => img.remove());
     f.append(img);
@@ -907,7 +908,7 @@
         else if (s.caps.length) keys = el('span', { class: 'chords' }, ...s.caps.flatMap((c, i) => (i ? [el('span', { class: 'or' }, 'or'), keyCaps(c)] : [keyCaps(c)])));
         else keys = el('span', { class: 'chord' }, el('span', { class: 'keycap-none' }, 'Add shortcut'));
         const tools = el('span', { class: 'edit' },
-          s.overridden ? iconButton('reset', `Back to Cra’s shortcut for ${s.name}`, (e) => { e.stopPropagation(); run('resetShortcut', { id: s.id }).catch(() => {}); }) : null);
+          s.overridden ? iconButton('reset', `Back to Pane’s shortcut for ${s.name}`, (e) => { e.stopPropagation(); run('resetShortcut', { id: s.id }).catch(() => {}); }) : null);
         return row({ title: s.name, detail: s.overridden ? 'Changed' : null, trailing: [tools, keys], cls: `shortcut${recording ? ' recording' : ''}${s.overridden ? ' changed' : ''}`,
           search: `${s.name} ${s.keys.join(' ')}`, onclick: () => run(recording ? 'stopRecording' : 'recordShortcut', { id: s.id }).catch(() => {}) });
       });
@@ -970,7 +971,7 @@
       if (editing && editing.replaces) args.replaces = editing.replaces;
       bridge.action(editing && editing.id ? 'editSite' : 'addSite', args)
         .then((s) => { if (s) apply(s); closeDialog(d); toast(editing ? `${args.name} saved` : `${args.name} added`); })
-        .catch((err) => hint(typeof err === 'string' ? err : (err && err.message) || 'Cra couldn’t save it.'));
+        .catch((err) => hint(typeof err === 'string' ? err : (err && err.message) || 'Pane couldn’t save it.'));
     });
   }
 
@@ -1078,7 +1079,7 @@
     if (first) render(); else update();
   }
 
-  // Cra moves the page to a section (⌘, with one in mind, cra://settings/<section> typed).
+  // Cra moves the page to a section (⌘, with one in mind, pane://settings/<section> typed).
   window.craSettingsShow = (section) => show(section, { report: false });
 
   document.addEventListener('DOMContentLoaded', () => {
@@ -1113,7 +1114,7 @@
       }
     }, true);
     bridge.state().then(apply).catch((e) => {
-      $('#content').replaceChildren(el('h1', { class: 'page-title' }, 'Settings'), el('div', { class: 'card' }, el('div', { class: 'empty' }, (e && e.message) || 'Settings opens in Cra.')));
+      $('#content').replaceChildren(el('h1', { class: 'page-title' }, 'Settings'), el('div', { class: 'card' }, el('div', { class: 'empty' }, (e && e.message) || 'Settings opens in Pane.')));
     });
   });
 })();

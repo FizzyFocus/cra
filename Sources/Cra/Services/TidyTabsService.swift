@@ -179,7 +179,7 @@ struct TidyAnswer {
 @available(macOS 26.0, *)
 @Generable
 struct TidyGroup {
-    @Guide(description: "What the tabs have in common, in one or two words, like a folder name: 'Planets', 'Trip to Lisbon', 'Cra Pull Requests'")
+    @Guide(description: "What the tabs have in common, in one or two words, like a folder name: 'Planets', 'Trip to Lisbon', 'Pane Pull Requests'")
     var name: String
     @Guide(description: "Ids of every tab that belongs in this group")
     var tabs: [Int]

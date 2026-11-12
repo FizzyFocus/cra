@@ -44,9 +44,10 @@ enum WebKitStores {
         return URL(fileURLWithPath: p).lastPathComponent
     }
 
-    /// A stable UUID (version 8, name-based) for the data folder plus the profile.
+    /// A stable UUID (version 8, name-based) for the data folder plus the profile. The default
+    /// folder hashes as Cra's (AppPaths.identityDir), so the stores LegacyDataMigration copied keep their ids.
     static func identifier(forProfileKey key: String) -> UUID {
-        let digest = SHA256.hash(data: Data("cra-webkit|\(AppPaths.supportDir.standardizedFileURL.path)|\(key)".utf8))
+        let digest = SHA256.hash(data: Data("cra-webkit|\(AppPaths.identityDir.standardizedFileURL.path)|\(key)".utf8))
         var b = Array(digest.prefix(16))
         b[6] = (b[6] & 0x0F) | 0x80
         b[8] = (b[8] & 0x3F) | 0x80

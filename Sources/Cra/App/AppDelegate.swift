@@ -192,7 +192,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         CraCEFRuntime.setExtensionTabHandler { [weak self] url, profile, background, opener in
             MainActor.assumeIsolated {
                 // A cra: address never opens from a page or an extension, as BrowserManager drops page popups to one.
-                guard let self, !url.lowercased().hasPrefix("cra:"), !dropsStartUpPage(url) else { return nil }
+                guard let self, !InternalScheme.isInternal(url), !dropsStartUpPage(url) else { return nil }
                 let window = self.useNormalWindow()
                 guard let opened = self.openExtensionPage(url, window: window.windowID, profile: profile, select: !background),
                       let controller = self.mainWindows.first(where: { $0.windowID == opened.window }) else { return nil }
@@ -524,13 +524,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         CraLog.note("quit asks: downloads in progress")
         let alert = AppDialog(title: "Downloads in progress",
                               message: "There are downloads in progress. Closing the application will cancel them.",
-                              actions: [DialogAction("Close Cra"), DialogAction("Keep browsing", role: .cancel)],
+                              actions: [DialogAction("Close Pane"), DialogAction("Keep browsing", role: .cancel)],
                               icon: .application)
         return alert.runModal() == .alertFirstButtonReturn
     }
 
     private func confirmQuit() -> Bool {
-        let alert = AppDialog(title: "Quit Cra?",
+        let alert = AppDialog(title: "Quit Pane?",
                               actions: [DialogAction("Quit"), .cancel, DialogAction("Quit, and don’t ask again", role: .secondary)],
                               icon: .application, buttonSpacing: 45.5)
         switch alert.runModal() {
@@ -546,11 +546,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         // A link from another app soon after starting on a new tab: its tab is what the window
         // shows, so the bar that was waiting for a new tab goes.
         if store.settings.startOnNewTab, let m = main, m.commandBar.isOpen, m.selectedTab == nil { m.commandBar.close() }
-        if let u = URL(string: url), u.scheme?.lowercased() == "cra" {
+        if let u = URL(string: url), InternalScheme.owns(scheme: u.scheme) {
             if Self.isUserFacing(u) || UserDefaults.standard.bool(forKey: "scriptingURLs") {
                 handleInternalURL(u)
             } else {
-                NSLog("Cra: ignored %@ from another app (defaults write dk.kildahl.cra scriptingURLs -bool YES allows it)", url)
+                NSLog("Pane: ignored %@ from another app (defaults write uz.pane.browser scriptingURLs -bool YES allows it)", url)
             }
             return
         }
@@ -598,7 +598,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         menu.addItem(.separator())
         menu.addItem(item("settings"))
         menu.addItem(.separator())
-        menu.addItem(withTitle: "Quit Cra", action: #selector(quitFromMenuBar), keyEquivalent: "").target = self
+        menu.addItem(withTitle: "Quit Pane", action: #selector(quitFromMenuBar), keyEquivalent: "").target = self
     }
 
     /// The menu bar item's Quit, and `cra://debug?quit=1`: Cra quits for real.
@@ -835,7 +835,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     /// and nothing opens in a Little Window, whose pages load in the normal profile.
     func openLink(_ url: String, in kind: CraLinkWindow, space: UUID?, fromIncognito: Bool) {
         // cra:// is Cra's scripting scheme; a page must not drive it.
-        if url.lowercased().hasPrefix("cra:") { return }
+        if InternalScheme.isInternal(url) { return }
         switch kind {
         case .little where !fromIncognito: openLittleWindow(url: url, space: space)
         case .incognito: openNewWindow(incognito: true, url: url)
@@ -2322,7 +2322,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         let info = Bundle.main.infoDictionary
         let os = ProcessInfo.processInfo.operatingSystemVersion
         return """
-        Cra \(info?["CFBundleShortVersionString"] as? String ?? "") (\(info?["CFBundleVersion"] as? String ?? ""))
+        Pane \(info?["CFBundleShortVersionString"] as? String ?? "") (\(info?["CFBundleVersion"] as? String ?? ""))
         Chromium \(CraCEFRuntime.chromiumVersion()) · CEF \(CraCEFRuntime.cefVersion())
         macOS \(os.majorVersion).\(os.minorVersion).\(os.patchVersion)
         """
@@ -2382,8 +2382,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     func buildMenus() {
         let menubar = NSMenu()
 
-        let appMenu = NSMenu(title: "Cra")
-        appMenu.addItem(withTitle: "About Cra", action: #selector(showAbout), keyEquivalent: "").target = self
+        let appMenu = NSMenu(title: "Pane")
+        appMenu.addItem(withTitle: "About Pane", action: #selector(showAbout), keyEquivalent: "").target = self
         appMenu.addItem(.separator())
         appMenu.addItem(item("settings"))
         let setDefault = item("setDefaultBrowser")
@@ -2394,12 +2394,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         appMenu.addItem(item("importData"))
         appMenu.addItem(item("checkForUpdates"))
         appMenu.addItem(.separator())
-        appMenu.addItem(std("Hide Cra", #selector(NSApplication.hide(_:)), "h"))
+        appMenu.addItem(std("Hide Pane", #selector(NSApplication.hide(_:)), "h"))
         appMenu.addItem(std("Hide Others", #selector(NSApplication.hideOtherApplications(_:)), "h", [.command, .option]))
         appMenu.addItem(std("Show All", #selector(NSApplication.unhideAllApplications(_:))))
         appMenu.addItem(.separator())
-        appMenu.addItem(std("Quit Cra", #selector(NSApplication.terminate(_:)), "q"))
-        menubar.addItem(submenu: appMenu, title: "Cra")
+        appMenu.addItem(std("Quit Pane", #selector(NSApplication.terminate(_:)), "q"))
+        menubar.addItem(submenu: appMenu, title: "Pane")
 
         // Arc's File menu, its sections and rows (FileMenu, #279).
         let file = NSMenu(title: "File")
@@ -2510,8 +2510,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         help.addItem(withTitle: "Chromium \(CraCEFRuntime.chromiumVersion()) · CEF \(CraCEFRuntime.cefVersion())", action: nil, keyEquivalent: "")
         help.addItem(.separator())
         help.addItem(item("essentialShortcuts"))
-        for (title, url) in [("Cra Help", "https://crabrowser.app/help"), ("Release Notes", "https://crabrowser.app/release-notes"),
-                             ("Report an Issue…", "https://github.com/VictorKildahl/cra/issues"), ("Support Cra…", "https://crabrowser.app/support")] {
+        for (title, url) in [("\(Brand.name) Help", "\(Brand.site)/help"), ("Release Notes", "\(Brand.site)/release-notes"),
+                             ("Report an Issue…", "https://github.com/FizzyFocus/cra/issues"), ("Support \(Brand.name)…", "\(Brand.site)/support")] {
             let link = NSMenuItem(title: title, action: #selector(openHelpLink(_:)), keyEquivalent: "")
             link.target = self
             link.representedObject = SiteLinks.tagged(url, from: .helpMenu)
@@ -2548,10 +2548,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         let info = Bundle.main.infoDictionary
         let version = info?["CFBundleShortVersionString"] as? String ?? ""
         let build = info?["CFBundleVersion"] as? String ?? ""
+        // Pane is a fork of Cra (MIT): its notice goes with the app, as the licence asks.
+        let credits = NSMutableAttributedString(string: "pane.uz\nBased on Cra by Victor Kildahl (MIT licence).",
+                                                attributes: [.font: NSFont.systemFont(ofSize: 11), .foregroundColor: NSColor.secondaryLabelColor])
+        credits.addAttribute(.link, value: Brand.site, range: NSRange(location: 0, length: 7))
+        let centred = NSMutableParagraphStyle()
+        centred.alignment = .center
+        credits.addAttribute(.paragraphStyle, value: centred, range: NSRange(location: 0, length: credits.length))
         NSApp.orderFrontStandardAboutPanel(options: [
-            .applicationName: "Cra",
+            .applicationName: Brand.name,
             .applicationVersion: version,
             .version: "\(build) · Chromium \(CraCEFRuntime.chromiumVersion())",
+            .credits: credits,
         ])
     }
 }

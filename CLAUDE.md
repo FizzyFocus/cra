@@ -65,3 +65,14 @@ touches it anyway, not as a side errand.
 - `UI/Windows/ExtensionLaunch.swift`, `Services/DevToolsToggle.swift` and
   `UI/Windows/FloatingSidebarGeometry.swift`: policies, tested by
   `scripts/test-policies.sh` and `scripts/test-floating-sidebar.sh`.
+
+## Brand: Pane outside, Cra inside
+
+This fork ships as **Pane** (pane.uz, `uz.pane.browser`, `build/Pane.app`, `pane://`) since 12 Nov
+2026. Module, target, type and file names keep Cra's (`CraCore`, `CraBrowser`, `CraWindow`,
+`Sources/Cra`) so commits from upstream VictorKildahl/cra still port: never rename a Swift symbol
+for the brand. What a person sees says Pane: write `Brand.name` / `Brand.site` (CraCore `Brand`),
+and `InternalScheme` for the scheme (`pane://` canonical, `cra://` an alias everywhere, refused from
+pages like it). Debug log lines (`Cra windows:`, `Cra cdp …`) and the `Cra Safe Storage` Keychain
+item keep their names: scenarios match the logs, and the patched CEF reads that item.
+`LegacyDataMigration` copies Cra's data folder, defaults and WebKit stores on Pane's first launch.

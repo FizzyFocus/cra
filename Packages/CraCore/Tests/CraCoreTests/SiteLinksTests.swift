@@ -3,25 +3,33 @@ import Testing
 
 /// Visits from the app's buttons showed up as "Direct / None" on the site's analytics.
 struct SiteLinksTests {
+    /// Pane's own site since the rebrand (12 Nov 2026); crabrowser.app links are tagged as before.
+    @Test func tagsPaneLinks() {
+        #expect(SiteLinks.tagged("https://pane.uz/release-notes", from: .whatsNew)
+            == "https://pane.uz/release-notes?utm_source=pane-app&utm_campaign=whats-new")
+        #expect(SiteLinks.tagged("https://www.pane.uz/help", from: .helpMenu)
+            == "https://www.pane.uz/help?utm_source=pane-app&utm_campaign=help-menu")
+    }
+
     @Test func tagsSiteLinksWithTheButton() {
         #expect(SiteLinks.tagged("https://crabrowser.app/release-notes", from: .whatsNew)
-            == "https://crabrowser.app/release-notes?utm_source=cra-app&utm_campaign=whats-new")
+            == "https://crabrowser.app/release-notes?utm_source=pane-app&utm_campaign=whats-new")
         #expect(SiteLinks.tagged("https://www.crabrowser.app/help", from: .helpMenu)
-            == "https://www.crabrowser.app/help?utm_source=cra-app&utm_campaign=help-menu")
+            == "https://www.crabrowser.app/help?utm_source=pane-app&utm_campaign=help-menu")
     }
 
     @Test func keepsOtherParametersAndTheFragment() {
         #expect(SiteLinks.tagged("https://crabrowser.app/help/protected-media?x=1#spotify", from: .protectedMedia)
-            == "https://crabrowser.app/help/protected-media?x=1&utm_source=cra-app&utm_campaign=protected-media#spotify")
+            == "https://crabrowser.app/help/protected-media?x=1&utm_source=pane-app&utm_campaign=protected-media#spotify")
     }
 
     @Test func replacesATagAlreadyThere() {
         #expect(SiteLinks.tagged("https://crabrowser.app/?utm_campaign=old&utm_source=x", from: .helpMenu)
-            == "https://crabrowser.app/?utm_source=cra-app&utm_campaign=help-menu")
+            == "https://crabrowser.app/?utm_source=pane-app&utm_campaign=help-menu")
     }
 
     @Test(arguments: ["https://github.com/VictorKildahl/cra/issues", "http://crabrowser.app/help",
-                      "https://crabrowser.app.evil.example/", "https://evilcrabrowser.app/", "not a url"])
+                      "https://crabrowser.app.evil.example/", "https://evilcrabrowser.app/", "https://pane.uz.evil.example/", "http://pane.uz/help", "not a url"])
     func leavesEverythingElseAlone(url: String) {
         #expect(SiteLinks.tagged(url, from: .helpMenu) == url)
     }

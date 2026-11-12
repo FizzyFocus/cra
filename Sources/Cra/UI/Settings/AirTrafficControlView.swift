@@ -89,7 +89,7 @@ struct AirTrafficControlView: View {
                 }
                 .labelsHidden()
                 .frame(width: 110)
-                TextField("URL", text: binding(id, \.text), prompt: Text("crabrowser.app"))
+                TextField("URL", text: binding(id, \.text), prompt: Text("pane.uz"))
                     .textFieldStyle(.roundedBorder)
                     .focused($focusedRoute, equals: id)
                     .frame(width: 210)

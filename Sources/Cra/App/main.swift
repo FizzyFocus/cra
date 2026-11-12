@@ -11,6 +11,9 @@ MainActor.assumeIsolated {
     // Order matters: the CefAppProtocol NSApplication must exist before Chromium
     // initializes, and Chromium must be initialized before any browser is made.
     let app = CraApplication.shared
+    // Cra became Pane: a first launch copies Cra's data folder, defaults and WebKit stores,
+    // before anything reads (or makes) the data folder.
+    LegacyDataMigration.runIfNeeded()
     let delegate = AppDelegate()
     app.delegate = delegate
     Perf.phase("storeLoaded")
@@ -68,7 +71,7 @@ MainActor.assumeIsolated {
         exit(0)
     }
     if !started {
-        let alert = AppDialog(title: "Cra could not start Chromium",
+        let alert = AppDialog(title: "Pane could not start Chromium",
                               message: "Chromium Embedded Framework failed to initialize. See \(AppPaths.log.path).")
         alert.runModal()
         exit(1)

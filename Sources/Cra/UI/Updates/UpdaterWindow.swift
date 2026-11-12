@@ -69,8 +69,8 @@ struct UpdaterWindowView: View {
     }
 
     private var title: String {
-        if case .found(let r, _) = updater.phase { return "Cra \(r.version)" }
-        return "Cra"
+        if case .found(let r, _) = updater.phase { return "Pane \(r.version)" }
+        return "Pane"
     }
 
     private var subtitle: String {

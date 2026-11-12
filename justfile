@@ -16,17 +16,17 @@ fetch:
     scripts/fetch-cef.sh
     scripts/fetch-sparkle.sh
 
-# Builds build/Cra.app; `debug` for a debug build
+# Builds build/Pane.app; `debug` for a debug build
 [group('build')]
 build *args:
     scripts/build.sh "$@"
 
-# Opens build/Cra.app, building it if missing: [--rebuild [debug] [app arguments…]]
+# Opens build/Pane.app, building it if missing: [--rebuild [debug] [app arguments…]]
 [group('build')]
 run *args:
     scripts/run.sh "$@"
 
-# Dev loop: debug CraDev.app, rebuilt and relaunched on save; --once builds and launches once
+# Dev loop: debug PaneDev.app, rebuilt and relaunched on save; --once builds and launches once
 [group('build')]
 dev *args:
     scripts/dev.sh "$@"
@@ -36,17 +36,17 @@ dev *args:
 test *args:
     scripts/test.sh "$@"
 
-# Cra's own lint rules (part of test); --update-baseline lowers Tests/lint-baseline.txt
+# The app's own lint rules (part of test); --update-baseline lowers Tests/lint-baseline.txt
 [group('test')]
 lint *args:
     scripts/lint.py "$@"
 
-# Launches build/Cra.app (or the app given) three times with crash checks, about 30 s
+# Launches build/Pane.app (or the app given) three times with crash checks, about 30 s
 [group('test')]
 smoke *args:
     Tests/smoke-launch.sh "$@"
 
-# A user journey from Tests/Scenarios in build/Cra.app, or `all` (about 6 minutes)
+# A user journey from Tests/Scenarios in build/Pane.app, or `all` (about 6 minutes)
 [group('test')]
 scenario name:
     scripts/scenario.sh "$@"
@@ -66,17 +66,17 @@ fuzz:
 mutate *args:
     scripts/mutate.py "$@"
 
-# Sparkle end to end on a local feed, next to your Cra: [manual|idle|again|stop]
+# Sparkle end to end on a local feed, next to your Pane: [manual|idle|again|stop]
 [group('test')]
 test-update *args:
     scripts/test-update.sh "$@"
 
-# Packages build/Cra.app (or the app given) into build/dist: DMG, zip, checksums
+# Packages build/Pane.app (or the app given) into build/dist: DMG, zip, checksums
 [group('release')]
 package *args:
     scripts/package.sh "$@"
 
-# Writes build/dist/appcast.xml: [Cra.zip] [Cra.app] [release-notes.html]
+# Writes build/dist/appcast.xml: [Pane.zip] [Pane.app] [release-notes.html]
 [group('release')]
 appcast *args:
     scripts/appcast.sh "$@"

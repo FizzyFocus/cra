@@ -1486,7 +1486,7 @@ final class BrowserManager: NSObject, @preconcurrency CraBrowserDelegate {
     /// Today tab in `source`'s space, else the window's.
     func openLinkTab(_ url: String, from source: UUID?, inBackground background: Bool) {
         // cra:// is Cra's scripting scheme (DevTools Protocol, key presses); a page must not drive it.
-        if url.lowercased().hasPrefix("cra:") { return }
+        if InternalScheme.isInternal(url) { return }
         let sourceSpace = source.flatMap { store.spaceID(ofItem: $0) }
         let parentIndex = linkTabIndex(from: source)
         // Links from a today tab open below it, each under the last one it opened (TabLineage);
@@ -1512,7 +1512,7 @@ final class BrowserManager: NSObject, @preconcurrency CraBrowserDelegate {
     }
 
     func browser(_ browser: CraBrowser, popupHostForURL url: String, inBackground background: Bool) -> CraBrowser? {
-        if url.lowercased().hasPrefix("cra:") { return nil }
+        if InternalScheme.isInternal(url) { return nil }
         let source = tabID(of: browser)
         // The page opened a pop-up Chromium blocked before (a shared folder's next click): the
         // blocked pop-ups button no longer offers it (#357).

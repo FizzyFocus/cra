@@ -1,7 +1,7 @@
 import AppKit
 import Observation
 
-/// Settings ▸ Advanced ▸ Agents: adds Cra to an agent's MCP settings with one click
+/// Settings ▸ Advanced ▸ Agents: adds Pane to an agent's MCP settings with one click
 /// (MCPAgentSetup decides what goes in each file; this reads and writes them).
 @MainActor @Observable
 final class MCPAgentInstaller {
@@ -19,9 +19,10 @@ final class MCPAgentInstaller {
     private let home: URL = ProcessInfo.processInfo.environment["CRA_AGENT_CONFIG_HOME"]
         .map { URL(fileURLWithPath: $0, isDirectory: true) } ?? FileManager.default.homeDirectoryForCurrentUser
 
-    /// The development build adds itself as "cra-dev", next to the installed Cra.
+    /// The development build adds itself as "pane-dev", next to the installed Pane. An entry Cra
+    /// wrote ("cra", "cra-dev") shows as outdated, and adding replaces it.
     var entry: MCPServerEntry {
-        MCPServerEntry(name: Bundle.main.bundleIdentifier == "dk.kildahl.cra.dev" ? "cra-dev" : "cra",
+        MCPServerEntry(name: AppPaths.isDevBuild ? "pane-dev" : "pane",
                        command: Bundle.main.executablePath ?? "",
                        args: ["--mcp", AppPaths.file("mcp.sock").path])
     }
@@ -32,7 +33,7 @@ final class MCPAgentInstaller {
         for agent in MCPAgentSetup.agents {
             let files = targets(agent)
             states[agent.id] = MCPAgentSetup.combined(files.map {
-                MCPAgentSetup.state(of: entry, in: try? Data(contentsOf: url($0)), format: $0.format)
+                MCPAgentSetup.stateCountingLegacy(of: entry, in: try? Data(contentsOf: url($0)), format: $0.format)
             })
         }
     }
@@ -43,28 +44,28 @@ final class MCPAgentInstaller {
         let entry = entry
         do {
             for file in targets(agent) {
-                try edit(file) { try MCPAgentSetup.adding(entry, to: $0, format: file.format) }
+                try edit(file) { try MCPAgentSetup.addingReplacingLegacy(entry, to: $0, format: file.format) }
             }
-            say("Cra is added to \(agent.name). \(agent.afterAdding) Cra asks before it’s used the first time.")
+            say("Pane is added to \(agent.name). \(agent.afterAdding) Pane asks before it’s used the first time.")
         } catch let failure as Failure {
-            say("Cra couldn’t change \(failure.path), so it left the file as it was. Copy the configuration and add it by hand.", error: true)
+            say("Pane couldn’t change \(failure.path), so it left the file as it was. Copy the configuration and add it by hand.", error: true)
         } catch {
-            say("Cra couldn’t add itself to \(agent.name): \(error.localizedDescription)", error: true)
+            say("Pane couldn’t add itself to \(agent.name): \(error.localizedDescription)", error: true)
         }
         refresh()
     }
 
     func remove(_ agent: MCPAgentApp) {
-        let name = entry.name
+        let name = entry.name, legacy = MCPAgentSetup.legacyName(of: entry.name)
         do {
             for file in targets(agent) where FileManager.default.fileExists(atPath: url(file).path) {
-                try edit(file) { try MCPAgentSetup.removing(name, from: $0, format: file.format) }
+                try edit(file) { try MCPAgentSetup.removing(legacy, from: MCPAgentSetup.removing(name, from: $0, format: file.format), format: file.format) }
             }
-            say("Cra is removed from \(agent.name).")
+            say("Pane is removed from \(agent.name).")
         } catch let failure as Failure {
-            say("Cra couldn’t change \(failure.path), so it left the file as it was.", error: true)
+            say("Pane couldn’t change \(failure.path), so it left the file as it was.", error: true)
         } catch {
-            say("Cra couldn’t remove itself from \(agent.name): \(error.localizedDescription)", error: true)
+            say("Pane couldn’t remove itself from \(agent.name): \(error.localizedDescription)", error: true)
         }
         refresh()
     }

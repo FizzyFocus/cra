@@ -1,7 +1,7 @@
 import AppKit
 
-/// Cra's Dock tile plug-in (NSDockTilePlugIn in Info.plist): the Dock loads it while Cra
-/// is in the Dock but not running, so the icon picked in Settings stays after Cra quits.
+/// Pane's Dock tile plug-in (NSDockTilePlugIn in Info.plist): the Dock loads it while Pane
+/// is in the Dock but not running, so the icon picked in Settings stays after Pane quits.
 /// Arc and Dia ship the same kind of plug-in. It runs in the Dock's plug-in host, reads
 /// the choice from Cra's defaults and the images from Cra's bundle or data folder, and
 /// redraws when Cra posts "<bundle id>.appIconChanged" (AppIconManager).
@@ -9,7 +9,7 @@ import AppKit
 final class CraDockTilePlugIn: NSObject, NSDockTilePlugIn {
     private var tile: NSDockTile?
     private var observer: NSObjectProtocol?
-    /// Cra.app, three levels up from Contents/PlugIns/CraDockTile.docktileplugin.
+    /// Pane.app, three levels up from Contents/PlugIns/CraDockTile.docktileplugin.
     private let app: Bundle? = Bundle(url: Bundle(for: CraDockTilePlugIn.self).bundleURL
         .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent())
 
@@ -41,7 +41,10 @@ final class CraDockTilePlugIn: NSObject, NSDockTilePlugIn {
     private func selectedImage() -> NSImage? {
         guard let app, let id = app.bundleIdentifier as CFString? else { return nil }
         CFPreferencesAppSynchronize(id)
-        guard let selected = CFPreferencesCopyAppValue("appIcon" as CFString, id) as? String, selected != "segments" else { return nil }
+        // "arctic" is the bundled icon (Cra's "segments" before the rebrand); an id with no image
+        // below (Cra's Mono, Violet) draws the bundle's icon too.
+        guard let selected = CFPreferencesCopyAppValue("appIcon" as CFString, id) as? String,
+              selected != "arctic", selected != "segments" else { return nil }
         if selected == "custom" {
             return (CFPreferencesCopyAppValue("appIconCustomPath" as CFString, id) as? String).flatMap(NSImage.init(contentsOfFile:))
         }

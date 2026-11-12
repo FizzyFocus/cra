@@ -20,7 +20,7 @@ enum PageEngines {
     static var nativeOwns: ((String) -> Bool)?
 
     /// The list, with the user's own choices (protected-media.json) on it. `defaults write
-    /// dk.kildahl.cra webKitProtectedMedia -bool NO` turns it all off (every page Chromium's again).
+    /// uz.pane.browser webKitProtectedMedia -bool NO` turns it all off (every page Chromium's again).
     /// A test instance sets CRA_WEBKIT_DRM=0|1 and CRA_WEBKIT_HOSTS=<host,host> (the scenarios' localhost).
     private(set) static var sites: ProtectedMediaSites = load()
 

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Drives the real Cra.app through a user journey (Tests/Scenarios/<name>.scenario) on a
+# Drives the real Pane.app through a user journey (Tests/Scenarios/<name>.scenario) on a
 # throwaway profile, behind your other windows, then checks the same invariants for every
 # scenario: still running, no new crash report, no fault in cra.log, the sidebar sound,
 # main-thread stalls and memory inside the scenario's budget, helper processes back to
@@ -8,7 +8,7 @@
 #   scripts/scenario.sh fifty-tabs        one scenario
 #   scripts/scenario.sh all               every scenario, one after another
 #
-# CRA_APP (default build/Cra.app) picks the build; CRA_FLAGS (FeatureFlags) is passed on, so
+# CRA_APP (default build/Pane.app) picks the build; CRA_FLAGS (FeatureFlags) is passed on, so
 # CRA_FLAGS=backdrop=material runs the NSVisualEffectView path. Scenarios marked
 # "requires screen" (they take over a Space) run only with CRA_SCENARIO_SCREEN=1, as in CI.
 # CRA_BUDGETS=report (the nightly on GitHub's runners) prints budgets and snapshot differences
@@ -16,7 +16,7 @@
 # does (expect-log, faults, crashes, helpers, quitting) fails everywhere.
 # Logs land in build/scenarios/<name>/.
 #
-# Scenario lines: a cra:// command (sent through CRA_COMMAND_FILE, then `pace` seconds),
+# Scenario lines: a pane:// (or Cra's cra://) command (sent through CRA_COMMAND_FILE, then `pace` seconds),
 # or one of
 #   wait <s>                    let the app work
 #   pace <s>                    pause after each command (default 0.2)
@@ -55,7 +55,7 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 ROOT="$PWD"
-APP="${CRA_APP:-$ROOT/build/Cra.app}"
+APP="${CRA_APP:-$ROOT/build/Pane.app}"
 FIXTURES="$ROOT/Tests/Fixtures"
 EXTENSION_ID="$(cat "$FIXTURES/Extension/ID")"
 SIDE_PANEL_EXTENSION_ID="$(cat "$FIXTURES/SidePanelExtension/ID")"
@@ -76,7 +76,7 @@ fi
 NAME="${1:?usage: scripts/scenario.sh <name>|all}"
 FILE="Tests/Scenarios/$NAME.scenario"
 [ -f "$FILE" ] || { echo "No scenario $FILE"; exit 2; }
-[ -x "$APP/Contents/MacOS/Cra" ] || { echo "No Cra at $APP (scripts/build.sh; budgets are a release build's)"; exit 2; }
+[ -x "$APP/Contents/MacOS/Pane" ] || { echo "No Pane at $APP (scripts/build.sh; budgets are a release build's)"; exit 2; }
 if grep -q '^requires screen' "$FILE" && [ "${CRA_SCENARIO_SCREEN:-}" != "1" ]; then
   echo "$NAME: skipped (takes over the screen; CRA_SCENARIO_SCREEN=1 runs it)"; exit 0
 fi
@@ -219,7 +219,7 @@ while read -r _ f; do mkdir -p "$DATA/Extensions" && cp -R "$(expand "$f")" "$DA
 # CRA_PERF=1: the recorder runs (it is off by default since 11 Nov 2026); stalls and memory come from it.
 CRA_DATA_DIR="$DATA" CRA_COMMAND_FILE="$CMD" CRA_HITCH_LOG="$HITCH" CRA_TEST_BACKGROUND=1 CRA_WEBKIT_HOSTS=localhost \
   CRA_ARC_DIR="$FIXTURES/Arc" CRA_FLAGS="${CRA_FLAGS:-}" CRA_PERF=1 \
-  "${app_env[@]}" "$APP/Contents/MacOS/Cra" ${app_args[@]+"${app_args[@]}"} >"$OUT/stdout.log" 2>&1 &
+  "${app_env[@]}" "$APP/Contents/MacOS/Pane" ${app_args[@]+"${app_args[@]}"} >"$OUT/stdout.log" 2>&1 &
 PID=$!
 PIDS+=("$PID")
 
@@ -264,7 +264,7 @@ while IFS= read -r raw || [ -n "$raw" ]; do
   alive || { problem "Cra exited during: $line"; break; }
   set -f; set -- $line; set +f
   case "$1" in
-    cra://*) send "$line"; sleep "$PACE" ;;
+    pane://*|cra://*) send "$line"; sleep "$PACE" ;;
     wait) sleep "$2" ;;
     pace) PACE="$2" ;;
     repeat)

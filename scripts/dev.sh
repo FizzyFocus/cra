@@ -1,17 +1,17 @@
 #!/bin/bash
-# Dev loop: debug build into build/CraDev.app, launch it, and rebuild + relaunch on
+# Dev loop: debug build into build/PaneDev.app, launch it, and rebuild + relaunch on
 # every save under Sources/ or resources/.
 #   scripts/dev.sh           watch and relaunch (Ctrl-C quits the app too)
 #   scripts/dev.sh --once    build and launch once, logs in this terminal
 #   CRA_DATA_DIR=<dir> scripts/dev.sh    use another profile (default build/dev-data)
-# CraDev is its own app (executable name, bundle id, profile), so it runs next to the
-# installed Cra, `killall Cra` elsewhere leaves it alone, and it never claims cra:// or
-# http links. CEF is copied and signed when its pinned source changes; ordinary rebuilds swap the Cra binaries,
+# PaneDev is its own app (executable name, bundle id, profile), so it runs next to the
+# installed Pane, `killall Pane` elsewhere leaves it alone, and it never claims pane:// or
+# http links. CEF is copied and signed when its pinned source changes; ordinary rebuilds swap the Pane binaries,
 # in a separate SwiftPM scratch dir so parallel `scripts/build.sh` runs don't collide.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 ROOT="$PWD"
-NAME=CraDev
+NAME=PaneDev
 APP="$ROOT/build/$NAME.app"
 SCRATCH="$ROOT/.build/dev"
 STAMP="$SCRATCH/.dev-stamp"
@@ -27,7 +27,7 @@ bootstrap() {
   rm -rf "$APP" || return 1
   mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/Frameworks" || return 1
   sed -e "s/__VERSION__/0.0.0-dev/" -e "s/__BUILD__/0/" resources/Info.plist > "$APP/Contents/Info.plist"
-  $PB -c "Set :CFBundleExecutable $NAME" -c "Set :CFBundleIdentifier dk.kildahl.cra.dev" \
+  $PB -c "Set :CFBundleExecutable $NAME" -c "Set :CFBundleIdentifier uz.pane.browser.dev" \
       -c "Set :CFBundleName $NAME" -c "Set :CFBundleDisplayName $NAME" \
       -c "Delete :CFBundleURLTypes" -c "Delete :CFBundleDocumentTypes" \
       -c "Delete :UTExportedTypeDeclarations" "$APP/Contents/Info.plist"
@@ -49,7 +49,7 @@ bootstrap() {
     local helper="$APP/Contents/Frameworks/$NAME Helper$ns.app"
     mkdir -p "$helper/Contents/MacOS"
     sed -e "s/__NAME_SUFFIX__/$ns/g" -e "s/__PLIST_SUFFIX__/$ps/g" -e "s/__VERSION__/0.0.0-dev/" -e "s/__BUILD__/0/" \
-        -e "s/Cra Helper/$NAME Helper/g" -e "s/dk\.kildahl\.cra\.helper/dk.kildahl.cra.dev.helper/" \
+        -e "s/Pane Helper/$NAME Helper/g" -e "s/uz\.pane\.browser\.helper/uz.pane.browser.dev.helper/" \
         resources/Helper-Info.plist > "$helper/Contents/Info.plist"
     echo -n "APPL????" > "$helper/Contents/PkgInfo"
   done
@@ -57,7 +57,7 @@ bootstrap() {
   cp "$ROOT/vendor/sparkle/VERSION" "$APP/Contents/Resources/sparkle-version" || return 1
 }
 
-# A separately launched CraDev (or a second watch process) must be quit before its
+# A separately launched PaneDev (or a second watch process) must be quit before its
 # bundle is changed. Match helper names too: they may briefly outlive the main app.
 dev_app_running() {
   ps -axo comm= | awk -F/ -v name="$NAME" \
@@ -76,7 +76,7 @@ build() {
   stop
   for _ in $(seq 20); do dev_app_running || break; sleep 0.1; done
   if dev_app_running; then
-    echo "Quit the separately running CraDev before rebuilding its app bundle." >&2
+    echo "Quit the separately running PaneDev before rebuilding its app bundle." >&2
     return 1
   fi
   if [ ! -d "$APP/Contents/Frameworks/$NAME Helper.app" ] || \
@@ -133,7 +133,7 @@ trap 'stop; exit 0' INT TERM
 trap stop EXIT
 
 if dev_app_running; then
-  echo "Quit the separately running CraDev before rebuilding its app bundle." >&2
+  echo "Quit the separately running PaneDev before rebuilding its app bundle." >&2
   exit 1
 fi
 if build; then

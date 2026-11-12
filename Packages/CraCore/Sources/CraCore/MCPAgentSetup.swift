@@ -58,9 +58,9 @@ public enum MCPEntryState: Sendable, Equatable {
     case absent
     /// Present with this app's command and socket.
     case current
-    /// Present for another copy of Cra or an older location: adding again fixes it.
+    /// Present for another copy of Pane, an older location or under Cra's name: adding again fixes it.
     case outdated
-    /// The file isn't one Cra can edit safely (JSON with comments, servers kept inline in TOML).
+    /// The file isn't one Pane can edit safely (JSON with comments, servers kept inline in TOML).
     case unreadable
 }
 
@@ -79,39 +79,39 @@ public enum MCPAgentSetup {
     public static let agents: [MCPAgentApp] = [
         MCPAgentApp(id: "claude-code", name: "Claude Code", detail: "Desktop or Terminal", popular: true,
                     files: [claudeCode], apps: ["Claude"], bundleIDs: ["com.anthropic.claudefordesktop"],
-                    markers: [".claude.json", ".claude"], afterAdding: "New Claude Code sessions can use Cra."),
+                    markers: [".claude.json", ".claude"], afterAdding: "New Claude Code sessions can use Pane."),
         MCPAgentApp(id: "claude-cowork", name: "Claude Cowork", detail: "Claude app", popular: true,
                     files: [MCPConfigFile("Library/Application Support/Claude/claude_desktop_config.json", .json(key: "mcpServers", stdioType: false))],
                     apps: ["Claude"], bundleIDs: ["com.anthropic.claudefordesktop"],
-                    markers: ["Library/Application Support/Claude"], afterAdding: "Quit and reopen Claude to use Cra in its chats and Cowork."),
+                    markers: ["Library/Application Support/Claude"], afterAdding: "Quit and reopen Claude to use Pane in its chats and Cowork."),
         MCPAgentApp(id: "codex", name: "Codex", detail: "Desktop or Terminal", popular: true,
                     files: [codex], apps: ["Codex"], bundleIDs: ["com.openai.codex"],
-                    markers: [".codex"], afterAdding: "New Codex sessions can use Cra."),
+                    markers: [".codex"], afterAdding: "New Codex sessions can use Pane."),
         MCPAgentApp(id: "cursor", name: "Cursor", detail: "", popular: true,
                     files: [MCPConfigFile(".cursor/mcp.json", .json(key: "mcpServers", stdioType: false))],
                     apps: ["Cursor"], bundleIDs: ["com.todesktop.230313mzl4w4u92"],
-                    markers: [".cursor"], afterAdding: "Cursor lists Cra in Settings ▸ MCP; new chats can use it."),
+                    markers: [".cursor"], afterAdding: "Cursor lists Pane in Settings ▸ MCP; new chats can use it."),
         MCPAgentApp(id: "t3-code", name: "T3 Code", detail: "", popular: true,
                     files: [codex, claudeCode], apps: ["T3 Code", "T3 Code (Alpha)"], bundleIDs: [],
-                    markers: [], afterAdding: "New T3 Code threads can use Cra."),
+                    markers: [], afterAdding: "New T3 Code threads can use Pane."),
         MCPAgentApp(id: "conductor", name: "Conductor", detail: "", popular: true,
                     files: [claudeCode, codex], apps: ["Conductor"], bundleIDs: ["com.conductor.app"],
-                    markers: [], afterAdding: "New Conductor workspaces can use Cra."),
+                    markers: [], afterAdding: "New Conductor workspaces can use Pane."),
         MCPAgentApp(id: "vscode", name: "VS Code", detail: "", popular: false,
                     files: [MCPConfigFile("Library/Application Support/Code/User/mcp.json", .json(key: "servers", stdioType: true))],
                     apps: ["Visual Studio Code"], bundleIDs: ["com.microsoft.VSCode"],
-                    markers: ["Library/Application Support/Code"], afterAdding: "VS Code lists Cra under MCP Servers; start it from there."),
+                    markers: ["Library/Application Support/Code"], afterAdding: "VS Code lists Pane under MCP Servers; start it from there."),
         MCPAgentApp(id: "windsurf", name: "Windsurf", detail: "", popular: false,
                     files: [MCPConfigFile(".codeium/windsurf/mcp_config.json", .json(key: "mcpServers", stdioType: false))],
                     apps: ["Windsurf"], bundleIDs: ["com.exafunction.windsurf"],
-                    markers: [".codeium/windsurf"], afterAdding: "Refresh Windsurf's MCP servers to use Cra."),
+                    markers: [".codeium/windsurf"], afterAdding: "Refresh Windsurf's MCP servers to use Pane."),
         MCPAgentApp(id: "gemini-cli", name: "Gemini CLI", detail: "", popular: false,
                     files: [MCPConfigFile(".gemini/settings.json", .json(key: "mcpServers", stdioType: false))],
-                    apps: [], bundleIDs: [], markers: [".gemini"], afterAdding: "New Gemini CLI sessions can use Cra."),
+                    apps: [], bundleIDs: [], markers: [".gemini"], afterAdding: "New Gemini CLI sessions can use Pane."),
         MCPAgentApp(id: "lm-studio", name: "LM Studio", detail: "", popular: false,
                     files: [MCPConfigFile(".lmstudio/mcp.json", .json(key: "mcpServers", stdioType: false))],
                     apps: ["LM Studio"], bundleIDs: ["ai.elementlabs.lmstudio"],
-                    markers: [".lmstudio"], afterAdding: "LM Studio's chats can use Cra once it's turned on in Program ▸ Integrations."),
+                    markers: [".lmstudio"], afterAdding: "LM Studio's chats can use Pane once it's turned on in Program ▸ Integrations."),
     ]
 
     /// The files to write for an agent: those whose folder exists (T3 Code writes Codex's only
@@ -147,6 +147,32 @@ public enum MCPAgentSetup {
             return tomlValue("command", in: body).flatMap(tomlString) == entry.command
                 && tomlValue("args", in: body).flatMap(tomlStringArray) == entry.args ? .current : .outdated
         }
+    }
+
+    /// Cra's name for the entry before the rebrand: "cra" for "pane", "cra-dev" for "pane-dev".
+    public static func legacyName(of name: String) -> String {
+        name.hasPrefix(InternalScheme.name) ? InternalScheme.legacy + name.dropFirst(InternalScheme.name.count) : name
+    }
+
+    /// The entry's state, where one left under Cra's name (12 Nov 2026) counts as outdated: adding
+    /// again (`addingReplacingLegacy`) writes it under Pane's.
+    public static func stateCountingLegacy(of entry: MCPServerEntry, in data: Data?, format: MCPConfigFormat) -> MCPEntryState {
+        let own = state(of: entry, in: data, format: format)
+        let legacy = legacyName(of: entry.name)
+        guard own != .unreadable, legacy != entry.name else { return own }
+        switch state(of: MCPServerEntry(name: legacy, command: entry.command, args: entry.args), in: data, format: format) {
+        case .absent: return own
+        case .unreadable: return .unreadable
+        case .current, .outdated: return .outdated
+        }
+    }
+
+    /// `adding`, and Cra's entry from before the rebrand taken out, so the agent lists the browser once.
+    public static func addingReplacingLegacy(_ entry: MCPServerEntry, to data: Data?, format: MCPConfigFormat) throws -> Data {
+        let added = try adding(entry, to: data, format: format)
+        let legacy = legacyName(of: entry.name)
+        guard legacy != entry.name, state(of: MCPServerEntry(name: legacy, command: "", args: []), in: added, format: format) != .absent else { return added }
+        return try removing(legacy, from: added, format: format)
     }
 
     /// The file with Cra's entry added or brought up to date. The rest stays as it was, the

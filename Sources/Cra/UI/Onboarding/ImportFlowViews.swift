@@ -146,16 +146,16 @@ private struct DefaultBrowserStep: View {
             VStack(alignment: .leading, spacing: 8) {
                 SelectableRow(c: c, checked: system.isDefaultBrowser || model.setAsDefault, disabled: system.isDefaultBrowser,
                               toggle: { model.setAsDefault.toggle() }) {
-                    RowTitle(title: "Set Cra as default browser",
-                             caption: system.isDefaultBrowser ? "Cra already opens your links" : "Open links and web pages in Cra by default", c: c)
+                    RowTitle(title: "Set Pane as default browser",
+                             caption: system.isDefaultBrowser ? "Pane already opens your links" : "Open links and web pages in Pane by default", c: c)
                 }
                 SelectableRow(c: c, checked: system.isInDock || model.addToDock, disabled: system.isInDock,
                               toggle: { model.addToDock.toggle() }) {
-                    RowTitle(title: "Add Cra to Dock",
-                             caption: system.isInDock ? "Cra is already in your Dock" : "Quick access to Cra whenever you need it", c: c)
+                    RowTitle(title: "Add Pane to Dock",
+                             caption: system.isInDock ? "Pane is already in your Dock" : "Quick access to Pane whenever you need it", c: c)
                 }
                 SelectableRow(c: c, checked: model.launchAtLogin, toggle: { model.launchAtLogin.toggle() }) {
-                    RowTitle(title: "Open Cra at login", caption: "Automatically open Cra when you sign in", c: c)
+                    RowTitle(title: "Open Pane at login", caption: "Automatically open Pane when you sign in", c: c)
                 }
             }
             .frame(width: ImportMetrics.columnWidth)
@@ -228,7 +228,7 @@ private struct SpacesStep: View {
         ZStack(alignment: .topLeading) {
             BackLink(c: c) { model.go(.source) }
             StepHeader(title: "Select spaces to import",
-                       subtitle: "We'll import your \(name) spaces, tabs, and folders to Cra.", c: c)
+                       subtitle: "We'll import your \(name) spaces, tabs, and folders to Pane.", c: c)
             ScrollView {
                 VStack(alignment: .leading, spacing: 8) {
                     ForEach(Array((plan?.spaces ?? []).enumerated()), id: \.offset) { i, sp in
@@ -282,7 +282,7 @@ private struct ExtensionsStep: View {
         ZStack(alignment: .topLeading) {
             BackLink(c: c) { model.go(.spaces) }
             StepHeader(title: "Import your extensions",
-                       subtitle: "Pick your essentials. You can always add more extensions later as you settle in with Cra.", c: c)
+                       subtitle: "Pick your essentials. You can always add more extensions later as you settle in with Pane.", c: c)
             ScrollView {
                 VStack(alignment: .leading, spacing: 8) {
                     ForEach(model.extensions) { e in
@@ -292,7 +292,7 @@ private struct ExtensionsStep: View {
                         SelectableRow(c: c, checked: model.selectedExtensions.contains(e.id), toggle: { model.toggleExtension(e.id) }) {
                             ExtensionIcon(image: e.icon, size: 24, c: c)
                             RowTitle(title: e.name,
-                                     caption: installed ? "Already in Cra · \(e.version)"
+                                     caption: installed ? "Already in Pane · \(e.version)"
                                         : (e.isEnabled ? e.version + profiles : "Turned off in \(model.source?.rawValue ?? "Arc")"),
                                      c: c)
                         }
@@ -349,9 +349,9 @@ private struct ProgressStep: View {
                     VStack(alignment: .leading, spacing: 4) {
                         ForEach(model.failures, id: \.self) { Text($0).lineLimit(2) }
                         if model.importedExtensionCount > 0 {
-                            Text("Cra restarts once to load your extensions. Their settings and sign-ins stay in \(model.source?.rawValue ?? "Arc").")
+                            Text("Pane restarts once to load your extensions. Their settings and sign-ins stay in \(model.source?.rawValue ?? "Arc").")
                         } else if model.credentialsStaged {
-                            Text("Cra restarts once to bring in your passwords and sign-ins.")
+                            Text("Pane restarts once to bring in your passwords and sign-ins.")
                         }
                     }
                     .font(.system(size: 12)).foregroundStyle(c.caption)
@@ -360,7 +360,7 @@ private struct ProgressStep: View {
             }
             .frame(width: ImportMetrics.columnWidth, alignment: .topLeading)
             .offset(y: ImportMetrics.listTop - 8)
-            PrimaryButton(title: model.needsRelaunch && !model.firstRun && !model.credentialsAttempted ? "Restart Cra" : "Continue",
+            PrimaryButton(title: model.needsRelaunch && !model.firstRun && !model.credentialsAttempted ? "Restart Pane" : "Continue",
                           c: c, enabled: model.finished) { model.continueFromProgress() }
                 .offset(x: -1, y: ImportMetrics.buttonTop)
         }

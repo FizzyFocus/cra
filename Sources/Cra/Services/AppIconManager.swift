@@ -2,11 +2,11 @@ import AppKit
 import Observation
 import UniformTypeIdentifiers
 
-/// The app icon picked in Settings ▸ General: the bundled Segments icon, one of the
-/// alternates in resources/app-icons, or an image of the user's own. Arc does the same
-/// (AppIconClient + a Dock tile plug-in): the running app swaps
-/// `NSApp.applicationIconImage`, and CraDockTile keeps the choice in the Dock after Cra
-/// quits. The plug-in runs in the Dock's process, so the choice lives in Cra's defaults
+/// The app icon picked in Settings ▸ Appearance: the bundled Arctic icon, one of the
+/// alternates in resources/app-icons (scripts/make-app-icons.swift), or an image of the user's
+/// own. Arc does the same (AppIconClient + a Dock tile plug-in): the running app swaps
+/// `NSApp.applicationIconImage`, and CraDockTile keeps the choice in the Dock after Pane
+/// quits. The plug-in runs in the Dock's process, so the choice lives in the app's defaults
 /// (which it reads) rather than settings.json under the data folder (which it can't find).
 @MainActor
 @Observable
@@ -18,13 +18,16 @@ final class AppIconManager {
         let name: String
     }
 
-    static let defaultID = "segments"
+    static let defaultID = "arctic"
     static let customID = "custom"
+    /// Pane's icons (12 Nov 2026). Cra's Midnight keeps its id; Segments, Mono and Violet went
+    /// with the rebrand, and a choice of one of them falls back to Arctic.
     static let presets = [
-        Option(id: defaultID, name: "Segments"),
+        Option(id: defaultID, name: "Arctic"),
         Option(id: "midnight", name: "Midnight"),
-        Option(id: "mono", name: "Mono"),
-        Option(id: "violet", name: "Violet"),
+        Option(id: "frost", name: "Frost"),
+        Option(id: "rose", name: "Rose"),
+        Option(id: "graphite", name: "Graphite"),
     ]
 
     // Shared with Sources/CraDockTile.
@@ -33,7 +36,7 @@ final class AppIconManager {
         static let customPath = "appIconCustomPath"
     }
     private static var changedNotification: Notification.Name {
-        Notification.Name((Bundle.main.bundleIdentifier ?? "dk.kildahl.cra") + ".appIconChanged")
+        Notification.Name((Bundle.main.bundleIdentifier ?? Brand.bundleIdentifier) + ".appIconChanged")
     }
 
     private(set) var selectedID: String
@@ -50,7 +53,7 @@ final class AppIconManager {
         customImage = custom
     }
 
-    /// The picked icon as the Dock tile gets it, nil for the bundle's own (Segments). Chromium's
+    /// The picked icon as the Dock tile gets it, nil for the bundle's own (Arctic). Chromium's
     /// download view draws it too (ChromiumDockTile).
     @ObservationIgnored private(set) var dockImage: NSImage?
 
@@ -60,7 +63,7 @@ final class AppIconManager {
     }
 
     /// Cra just came back to the Dock (Keep Cra in the menu bar, #231). macOS registers the app
-    /// anew with the bundle's icon, so the ⌘-Tab switcher shows Segments until the icon is set
+    /// anew with the bundle's icon, so the ⌘-Tab switcher shows Arctic until the icon is set
     /// again (GitHub #319).
     func applyAfterReturningToDock() {
         setDockImage()
@@ -68,7 +71,7 @@ final class AppIconManager {
     }
 
     func image(for id: String) -> NSImage? {
-        // app-icons/segments.png is the bundled icon on the grid, for the picker; the Dock
+        // app-icons/arctic.png is the bundled icon on the grid, for the picker; the Dock
         // gets AppIcon.icns itself (apply()).
         id == Self.customID ? customImage
             : Bundle.main.url(forResource: id, withExtension: "png", subdirectory: "app-icons").flatMap(NSImage.init(contentsOf:))

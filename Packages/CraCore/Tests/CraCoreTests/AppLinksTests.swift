@@ -24,6 +24,8 @@ struct AppLinksTests {
         ("/relative/path", .page),
         ("1password:x", .page),
         // Never to an app.
+        ("pane://action/closeTab", .refused),
+        ("PANE:action", .refused),
         ("cra://action/closeTab", .refused),
         ("CRA:action", .refused),
         ("afp://server/share", .refused),

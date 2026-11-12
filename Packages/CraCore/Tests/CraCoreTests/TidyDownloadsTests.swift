@@ -5,7 +5,7 @@ import Testing
 struct TidyDownloadsTests {
     @Test func promptGivesFileTabAndSite() {
         let p = TidyDownloads.prompt(file: "folio_6691488.PDF", tabTitle: "Your Guest Stay Folio", url: "https://mail.google.com/mail/u/0/#inbox")
-        #expect(p.hasPrefix("Examples, as 'file', 'tab title', 'site' → new name:\n'Cra-0.1.30.dmg'"))
+        #expect(p.hasPrefix("Examples, as 'file', 'tab title', 'site' → new name:\n'Pane-0.1.30.dmg'"))
         #expect(p.hasSuffix("Rename: 'folio_6691488.PDF', 'Your Guest Stay Folio', 'mail.google.com'"))
     }
 

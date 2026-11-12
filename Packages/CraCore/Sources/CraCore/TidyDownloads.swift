@@ -15,9 +15,9 @@ public enum TidyDownloads {
     ("Aug 14"); fix casing and spacing. Answer with the new name only, keeping the file's extension.
     """
 
-    /// Pairs showing the style (made up for Cra, in the spirit of Arc's).
+    /// Pairs showing the style (made up for Pane, in the spirit of Arc's).
     public static let examples: [(file: String, title: String, site: String, name: String)] = [
-        ("Cra-0.1.30.dmg", "Cra · A browser like Arc", "crabrowser.app", "Cra 0.1.30.dmg"),
+        ("Pane-0.1.30.dmg", "Pane · A browser like Arc", "pane.uz", "Pane 0.1.30.dmg"),
         ("invoice_884213_2026-10-02.pdf", "Your invoice from Acme Hosting - Gmail", "mail.google.com", "Acme Hosting Invoice Oct 2.pdf"),
         ("IMG_20260912_141533.jpg", "Photos from the beach trip - Google Drive", "drive.google.com", "Beach Trip Sep 12.jpg"),
         ("image.png", "Logo feedback - Slack", "app.slack.com", "Logo Feedback.png"),

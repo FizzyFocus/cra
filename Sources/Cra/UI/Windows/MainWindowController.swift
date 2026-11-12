@@ -112,7 +112,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
         window.minSize = NSSize(width: 640, height: 420)
         window.isReleasedWhenClosed = false
         window.tabbingMode = .disallowed
-        window.title = "Cra"
+        window.title = "Pane"
         // The initializer can shift a saved global frame onto the current screen.
         // Apply it after construction so a window on another display stays there.
         // A test instance (CRA_TEST_SCREEN) keeps every window on its display.
@@ -891,7 +891,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
         if colors != shell.pageColors { shell.pageColors = colors }
         let bars = toolbarColors(panes: shell.paneIDs)
         if bars != shell.toolbarColors { shell.toolbarColors = bars }
-        if tabID == browsers.visibleTabID { window?.title = store.item(tabID)?.displayTitle ?? "Cra" }
+        if tabID == browsers.visibleTabID { window?.title = store.item(tabID)?.displayTitle ?? "Pane" }
     }
 
     /// Each live page's and each pane's bar colour, by PaneToolbarView's rule (ToolbarColor):
@@ -1521,7 +1521,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
         if let render = EmbeddedPages.renderView(in: view) { window.makeFirstResponder(render) }
     }
 
-    /// Diagnostic log shared with the bridge: `defaults write dk.kildahl.cra devToolsLog -bool YES`.
+    /// Diagnostic log shared with the bridge: `defaults write uz.pane.browser devToolsLog -bool YES`.
     private static let devToolsLogEnabled = UserDefaults.standard.bool(forKey: "devToolsLog")
     private func devToolsLog(_ message: @autoclosure () -> String) {
         guard Self.devToolsLogEnabled else { return }
@@ -1978,7 +1978,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
 
     func browserManagerOpenLinkInSplit(_ url: String, fromTab tabID: UUID) {
         // cra:// is Cra's scripting scheme; a page must not drive it.
-        if url.isEmpty || url.lowercased().hasPrefix("cra:") || store.item(tabID) == nil { return }
+        if url.isEmpty || InternalScheme.isInternal(url) || store.item(tabID) == nil { return }
         guard store.openLinkInSplit(url, from: tabID, window: windowID) != nil else {
             showToast("Cannot Add New Pane")
             return
@@ -2422,7 +2422,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
 
     /// Arc's "Send via iMessage…": Messages' compose sheet with the capture attached.
     private func sendCaptureViaMessages(_ png: Data) {
-        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("Cra Captures", isDirectory: true)
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("Pane Captures", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let url = dir.appendingPathComponent(PageCommands.captureFileName())
         guard (try? png.write(to: url)) != nil, let service = NSSharingService(named: .composeMessage),
@@ -3496,7 +3496,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
     }
 
     /// The help centre's page on why Spotify, Netflix and the others play in Safari's engine.
-    static let protectedMediaHelp = SiteLinks.tagged("https://crabrowser.app/help/protected-media", from: .protectedMedia)
+    static let protectedMediaHelp = SiteLinks.tagged("\(Brand.site)/help/protected-media", from: .protectedMedia)
 
     func debugSiteControlsShown() -> Bool { siteControlCenter.isShown
     }

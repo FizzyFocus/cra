@@ -1,7 +1,7 @@
 import AppKit
 
-/// The menu bar item of Settings ▸ Advanced ▸ "Keep Cra in the menu bar" (GitHub #231). Arc has
-/// none, so it is a plain macOS status item: Cra's C mark as a template image, and a menu that
+/// The menu bar item of Settings ▸ Advanced ▸ "Keep Pane in the menu bar" (GitHub #231). Arc has
+/// none, so it is a plain macOS status item: Pane's mark as a template image, and a menu that
 /// AppDelegate builds each time it opens (the shortcuts follow Settings ▸ Shortcuts).
 @MainActor
 final class MenuBarItem: NSObject, NSMenuDelegate {
@@ -13,8 +13,8 @@ final class MenuBarItem: NSObject, NSMenuDelegate {
         item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         super.init()
         item.button?.image = Self.icon
-        item.button?.setAccessibilityLabel("Cra")
-        item.button?.toolTip = "Cra"
+        item.button?.setAccessibilityLabel("Pane")
+        item.button?.toolTip = "Pane"
         let menu = NSMenu()
         menu.delegate = self
         item.menu = menu
@@ -27,19 +27,25 @@ final class MenuBarItem: NSObject, NSMenuDelegate {
         build(menu)
     }
 
-    /// resources/brand/cra-mark-mono: one arc of radius 18 and width 19 on a 64-point square,
-    /// open to the right between ±52°, with round ends. 16 pt, like the system's own items.
+    /// brand/pane-mark-mono, simplified for 16 pt: a pane outlined behind and to the left, and the
+    /// front pane filled over it, its sidebar's edge cut out. Like the system's own items.
     static let icon: NSImage = {
         let side: CGFloat = 16
-        let image = NSImage(size: NSSize(width: side, height: side), flipped: false) { rect in
-            let scale = rect.height / 55  // the ink is 55 tall and 48 wide, its middle 3.5 left of the arc's centre
-            let path = NSBezierPath()
-            path.appendArc(withCenter: NSPoint(x: rect.midX + 3.5 * scale, y: rect.midY), radius: 18 * scale,
-                           startAngle: 52, endAngle: 308)
-            path.lineWidth = 19 * scale
-            path.lineCapStyle = .round
+        let image = NSImage(size: NSSize(width: side, height: side), flipped: true) { _ in
+            let back = NSBezierPath(roundedRect: NSRect(x: 1.25, y: 2.25, width: 9.5, height: 7.5), xRadius: 2.2, yRadius: 2.2)
+            back.lineWidth = 1.5
             NSColor.black.setStroke()
-            path.stroke()
+            back.stroke()
+            // The front pane, with a clear ring round it so the outline behind stops short of it.
+            let front = NSRect(x: 5, y: 6, width: 10, height: 8)
+            NSGraphicsContext.current?.compositingOperation = .clear
+            NSBezierPath(roundedRect: front.insetBy(dx: -1.25, dy: -1.25), xRadius: 3.4, yRadius: 3.4).fill()
+            NSGraphicsContext.current?.compositingOperation = .sourceOver
+            NSColor.black.setFill()
+            NSBezierPath(roundedRect: front, xRadius: 2.2, yRadius: 2.2).fill()
+            NSGraphicsContext.current?.compositingOperation = .clear
+            NSRect(x: front.minX + 3, y: front.minY + 1.75, width: 1, height: front.height - 3.5).fill()
+            NSGraphicsContext.current?.compositingOperation = .sourceOver
             return true
         }
         image.isTemplate = true

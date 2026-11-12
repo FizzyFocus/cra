@@ -5,7 +5,7 @@
 #   guard && rec reorder 6 && glide w:300 m:$((WX+113)),$((WY+676)),800 d m:...,1400 u; waitrec
 #
 # Then encode with cra-website's scripts/release-clip.sh (FPS=120 for these recordings).
-# CraClip is a renamed copy of /Applications/Cra.app (bundle id dk.kildahl.cra.clip) with its
+# CraClip is a renamed copy of /Applications/Pane.app (bundle id dk.kildahl.cra.clip) with its
 # own CRA_DATA_DIR, so it never touches the real Cra; drive it with CRA_COMMAND_FILE lines
 # (`cmd`), plain keys (`key`), ⌘ shortcuts via cliclick, and the pointer via `glide`.
 # Everything here moves the real pointer and keyboard: only run it when Victor has handed
@@ -22,18 +22,18 @@ done
 
 APP="$CLIPS/CraClip.app"
 if [[ ! -d "$APP" ]]; then
-  ditto /Applications/Cra.app "$APP"
+  ditto /Applications/Pane.app "$APP"
   (
-    cd "$APP/Contents" && mv MacOS/Cra MacOS/CraClip
+    cd "$APP/Contents" && mv MacOS/Pane MacOS/CraClip
     /usr/libexec/PlistBuddy -c "Set :CFBundleExecutable CraClip" -c "Set :CFBundleIdentifier dk.kildahl.cra.clip" -c "Set :CFBundleName CraClip" Info.plist
     /usr/libexec/PlistBuddy -c "Delete :CFBundleURLTypes" Info.plist 2>/dev/null
     cd Frameworks
-    for h in "Cra Helper"*.app; do
-      n="${h/Cra Helper/CraClip Helper}" && mv "$h" "$n"
+    for h in "Pane Helper"*.app; do
+      n="${h/Pane Helper/CraClip Helper}" && mv "$h" "$n"
       mv "$n/Contents/MacOS/${h%.app}" "$n/Contents/MacOS/${n%.app}"
       id=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$n/Contents/Info.plist")
       /usr/libexec/PlistBuddy -c "Set :CFBundleExecutable ${n%.app}" -c "Set :CFBundleName ${n%.app}" \
-        -c "Set :CFBundleIdentifier ${id/dk.kildahl.cra/dk.kildahl.cra.clip}" "$n/Contents/Info.plist"
+        -c "Set :CFBundleIdentifier ${id/uz.pane.browser/dk.kildahl.cra.clip}" "$n/Contents/Info.plist"
     done
   )
   codesign --force --deep -s - "$APP" >/dev/null 2>&1

@@ -119,7 +119,7 @@ extension SettingsPageBridge {
         return [
             "location": location, "folder": folder, "iCloudAvailable": sync.iCloudAvailable,
             "iCloudReason": FileManager.default.ubiquityIdentityToken == nil
-                ? "Sign in to iCloud in System Settings to sync this way." : "This build of Cra cannot use iCloud. The signed release can.",
+                ? "Sign in to iCloud in System Settings to sync this way." : "This build of Pane cannot use iCloud. The signed release can.",
             "status": status, "failed": sync.error != nil, "otherDevices": sync.otherDevices,
             "pending": sync.pendingChoice.map { Self.describe($0) + " Using it replaces this Mac’s sidebar, settings and shortcuts." } as Any? ?? NSNull(),
             "notice": syncNotice as Any? ?? NSNull(),
@@ -168,7 +168,7 @@ extension SettingsPageBridge {
     /// One of the sections' actions: nil when `name` isn't one of them, else what to tell the user
     /// (.some(nil) when it went).
     func runSection(_ name: String, _ args: [String: SettingsValue]) async -> String?? {
-        guard let app else { return .some("Cra isn’t ready.") }
+        guard let app else { return .some("Pane isn’t ready.") }
         let store = app.store
         let window = page?.windowController
         let sheetWindow = window?.window ?? NSApp.keyWindow
@@ -204,7 +204,7 @@ extension SettingsPageBridge {
             menu.autoenablesItems = false
             if let agent = MCPAgentSetup.agents.first(where: { $0.id == args["id"]?.string }) {
                 if installer.state(agent) == .current || installer.state(agent) == .outdated {
-                    MenuItems.add(menu, "Remove Cra from \(agent.name)") { installer.remove(agent); self.push() }
+                    MenuItems.add(menu, "Remove Pane from \(agent.name)") { installer.remove(agent); self.push() }
                 }
                 MenuItems.add(menu, "Show Settings File in Finder") { installer.reveal(agent) }
             } else {
@@ -247,7 +247,7 @@ extension SettingsPageBridge {
             guard let url = pendingImport else { return .some(nil) }
             pendingPrompt = nil
             pendingImport = nil
-            syncNotice = app.composition.sync.importBundle(from: url) ? "Settings imported." : "The folder holds no Cra settings."
+            syncNotice = app.composition.sync.importBundle(from: url) ? "Settings imported." : "The folder holds no Pane settings."
         case "rebuildArcProfiles":
             ArcProfileRebuilder.run(store: store) { [weak app] in app?.relaunch() }
         case "openProfilePage":
@@ -319,7 +319,7 @@ extension SettingsPageBridge {
             }
         case "syncFolder":
             guard let url = await chooseFolder(in: sheetWindow, start: nil, prompt: "Sync Here",
-                                               message: "Choose a folder your Macs share, in Dropbox, OneDrive or a similar service. Cra keeps its files in a “Cra” folder inside it.") else { return .some(nil) }
+                                               message: "Choose a folder your Macs share, in Dropbox, OneDrive or a similar service. Pane keeps its files in a “Pane” folder inside it.") else { return .some(nil) }
             syncNotice = nil
             if case .failed(let reason) = app.composition.sync.enable(folder: url) { syncNotice = reason }
         case "syncStop":
@@ -330,13 +330,13 @@ extension SettingsPageBridge {
             app.composition.sync.useLocal()
         case "syncExport":
             guard let url = await chooseFolder(in: sheetWindow, start: nil, prompt: "Export",
-                                               message: "Choose where to save a “Cra” folder with your sidebar, settings and shortcuts.") else { return .some(nil) }
-            syncNotice = app.composition.sync.export(to: url).map { "Not exported: \($0)" } ?? "Exported to \(Self.pretty(url.path))/Cra."
+                                               message: "Choose where to save a “Pane” folder with your sidebar, settings and shortcuts.") else { return .some(nil) }
+            syncNotice = app.composition.sync.export(to: url).map { "Not exported: \($0)" } ?? "Exported to \(Self.pretty(url.path))/Pane."
         case "syncImport":
             guard let url = await chooseFolder(in: sheetWindow, start: nil, prompt: "Import",
-                                               message: "Choose the folder that holds the exported “Cra” folder, or that folder itself.") else { return .some(nil) }
+                                               message: "Choose the folder that holds the exported “Pane” folder, or that folder itself.") else { return .some(nil) }
             guard let summary = app.composition.sync.summary(ofBundleIn: url) else {
-                syncNotice = "The folder holds no Cra settings."
+                syncNotice = "The folder holds no Pane settings."
                 return .some(nil)
             }
             pendingImport = url
@@ -400,11 +400,11 @@ extension SettingsPageBridge {
     private func chooseAppIcon(in window: NSWindow?) async -> String? {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.image]
-        panel.message = "Choose an image for Cra’s icon"
+        panel.message = "Choose an image for Pane’s icon"
         panel.prompt = "Use as Icon"
         let response = window != nil ? await panel.beginSheetModal(for: window!) : panel.runModal()
         guard response == .OK, let url = panel.url else { return nil }
-        do { try AppIconManager.shared.setCustom(from: url) } catch { return "“\(url.lastPathComponent)” isn’t an image Cra can read." }
+        do { try AppIconManager.shared.setCustom(from: url) } catch { return "“\(url.lastPathComponent)” isn’t an image Pane can read." }
         return nil
     }
 

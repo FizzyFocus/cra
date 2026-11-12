@@ -87,9 +87,10 @@ in_use() { grep -qF -- "$1" "$WORK/in-use"; }
 
 # Ids that must never be cleaned: the installed Cra's bundles, CraClip, and running apps.
 {
-  find /Applications/Cra.app -maxdepth 6 -name Info.plist 2>/dev/null |
+  find /Applications/Pane.app /Applications/Cra.app -maxdepth 6 -name Info.plist 2>/dev/null |
     while read -r plist; do /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$plist" 2>/dev/null; done
-  printf '%s\n' dk.kildahl.cra dk.kildahl.cra.docktile dk.kildahl.cra.clip
+  # Cra's ids stay kept after the rebrand: a first launch of Pane copies Cra's defaults and WebKit data.
+  printf '%s\n' uz.pane.browser uz.pane.browser.docktile dk.kildahl.cra dk.kildahl.cra.docktile dk.kildahl.cra.clip
   lsappinfo list 2>/dev/null | sed -n 's/.*bundleID="\([^"]*\)".*/\1/p'
 } | sort -u >"$WORK/keep-ids"
 protected() {   # protected <id>: a kept id, a helper of one, or one of the installed Cra's parts

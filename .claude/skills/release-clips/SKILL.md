@@ -29,7 +29,7 @@ film, put `// no clip: <reason>` in the entry instead.
 
 ## Steps
 
-1. Build the release first (the clip copy is made from `/Applications/Cra.app`, so install the
+1. Build the release first (the clip copy is made from `/Applications/Pane.app`, so install the
    new release there, or delete `build/clips/CraClip.app` to rebuild it from a newer copy).
 2. Drive and record:
 

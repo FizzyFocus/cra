@@ -5,7 +5,7 @@ import Testing
 /// space with none of its own.
 struct ShortcutGroupsAndTintTests {
     @Test func shortcutGroups() {
-        #expect(ShortcutGroups.group(id: "settings", section: "app") == "Cra")
+        #expect(ShortcutGroups.group(id: "settings", section: "app") == "Pane")
         #expect(ShortcutGroups.group(id: "newTab", section: "file") == "File")
         #expect(ShortcutGroups.group(id: "goBack", section: "archive") == "Navigation", "back is navigation, not Archive")
         #expect(ShortcutGroups.group(id: "nextTab", section: "tabs") == "Navigation")
@@ -13,7 +13,7 @@ struct ShortcutGroupsAndTintTests {
         #expect(ShortcutGroups.group(id: "addSplitView", section: "view") == "Split View")
         #expect(ShortcutGroups.group(id: "pinTab", section: "tabs") == "Tabs")
         #expect(ShortcutGroups.group(id: "whatever", section: "none") == "Other")
-        for g in ["Navigation", "Developer", "Split View", "Cra", "Other"] { #expect(ShortcutGroups.order.contains(g)) }
+        for g in ["Navigation", "Developer", "Split View", "Pane", "Other"] { #expect(ShortcutGroups.order.contains(g)) }
     }
 
     /// Arc's rows (11 Nov 2026): the hover pill's padding the same on every side of the picture.

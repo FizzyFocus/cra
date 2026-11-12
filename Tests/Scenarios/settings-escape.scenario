@@ -17,7 +17,7 @@ wait 1
 cra://debug?windowState=after
 reject-log window state after: main0 .*size=1000x700
 cra://debug?settingsPageJS=location.href
-expect-log settings page js: cra://settings
+expect-log settings page js: pane://settings
 # The search field being typed in: Escape clears it and leaves it.
 cra://debug?settingsPageJS=(document.getElementById('search').focus(),document.activeElement.id)
 expect-log settings page js: search

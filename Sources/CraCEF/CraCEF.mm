@@ -852,7 +852,7 @@ public:
         NSMutableArray<NSString*>* urls = [NSMutableArray array];
         for (const auto& a : args) {
             NSString* str = NSStringFromCef(a);
-            if ([str hasPrefix:@"http://"] || [str hasPrefix:@"https://"] || [str hasPrefix:@"cra://"] || [str hasPrefix:@"file://"]) {
+            if ([str hasPrefix:@"http://"] || [str hasPrefix:@"https://"] || [str hasPrefix:@"pane://"] || [str hasPrefix:@"cra://"] || [str hasPrefix:@"file://"]) {
                 [urls addObject:str];
             }
         }
@@ -978,7 +978,7 @@ private:
 
 // MARK: - DevTools client
 
-// Diagnostic log for the DevTools life cycle: `defaults write dk.kildahl.cra devToolsLog -bool YES`,
+// Diagnostic log for the DevTools life cycle: `defaults write uz.pane.browser devToolsLog -bool YES`,
 // then read $TMPDIR/cra-devtools.log.
 static void CraDevToolsLog(NSString* fmt, ...) NS_FORMAT_FUNCTION(1, 2);
 static void CraDevToolsLog(NSString* fmt, ...) {
@@ -1293,9 +1293,10 @@ public:
 
     void OnProtocolExecution(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, CefRefPtr<CefRequest> request,
                              bool& allow_os_execution) override {
-        // cra:// is Cra's own scripting scheme; a page must not drive it.
+        // pane:// (and Cra's cra://) is the app's own scripting scheme; a page must not drive it.
+        // GURL lower-cases the scheme.
         std::string url = request->GetURL().ToString();
-        allow_os_execution = external_ && url.compare(0, 4, "cra:") != 0;
+        allow_os_execution = external_ && url.compare(0, 5, "pane:") != 0 && url.compare(0, 4, "cra:") != 0;
     }
 
 private:

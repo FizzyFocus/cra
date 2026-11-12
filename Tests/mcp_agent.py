@@ -17,7 +17,7 @@ import threading
 import time
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--app", default="build/CraDev.app")
+parser.add_argument("--app", default="build/PaneDev.app")
 options = parser.parse_args()
 app = Path(options.app).resolve()
 with (app / "Contents/Info.plist").open("rb") as file:

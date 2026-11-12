@@ -116,7 +116,7 @@ extension MainWindowController {
     /// the last session's go the first time. Save to Downloads in the preview's ⋯ keeps one.
     private static func writePreviewImage(_ data: Data, name: String) -> URL? {
         let fm = FileManager.default
-        let base = fm.temporaryDirectory.appendingPathComponent("Cra Image Preview", isDirectory: true)
+        let base = fm.temporaryDirectory.appendingPathComponent("Pane Image Preview", isDirectory: true)
         if !clearedPreviewImages {
             clearedPreviewImages = true
             try? fm.removeItem(at: base)

@@ -1,15 +1,15 @@
 #!/bin/bash
-# Writes build/dist/appcast.xml, the Sparkle feed installed copies of Cra check every
+# Writes build/dist/appcast.xml, the Sparkle feed installed copies of Pane check every
 # 8 hours (SUFeedURL: releases/latest/download/appcast.xml). Intel copies read
 # appcast-intel.xml (scripts/build.sh), written when the app is the Intel one. The update archive is
 # signed with the EdDSA key: SPARKLE_PRIVATE_KEY (CI secret), or the "cra" key in the
 # login keychain (made once with vendor/sparkle/bin/generate_keys --account cra).
-#   scripts/appcast.sh [Cra.zip] [Cra.app] [release-notes.html]
+#   scripts/appcast.sh [Pane.zip] [Pane.app] [release-notes.html]
 # CRA_UPDATE_URL overrides the download URL (tests point it at a local server).
 set -euo pipefail
 cd "$(dirname "$0")/.."
-ZIP="${1:-build/dist/Cra.zip}"
-APP="${2:-build/Cra.app}"
+ZIP="${1:-build/dist/Pane.zip}"
+APP="${2:-build/Pane.app}"
 NOTES="${3:-}"
 SUFFIX="$(scripts/asset-suffix.sh "$APP")"
 OUT="$(dirname "$ZIP")/appcast$(echo "$SUFFIX" | tr '[:upper:]' '[:lower:]').xml"
@@ -37,10 +37,10 @@ cat > "$OUT" <<XML
 <?xml version="1.0" encoding="utf-8"?>
 <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
   <channel>
-    <title>Cra</title>
+    <title>Pane</title>
     <link>https://crabrowser.app/release-notes</link>
     <item>
-      <title>Cra $VERSION</title>
+      <title>Pane $VERSION</title>
       <pubDate>$(LC_ALL=C date -u "+%a, %d %b %Y %H:%M:%S +0000")</pubDate>
       <sparkle:version>$BUILD</sparkle:version>
       <sparkle:shortVersionString>$VERSION</sparkle:shortVersionString>
@@ -51,4 +51,4 @@ cat > "$OUT" <<XML
   </channel>
 </rss>
 XML
-echo "Wrote $OUT (Cra $VERSION, build $BUILD)"
+echo "Wrote $OUT (Pane $VERSION, build $BUILD)"

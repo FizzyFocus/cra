@@ -1889,7 +1889,7 @@ enum StoreTests {
     }
 
     /// iCloud is the same bundle in the app's container, with two differences a test folder can
-    /// stand in for (CRA_SYNC_ICLOUD_DIR): the bundle goes to `Documents/Cra`, and a file iCloud
+    /// stand in for (CRA_SYNC_ICLOUD_DIR): the bundle goes to `Documents/Pane`, and a file iCloud
     /// has not downloaded is a placeholder, which Cra waits for instead of writing over it.
     @MainActor
     private static func iCloudSync(first a: SidebarStore, firstClock clockA: ManualScheduler) {
@@ -1902,9 +1902,9 @@ enum StoreTests {
         let syncA = SettingsSyncService(store: a, clock: clockA, device: "Studio", deviceID: "studio")
         expect(syncA.iCloudAvailable, "with a container the iCloud switch is offered")
         expect(syncA.enableICloud() == .synced && syncA.location == .iCloud, "the first Mac turns iCloud on and writes its bundle")
-        let bundle = container.appendingPathComponent("Documents/Cra", isDirectory: true)
+        let bundle = container.appendingPathComponent("Documents/Pane", isDirectory: true)
         expect(FileManager.default.fileExists(atPath: bundle.appendingPathComponent(SettingsSync.manifestName).path),
-               "the bundle sits in Documents/Cra of the container, where iCloud Drive shows it")
+               "the bundle sits in Documents/Pane of the container, where iCloud Drive shows it")
 
         // iCloud delivered the manifest but not yet the sidebar: a placeholder stands in for it.
         let sidebar = bundle.appendingPathComponent(SettingsSync.sidebarName)

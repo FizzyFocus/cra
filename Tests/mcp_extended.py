@@ -17,7 +17,7 @@ import uuid
 from urllib.parse import quote
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--app", default="build/CraDev.app")
+parser.add_argument("--app", default="build/PaneDev.app")
 parser.add_argument("--pause-before-input", action="store_true", help="Wait for a start-input file after focusing the test window.")
 parser.add_argument("--hold", action="store_true", help="Keep the isolated instance for a real MCP client; Ctrl-C cleans up.")
 parser.add_argument("--with-pip", action="store_true", help="Also check Document PiP, which floats a window over the screen.")

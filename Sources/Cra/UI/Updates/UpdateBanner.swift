@@ -446,9 +446,9 @@ final class UpdatedCard: BannerCard {
 
     init() {
         rows = [BannerRow(symbol: "heart", text: "What’s new") { SoftwareUpdater.shared.openReleaseNotes() },
-                BannerRow(symbol: "gift", text: "Sponsor Cra") { SoftwareUpdater.shared.openSponsors() }]
+                BannerRow(symbol: "gift", text: "Support \(Brand.name)") { SoftwareUpdater.shared.openSponsors() }]
         super.init(frame: .zero)
-        title.stringValue = "Cra updated!"
+        title.stringValue = "Pane updated!"
         // Arc's ✕ here is larger and lighter than the ready card's hover one.
         close.image = SidebarSymbols.image("xmark", size: 12, weight: .regular)
         addSubview(title)

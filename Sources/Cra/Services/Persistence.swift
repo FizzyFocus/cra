@@ -25,17 +25,30 @@ enum ProfileCleanup {
 }
 
 enum AppPaths {
+    /// The dev bundle (scripts/dev.sh) keeps its own folder, PaneDev.
+    static var isDevBuild: Bool {
+        [Brand.devBundleIdentifier, Brand.Legacy.devBundleIdentifier].contains(Bundle.main.bundleIdentifier ?? "")
+    }
+    /// CRA_DATA_DIR runs a second, independent copy (testing next to the installed one).
+    static var dataDirOverride: URL? {
+        ProcessInfo.processInfo.environment["CRA_DATA_DIR"].map { URL(fileURLWithPath: $0, isDirectory: true) }
+    }
+    /// ~/Library/Application Support/Pane (PaneDev), and Cra's folder from before the rebrand, which
+    /// LegacyDataMigration copies into it on the first launch.
+    static var defaultSupportDir: URL { applicationSupport.appendingPathComponent(DataFolder.name(dev: isDevBuild), isDirectory: true) }
+    static var legacySupportDir: URL { applicationSupport.appendingPathComponent(DataFolder.legacyName(dev: isDevBuild), isDirectory: true) }
+    private static var applicationSupport: URL { FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0] }
+
     static let supportDir: URL = {
-        // CRA_DATA_DIR runs a second, independent Cra (testing next to the installed one).
         // Finder launches have no shell environment. The dev bundle must still stay
         // out of the signed application's profile when opened directly.
-        let folder = Bundle.main.bundleIdentifier == "dk.kildahl.cra.dev" ? "CraDev" : "Cra"
-        let base = ProcessInfo.processInfo.environment["CRA_DATA_DIR"].map { URL(fileURLWithPath: $0, isDirectory: true) }
-            ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-                .appendingPathComponent(folder, isDirectory: true)
+        let base = dataDirOverride ?? defaultSupportDir
         try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
         return base
     }()
+    /// The folder ids derived from the data folder's path are made from (WebKitStores): Cra's for
+    /// the default folder, so the ids made before the rebrand still find their data in Pane's.
+    static var identityDir: URL { dataDirOverride == nil ? legacySupportDir : supportDir }
     static var chromiumCache: URL { supportDir.appendingPathComponent("Chromium", isDirectory: true) }
     static var favicons: URL {
         let u = supportDir.appendingPathComponent("Favicons", isDirectory: true)

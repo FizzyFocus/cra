@@ -85,9 +85,9 @@ final class SoftwareUpdater: NSObject {
     /// This launch came from an automatic restart, so it should not take focus.
     private(set) var launchedByAutoUpdate = false
 
-    /// What's new on the "Cra updated!" card, tagged so the site can count visits from it.
-    static let releaseNotesURL = SiteLinks.tagged("https://crabrowser.app/release-notes", from: .whatsNew)
-    static let downloadURL = "https://github.com/VictorKildahl/cra/releases/latest"
+    /// What's new on the "Pane updated!" card, tagged so the site can count visits from it.
+    static let releaseNotesURL = SiteLinks.tagged("\(Brand.site)/release-notes", from: .whatsNew)
+    static let downloadURL = Brand.site
 
     @ObservationIgnored private var updater: SPUUpdater?
     @ObservationIgnored private weak var app: AppDelegate?
@@ -216,9 +216,9 @@ final class SoftwareUpdater: NSObject {
         }
     }
 
-    static let sponsorsURL = "https://github.com/sponsors/VictorKildahl"
+    static let sponsorsURL = "\(Brand.site)/support"
 
-    /// The updated banner's "Sponsor Cra" row (Arc's "Gift Arc").
+    /// The updated banner's "Support Pane" row (Arc's "Gift Arc").
     func openSponsors() {
         guard let app else { return }
         app.store.createTab(url: Self.sponsorsURL, select: true)

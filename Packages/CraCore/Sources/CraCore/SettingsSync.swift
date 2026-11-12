@@ -29,9 +29,20 @@ public struct SyncManifest: Codable, Equatable {
 
 /// What the sync folder holds and when a bundle found there is applied.
 public enum SettingsSync {
-    /// The subfolder Cra makes inside the folder the user picks, so a folder with other files
+    /// The subfolder Pane makes inside the folder the user picks, so a folder with other files
     /// in it is never written over.
-    public static let folderName = "Cra"
+    public static let folderName = "Pane"
+    /// The subfolder Cra made before the rebrand (12 Nov 2026): still read and written where it is.
+    public static let legacyFolderName = "Cra"
+
+    /// The bundle folder in `picked`: `picked` itself when the user pointed at a Pane (or Cra)
+    /// folder, else its Pane subfolder, or its Cra one when only that is there (synced before the rebrand).
+    public static func bundleFolder(in picked: URL, exists: (URL) -> Bool) -> URL {
+        if [folderName, legacyFolderName].contains(picked.lastPathComponent) { return picked }
+        let pane = picked.appendingPathComponent(folderName, isDirectory: true)
+        let cra = picked.appendingPathComponent(legacyFolderName, isDirectory: true)
+        return !exists(pane) && exists(cra) ? cra : pane
+    }
     public static let manifestName = "manifest.json"
     public static let sidebarName = "sidebar.json"
     public static let settingsName = "settings.json"

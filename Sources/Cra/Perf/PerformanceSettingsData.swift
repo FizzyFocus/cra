@@ -105,7 +105,7 @@ enum PerformanceSettingsData {
 
     private static func label(_ kind: PerfProcessKind) -> String {
         switch kind {
-        case .browser: return "Cra"
+        case .browser: return "Pane"
         case .renderer: return "Pages"
         case .gpu: return "GPU"
         case .utility: return "Network, storage, audio"

@@ -1,5 +1,5 @@
-# dmgbuild settings for Cra.dmg, run by scripts/package.sh:
-#   dmgbuild -s resources/dmg/settings.py -D app=build/Cra.app Cra build/dist/Cra.dmg
+# dmgbuild settings for Pane.dmg, run by scripts/package.sh:
+#   dmgbuild -s resources/dmg/settings.py -D app=build/Pane.app Pane build/dist/Pane.dmg
 # The window mirrors Dia's installer: 800x400 pt, no chrome, 212 pt icons with the
 # app on the left and Applications on the right of the chevron drawn into
 # background.png (regenerate it with scripts/make-dmg-background.swift).

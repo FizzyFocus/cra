@@ -11,8 +11,8 @@ public enum AppLinks {
         case asksFirst
         /// Another app's, opened without asking: Chrome's allowed schemes (mailto:).
         case opens
-        /// Never handed to macOS: Chrome's denied schemes (afp: mounts a share) and cra:, Cra's
-        /// own scripting scheme, which would reach the installed Cra.
+        /// Never handed to macOS: Chrome's denied schemes (afp: mounts a share) and pane: (cra:),
+        /// Pane's own scripting scheme, which would reach the installed Pane.
         case refused
     }
 
@@ -22,10 +22,10 @@ public enum AppLinks {
         "http", "https", "about", "blob", "data", "filesystem", "ws", "wss", "file", "javascript",
         "view-source", "chrome", "chrome-extension", "chrome-untrusted", "chrome-search", "devtools",
     ]
-    /// The rest of Chrome's kDeniedSchemes (external_protocol_handler.cc), plus cra:.
+    /// The rest of Chrome's kDeniedSchemes (external_protocol_handler.cc), plus pane: and Cra's cra:.
     static let refusedSchemes: Set<String> = [
         "afp", "disk", "disks", "hcp", "ie.http", "login", "mk", "ms-help", "nntp", "res", "shell",
-        "vbscript", "vnd.ms.radio", "cra",
+        "vbscript", "vnd.ms.radio", InternalScheme.name, InternalScheme.legacy,
     ]
     /// Chrome's kAllowedSchemes.
     static let openedSchemes: Set<String> = ["mailto", "news", "snews"]

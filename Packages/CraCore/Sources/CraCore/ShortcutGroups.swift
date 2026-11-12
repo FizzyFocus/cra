@@ -3,7 +3,7 @@
 /// and split view's commands under Split View, wherever their menu puts them.
 public enum ShortcutGroups {
     /// The groups in the order the page shows them.
-    public static let order = ["Cra", "File", "Edit", "View", "Navigation", "Tabs", "Split View", "Spaces", "Archive",
+    public static let order = ["Pane", "File", "Edit", "View", "Navigation", "Tabs", "Split View", "Spaces", "Archive",
                                "Window", "Developer", "Help", "Other"]
 
     static let navigation: Set<String> = ["goBack", "goForward", "reload", "stop", "nextTab", "previousTab", "recentTab",
@@ -12,7 +12,7 @@ public enum ShortcutGroups {
     static let developer: Set<String> = ["devTools", "inspectElement", "jsConsole", "viewSource", "toggleDeveloperMode",
                                          "clearCache", "clearCookies", "hardReload", "taskManager", "allowAppleEventsJavaScript"]
     static let split: Set<String> = ["addSplitView", "closeSplitPane", "flipSplitOrientation", "separateFromSplit"]
-    static let sections = ["app": "Cra", "file": "File", "edit": "Edit", "view": "View", "tabs": "Tabs", "spaces": "Spaces",
+    static let sections = ["app": "Pane", "file": "File", "edit": "Edit", "view": "View", "tabs": "Tabs", "spaces": "Spaces",
                            "archive": "Archive", "window": "Window", "help": "Help"]
 
     /// The group of the action `id`, from its menu section (MenuSection's raw value).

@@ -2,7 +2,7 @@ import AppKit
 import CraCEF
 import WebKit
 
-/// Settings as a tab (CraCore SettingsPage): `cra://settings` is an HTML page of Cra's own
+/// Settings as a tab (CraCore SettingsPage): `pane://settings` is an HTML page of Pane's own
 /// (resources/web/settings) in a WKWebView, the way Chrome's settings are a page. Like EaselBrowser
 /// it is a CraBrowser hosting its own view, so the tab, split view, the sidebar row, ⌘W and Peek
 /// work as for any page. The page reads and writes settings through `window.craSettings`
@@ -20,7 +20,8 @@ final class SettingsPageBrowser: CraBrowser, NativePage, WKUIDelegate {
 
     override init(frame: NSRect, url: String?, delegate: CraBrowserDelegate?, incognito: Bool, profilePath: String?) {
         container = NSView(frame: frame)
-        address = url.flatMap { SettingsPage.owns($0) ? $0 : nil } ?? SettingsPage.address
+        // A tab saved as cra://settings (before the rebrand) reports pane://settings, which the tab then keeps.
+        address = url.flatMap { SettingsPage.owns($0) ? InternalScheme.canonical($0) : nil } ?? SettingsPage.address
         super.init()
         self.delegate = delegate
         MainActor.assumeIsolated { makePage() }
@@ -49,7 +50,9 @@ final class SettingsPageBrowser: CraBrowser, NativePage, WKUIDelegate {
         let config = WKWebViewConfiguration()
         // Nothing to keep: the page holds no data of its own.
         config.websiteDataStore = .nonPersistent()
-        config.setURLSchemeHandler(SettingsPageFiles(), forURLScheme: SettingsPage.scheme)
+        // pane://settings/<file>, and cra://settings/<file> for page code written before the rebrand.
+        let files = SettingsPageFiles()
+        for scheme in [InternalScheme.name, InternalScheme.legacy] { config.setURLSchemeHandler(files, forURLScheme: scheme) }
         let bridge = SettingsPageBridge(page: self)
         config.userContentController.addScriptMessageHandler(bridge, contentWorld: .page, name: "craSettings")
         self.bridge = bridge
@@ -197,10 +200,10 @@ final class SettingsPageBrowser: CraBrowser, NativePage, WKUIDelegate {
     }
 }
 
-/// The page's files, served at cra://settings/<file> from resources/web/settings in the app
+/// The page's files, served at pane://settings/<file> from resources/web/settings in the app
 /// (the source tree's in a build without a bundle), and the sites' icons at
-/// cra://settings/favicon/<host> from the favicon cache. Every other path is the page itself, so
-/// cra://settings/privacy opens it on Privacy.
+/// pane://settings/favicon/<host> from the favicon cache. Every other path is the page itself, so
+/// pane://settings/privacy opens it on Privacy.
 final class SettingsPageFiles: NSObject, WKURLSchemeHandler {
     static var folder: URL {
         if let bundled = Bundle.main.resourceURL?.appendingPathComponent("web/settings", isDirectory: true),

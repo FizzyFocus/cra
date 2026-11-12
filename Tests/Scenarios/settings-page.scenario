@@ -1,71 +1,71 @@
-# ⌘, opens Settings as a tab, cra://settings: an HTML page of Cra's own (SettingsPageBrowser) that
+# ⌘, opens Settings as a tab, pane://settings (cra://settings before the rebrand): an HTML page of Pane's own (SettingsPageBrowser) that
 # reads and writes settings through window.craSettings (CraCore SettingsBridge). It replaced the
 # overlay over the card (10 Nov 2026). A section asked for while the tab is open moves it there;
 # the panes that stay native (Profiles, Extensions, Plugins, Max, Performance) open their window.
-cra://debug?windowSize=1280x800
+pane://debug?windowSize=1280x800
 wait 2
-cra://action/settings
+pane://action/settings
 wait 3
 expect-log settings tab shown \(general, new\)
 expect-log settings page read its state \(general\)
-cra://debug?settingsPane=search
+pane://debug?settingsPane=search
 wait 1.5
 expect-log settings tab shown \(search-engines, existing\)
-cra://debug?settingsPageJS=location.href
-expect-log settings page js: cra://settings
+pane://debug?settingsPageJS=location.href
+expect-log settings page js: pane://settings
 # A setting written from the page lands in settings.json's model and comes back in the state.
-cra://debug?settingsPageJS=craSettings.set('httpsOnly',true).then(s=>`https ${s.settings.httpsOnly}`)
+pane://debug?settingsPageJS=craSettings.set('httpsOnly',true).then(s=>`https ${s.settings.httpsOnly}`)
 expect-log settings page js: https (1|true)
-cra://debug?settingsPageJS=craSettings.set('tabSleepAfter','oneHour').then(s=>`sleep ${s.settings.tabSleepAfter}`)
+pane://debug?settingsPageJS=craSettings.set('tabSleepAfter','oneHour').then(s=>`sleep ${s.settings.tabSleepAfter}`)
 expect-log settings page js: sleep oneHour
 # What the page may not write, or a value of the wrong kind, is refused.
-cra://debug?settingsPageJS=craSettings.set('developerHosts','x').then(()=>'written',e=>`refused ${e.message}`)
+pane://debug?settingsPageJS=craSettings.set('developerHosts','x').then(()=>'written',e=>`refused ${e.message}`)
 expect-log settings page js: refused
 # Site searches: added with a shortcut, a %s address and a badge colour; a bad one is refused.
-cra://debug?settingsPageJS=craSettings.action('addSite',{name:'Yummy',shortcut:'ya',url:'https://yummy.example/search?q=%s',color:String.fromCharCode(35)+'FF3366'}).then(s=>`sites ${s.custom.length} ${s.custom[0].shownColor}`)
+pane://debug?settingsPageJS=craSettings.action('addSite',{name:'Yummy',shortcut:'ya',url:'https://yummy.example/search?q=%s',color:String.fromCharCode(35)+'FF3366'}).then(s=>`sites ${s.custom.length} ${s.custom[0].shownColor}`)
 expect-log settings page js: sites 1 #FF3366
-cra://debug?settingsPageJS=craSettings.action('addSite',{name:'Bad',shortcut:'b b',url:'x'}).then(()=>'saved',e=>`refused ${e.message}`)
+pane://debug?settingsPageJS=craSettings.action('addSite',{name:'Bad',shortcut:'b b',url:'x'}).then(()=>'saved',e=>`refused ${e.message}`)
 expect-log settings page js: refused The shortcut is one word
-# The search engines list has the site icons' addresses on cra://settings.
-cra://debug?settingsPageJS=craSettings.state().then(s=>`engines ${s.engines.list.length>0} shortcuts ${s.shortcuts.length>20}`)
+# The search engines list has the site icons' addresses on pane://settings.
+pane://debug?settingsPageJS=craSettings.state().then(s=>`engines ${s.engines.list.length>0} shortcuts ${s.shortcuts.length>20}`)
 expect-log settings page js: engines (1|true) shortcuts (1|true)
 # Profiles, Extensions, Plugins, Max and Performance are sections of the page too: no window of
 # their own (11 Nov 2026).
-cra://debug?settingsPane=profiles
+pane://debug?settingsPane=profiles
 wait 1
 expect-log settings tab shown \(profiles, existing\)
 reject-log native settings shown
-cra://debug?settingsPageJS=craSettings.state().then(s=>`profiles ${s.profiles.list[0].name} plugins ${Array.isArray(s.plugins.list)} max ${typeof s.max.available} perf ${typeof s.performance.ready} sync ${typeof s.sync.status} icons ${s.appIcon.list.length>1}`)
+pane://debug?settingsPageJS=craSettings.state().then(s=>`profiles ${s.profiles.list[0].name} plugins ${Array.isArray(s.plugins.list)} max ${typeof s.max.available} perf ${typeof s.performance.ready} sync ${typeof s.sync.status} icons ${s.appIcon.list.length>1}`)
 expect-log settings page js: profiles Default plugins (1|true) max boolean perf boolean sync string icons (1|true)
-cra://debug?settingsPageJS=document.querySelector('.page-title').textContent
+pane://debug?settingsPageJS=document.querySelector('.page-title').textContent
 expect-log settings page js: Profiles
 # A built-in site taken off the list, then put back.
-cra://debug?settingsPageJS=craSettings.action('hideSite',{host:'youtube.com'}).then(s=>`hidden ${s.hiddenSites.join(',')} listed ${s.sites.some(x=>x.host==='youtube.com')}`)
+pane://debug?settingsPageJS=craSettings.action('hideSite',{host:'youtube.com'}).then(s=>`hidden ${s.hiddenSites.join(',')} listed ${s.sites.some(x=>x.host==='youtube.com')}`)
 expect-log settings page js: hidden youtube.com listed (0|false)
-cra://debug?settingsPageJS=craSettings.action('restoreSites').then(s=>`hidden ${s.hiddenSites.length} listed ${s.sites.some(x=>x.host==='youtube.com')}`)
+pane://debug?settingsPageJS=craSettings.action('restoreSites').then(s=>`hidden ${s.hiddenSites.length} listed ${s.sites.some(x=>x.host==='youtube.com')}`)
 expect-log settings page js: hidden 0 listed (1|true)
 # Air Traffic Control in the page: a route added, pointed at a Little Window.
-cra://debug?settingsPageJS=craSettings.action('addRoute').then(s=>craSettings.action('editRoute',{id:s.routes.list[s.routes.list.length-1].id,text:'meet.google.com',destination:'little'})).then(s=>`route ${s.routes.list[s.routes.list.length-1].text} ${s.routes.list[s.routes.list.length-1].destination}`)
+pane://debug?settingsPageJS=craSettings.action('addRoute').then(s=>craSettings.action('editRoute',{id:s.routes.list[s.routes.list.length-1].id,text:'meet.google.com',destination:'little'})).then(s=>`route ${s.routes.list[s.routes.list.length-1].text} ${s.routes.list[s.routes.list.length-1].destination}`)
 expect-log settings page js: route meet.google.com little
 # ⌘W closes the settings tab like any tab (no overlay in the way).
-cra://debug?windowState=settings
+pane://debug?windowState=settings
 expect-log window state settings: main0
-cra://action/closeTab
+pane://action/closeTab
 wait 1
 reject-log settings closed
 # Shortcuts: each key a cap of its own, grouped (back is Navigation, DevTools Developer).
-cra://debug?settingsPane=shortcuts
+pane://debug?settingsPane=shortcuts
 wait 1
 # Profiles are made, renamed and deleted from the page's own dialogs (11 Nov 2026): the actions do it.
-cra://debug?settingsPageJS=craSettings.action('createProfile',{name:'Work',spaces:''}).then(s=>`profiles ${s.profiles.list.map(p=>p.name).join('/')}`)
+pane://debug?settingsPageJS=craSettings.action('createProfile',{name:'Work',spaces:''}).then(s=>`profiles ${s.profiles.list.map(p=>p.name).join('/')}`)
 expect-log settings page js: profiles Default/Work
-cra://debug?settingsPageJS=craSettings.state().then(s=>craSettings.action('renameProfile',{id:s.profiles.list[1].id,name:'Office'})).then(s=>craSettings.action('deleteProfile',{id:s.profiles.list[1].id})).then(s=>`after ${s.profiles.list.length}`)
+pane://debug?settingsPageJS=craSettings.state().then(s=>craSettings.action('renameProfile',{id:s.profiles.list[1].id,name:'Office'})).then(s=>craSettings.action('deleteProfile',{id:s.profiles.list[1].id})).then(s=>`after ${s.profiles.list.length}`)
 expect-log settings page js: after 1
-cra://debug?settingsPageJS=craSettings.state().then(s=>{const f=id=>s.shortcuts.find(x=>x.id===id);return `caps ${f('newTab').caps[0].join(' ')} back ${f('goBack').section} dev ${f('devTools').section} drawn ${document.querySelectorAll('kbd.keycap').length>10}`})
+pane://debug?settingsPageJS=craSettings.state().then(s=>{const f=id=>s.shortcuts.find(x=>x.id===id);return `caps ${f('newTab').caps[0].join(' ')} back ${f('goBack').section} dev ${f('devTools').section} drawn ${document.querySelectorAll('kbd.keycap').length>10}`})
 expect-log settings page js: caps ⌘ T back Navigation dev Developer drawn (1|true)
 # Appearance ▸ Default color: an unthemed space's paint, and back.
-cra://debug?settingsPageJS=craSettings.set('defaultSpaceTint',String.fromCharCode(35)+'E8F4F9').then(s=>`tint ${s.settings.defaultSpaceTint}`)
+pane://debug?settingsPageJS=craSettings.set('defaultSpaceTint',String.fromCharCode(35)+'E8F4F9').then(s=>`tint ${s.settings.defaultSpaceTint}`)
 expect-log settings page js: tint #E8F4F9
 expect-log default space color #E8F4F9
-cra://debug?settingsPageJS=craSettings.set('defaultSpaceTint',String.fromCharCode(35)+'DCF3FC').then(s=>`tint ${s.settings.defaultSpaceTint}`)
+pane://debug?settingsPageJS=craSettings.set('defaultSpaceTint',String.fromCharCode(35)+'DCF3FC').then(s=>`tint ${s.settings.defaultSpaceTint}`)
 expect-log settings page js: tint #DCF3FC

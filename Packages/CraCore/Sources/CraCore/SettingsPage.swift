@@ -1,13 +1,14 @@
 import Foundation
 
 /// Settings is a page of its own (10 Nov 2026), in a tab like Chrome's chrome://settings and Arc's
-/// own pages: `cra://settings`, the section after a slash (`cra://settings/search-engines`). ⌘, opens
-/// it, or brings its tab to the front. Every section is in the page, Profiles, Extensions, Plugins,
-/// Max and Performance too (no window of their own since 11 Nov 2026).
+/// own pages: `pane://settings`, the section after a slash (`pane://settings/search-engines`). ⌘, opens
+/// it, or brings its tab to the front. Cra's `cra://settings` (saved tabs, bookmarks) is the same
+/// page. Every section is in the page, Profiles, Extensions, Plugins, Max and Performance too (no
+/// window of their own since 11 Nov 2026).
 public enum SettingsPage {
-    public static let scheme = "cra"
+    public static let scheme = InternalScheme.name
     public static let host = "settings"
-    public static let address = "cra://settings"
+    public static let address = "pane://settings"
 
     /// The page's sections, in its sidebar.
     public enum Section: String, CaseIterable, Sendable {
@@ -42,10 +43,10 @@ public enum SettingsPage {
         }
     }
 
-    /// Whether `url` is the settings page, at any section ("cra://settings", "cra://settings/",
-    /// "cra://settings/privacy", any case).
+    /// Whether `url` is the settings page, at any section ("pane://settings", "pane://settings/",
+    /// "pane://settings/privacy", any case), under Cra's scheme too ("cra://settings").
     public static func owns(_ url: String) -> Bool {
-        guard let u = URLComponents(string: url), u.scheme?.lowercased() == scheme, u.host?.lowercased() == host else { return false }
+        guard let u = URLComponents(string: url), InternalScheme.owns(scheme: u.scheme), u.host?.lowercased() == host else { return false }
         return true
     }
 

@@ -1,5 +1,5 @@
 // Renders the DMG window background, resources/dmg/background.png: an 800x400 pt
-// canvas at 2x (1600x800 px, 144 dpi) with the brand colours glowing in from the
+// canvas at 2x (1600x800 px, 144 dpi) with Pane's arctic colours glowing in from the
 // corners, the install line, and a chevron between the two icons.
 // Layout must match resources/dmg/settings.py (icons centred at x 190 and 610).
 //   swift scripts/make-dmg-background.swift
@@ -41,20 +41,20 @@ func glow(_ hex: String, at p: NSPoint, radius: CGFloat, alpha: CGFloat, squash:
     g.draw(fromCenter: .zero, radius: 0, toCenter: .zero, radius: radius, options: [])
     cg.restoreGState()
 }
-glow("#f0574f", at: NSPoint(x: -10, y: H + 10), radius: 230, alpha: 0.30, squash: 0.8)
-glow("#3f6df5", at: NSPoint(x: W + 10, y: H + 10), radius: 230, alpha: 0.24, squash: 0.8)
-glow("#4fbe7e", at: NSPoint(x: 40, y: -60), radius: 380, alpha: 0.36, squash: 0.55)
-glow("#f6c34a", at: NSPoint(x: W - 40, y: -60), radius: 380, alpha: 0.44, squash: 0.55)
+glow("#47d6ff", at: NSPoint(x: -10, y: H + 10), radius: 230, alpha: 0.30, squash: 0.8)
+glow("#3523b8", at: NSPoint(x: W + 10, y: H + 10), radius: 230, alpha: 0.20, squash: 0.8)
+glow("#7fd3ff", at: NSPoint(x: 40, y: -60), radius: 380, alpha: 0.40, squash: 0.55)
+glow("#1f4fd1", at: NSPoint(x: W - 40, y: -60), radius: 380, alpha: 0.30, squash: 0.55)
 // A pale band along the bottom ties the two lower blooms together, as in Dia.
-glow("#3f6df5", at: NSPoint(x: W / 2, y: -90), radius: 420, alpha: 0.14, squash: 0.4)
+glow("#47d6ff", at: NSPoint(x: W / 2, y: -90), radius: 420, alpha: 0.14, squash: 0.4)
 
-// Install line: "To install, drag Cra to Applications", names in bold.
+// Install line: "To install, drag Pane to Applications", names in bold.
 let size: CGFloat = 17
 let grey = NSColor(hex: "#1d1d1f", alpha: 0.6), ink = NSColor(hex: "#1d1d1f")
 let regular = NSFont.systemFont(ofSize: size, weight: .regular)
 let bold = NSFont.systemFont(ofSize: size, weight: .semibold)
 let line = NSMutableAttributedString()
-for (text, strong) in [("To install, drag ", false), ("Cra", true), (" to ", false), ("Applications", true)] {
+for (text, strong) in [("To install, drag ", false), ("Pane", true), (" to ", false), ("Applications", true)] {
     line.append(NSAttributedString(string: text, attributes: [
         .font: strong ? bold : regular, .foregroundColor: strong ? ink : grey, .kern: -0.1,
     ]))

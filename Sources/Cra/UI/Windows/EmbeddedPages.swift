@@ -11,7 +11,7 @@ import ObjectiveC
 /// before so Chromium's menus, popups and layout still have the right screen position. Its
 /// page view (WebContentsViewCocoa) moves into the card's web area.
 ///
-/// On by default. Off with `defaults write dk.kildahl.cra embedPages -bool NO` or
+/// On by default. Off with `defaults write uz.pane.browser embedPages -bool NO` or
 /// CRA_EMBED_PAGES=0 (pages then stay in their own child windows, as before 0.1.17).
 enum EmbeddedPages {
     static let isEnabled: Bool = {

@@ -43,7 +43,7 @@ final class SettingsPageBridge: NSObject, WKScriptMessageHandlerWithReply {
 
     func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage,
                                replyHandler: @escaping @MainActor @Sendable (Any?, String?) -> Void) {
-        guard let m = SettingsBridge.Message(body: message.body) else { replyHandler(nil, "Cra doesn’t know that message."); return }
+        guard let m = SettingsBridge.Message(body: message.body) else { replyHandler(nil, "Pane doesn’t know that message."); return }
         handle(m, reply: replyHandler)
     }
 
@@ -86,26 +86,26 @@ final class SettingsPageBridge: NSObject, WKScriptMessageHandlerWithReply {
 
     /// One setting written; nil when it was, else what to tell the user.
     private func set(_ key: String, _ value: SettingsValue) -> String? {
-        guard let store = app?.store else { return "Cra isn’t ready." }
+        guard let store = app?.store else { return "Pane isn’t ready." }
         switch key {
         case "launchesAtLogin":
-            guard let on = value.bool else { return "Cra couldn’t change that." }
+            guard let on = value.bool else { return "Pane couldn’t change that." }
             return SystemIntegration.shared.setLaunchAtLogin(on)
         case "automaticallyUpdates":
-            guard let on = value.bool else { return "Cra couldn’t change that." }
+            guard let on = value.bool else { return "Pane couldn’t change that." }
             SoftwareUpdater.shared.automaticallyUpdates = on
         case "sharedFavorites":
-            guard let on = value.bool else { return "Cra couldn’t change that." }
+            guard let on = value.bool else { return "Pane couldn’t change that." }
             store.setFavoritesShared(on)
         case "openExternalLinksInLittleWindow":
-            guard let on = value.bool else { return "Cra couldn’t change that." }
+            guard let on = value.bool else { return "Pane couldn’t change that." }
             store.settings.openExternalLinksInLittleWindow = on
         default:
             do {
                 store.settings = try SettingsBridge.applying(key, value, to: store.settings)
             } catch {
                 CraLog.note("settings page: \(key) not written (\(error))")
-                return "Cra couldn’t change that."
+                return "Pane couldn’t change that."
             }
         }
         CraLog.note("settings page set \(key)")
@@ -118,14 +118,14 @@ final class SettingsPageBridge: NSObject, WKScriptMessageHandlerWithReply {
 
     /// What the page asks Cra to do; nil when it went, else what to tell the user.
     private func run(_ name: String, _ args: [String: SettingsValue]) async -> String? {
-        guard let app, let store = app.store as SidebarStore? else { return "Cra isn’t ready." }
+        guard let app, let store = app.store as SidebarStore? else { return "Pane isn’t ready." }
         let window = page?.windowController
         CraLog.note("settings page action \(name)")
         switch name {
         case "defaultBrowser":
             await SystemIntegration.shared.makeDefaultBrowser()
         case "addToDock":
-            if !SystemIntegration.shared.addToDock() { return "Cra could not be added to the Dock." }
+            if !SystemIntegration.shared.addToDock() { return "Pane could not be added to the Dock." }
         case "checkForUpdates":
             SoftwareUpdater.shared.checkForUpdates(nil)
         case "downloadLocation":
@@ -137,12 +137,12 @@ final class SettingsPageBridge: NSObject, WKScriptMessageHandlerWithReply {
                 guard let url = await chooseFolder(in: window?.window) else { return nil }
                 l.folder = url.standardizedFileURL.path == DownloadDestinations.downloadsFolder.standardizedFileURL.path ? nil : url.path
                 l.askWhereToSave = false
-            default: return "Cra doesn’t know that choice."
+            default: return "Pane doesn’t know that choice."
             }
             store.settings.setDownloadLocation(l, profileID: nil)
         case "setEngine":
             guard let keyword = args["keyword"]?.string, let engine = engines().list.first(where: { $0.keyword == keyword }) else {
-                return "Cra doesn’t have that search engine."
+                return "Pane doesn’t have that search engine."
             }
             SearchEngines.shared.setDefault(engine, store: store)
         case "openURL":
@@ -181,7 +181,7 @@ final class SettingsPageBridge: NSObject, WKScriptMessageHandlerWithReply {
                 choice = .provider(p)
             default: return nil
             }
-            guard let prefs = SecureDNSPrefs(choice), SecureDNSSetting.shared.apply(prefs) else { return "Cra couldn’t change secure DNS." }
+            guard let prefs = SecureDNSPrefs(choice), SecureDNSSetting.shared.apply(prefs) else { return "Pane couldn’t change secure DNS." }
         case "recordShortcut":
             guard let id = args["id"]?.string, app.bindings.action(id) != nil else { return nil }
             startRecording(id)
@@ -193,7 +193,7 @@ final class SettingsPageBridge: NSObject, WKScriptMessageHandlerWithReply {
         case "resetAllShortcuts":
             app.bindings.resetOverrides()
         default:
-            guard let answer = await runSection(name, args) else { return "Cra doesn’t know “\(name)”." }
+            guard let answer = await runSection(name, args) else { return "Pane doesn’t know “\(name)”." }
             return answer
         }
         push()
@@ -386,7 +386,7 @@ final class SettingsPageBridge: NSObject, WKScriptMessageHandlerWithReply {
         return sectionsState().merging([
             "section": SettingsPage.section(of: page?.currentURL ?? SettingsPage.address).rawValue,
             "theme": theme,
-            "version": "Cra \(version) · Chromium \(CraCEFRuntime.chromiumVersion())",
+            "version": "Pane \(version) · Chromium \(CraCEFRuntime.chromiumVersion())",
             "dataFolder": Self.pretty(AppPaths.supportDir.path),
             "settings": (try? SettingsBridge.json(s)) ?? [:],
             "extra": [

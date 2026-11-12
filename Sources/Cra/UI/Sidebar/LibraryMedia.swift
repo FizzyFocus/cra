@@ -261,7 +261,7 @@ struct MediaOptInCard: View {
                 .foregroundStyle(Color(red: 0.55, green: 0.47, blue: 0.93))
                 .padding(.top, 4)
             Text("Your Media in the Library").font(.system(size: 13, weight: .semibold))
-            Text("Quickly grab screenshots, images, and videos from your computer by showing them in the Cra Library!")
+            Text("Quickly grab screenshots, images, and videos from your computer by showing them in the Pane Library!")
                 .font(.system(size: 11.5)).multilineTextAlignment(.center).foregroundStyle(.primary.opacity(0.8))
                 .fixedSize(horizontal: false, vertical: true)
             Button(action: show) {
