@@ -56,7 +56,7 @@ final class SettingsSyncService {
     /// How long the folder has held files from different writes (#378).
     private var mixWait = SyncMixWait()
 
-    static let newerCraError = "Your other Mac syncs with a newer version of Cra. Update Cra on this Mac to keep syncing."
+    static let newerCraError = "Your other Mac syncs with a newer version of \(Brand.name). Update \(Brand.name) on this Mac to keep syncing."
 
     /// Reads keybindings.json again after a bundle wrote it (KeyBindingRegistry.reloadOverrides).
     var keybindingsChanged: @MainActor () -> Void = {}
