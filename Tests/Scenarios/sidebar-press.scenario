@@ -1,0 +1,48 @@
+# Pane, after upstream 4ad54a1 (Arc 1.173.1: a tab switches on the press, not the release). Each step is
+# the row's own mouseDown or mouseUp (cra://debug?pressRow=). A plain press switches before the release;
+# a ⌘ press picks on the release without switching. A plain press on one of several picked tabs keeps
+# them (SidebarRowPress.keepsPicksOnPress): its release switches and clears them as a click always did,
+# and a drag from it carries every pick.
+budget rss=800 stalls50=20
+seed settings.json {"hasSeenImportPrompt": true, "toolbarDefaultMigrated": true}
+pace 0.3
+
+cra://open?url=${PAGE}?n=a
+expect-log loaded 127\.0\.0\.1 \(HTTP 200\)
+cra://open?url=${PAGE}?n=b
+cra://open?url=${PAGE}?n=c
+cra://open?url=${PAGE}?n=d
+wait 2
+cra://debug?listRows=start
+expect-log list rows start: n=d \| n=c \| n=b \| n=a$
+# A plain press switches at once; its release does nothing more.
+cra://debug?pressRow=3&phase=down
+expect-log press row 3 down: selected=n=a picks=0$
+cra://debug?pressRow=3&phase=up
+expect-log press row 3 up: selected=n=a picks=0$
+# ⌘ presses pick on the release (the open tab joins the first pick) and never switch.
+cra://debug?pressRow=2&phase=down&mods=cmd
+expect-log press row 2 down cmd: selected=n=a picks=0$
+cra://debug?pressRow=2&phase=up&mods=cmd
+expect-log press row 2 up cmd: selected=n=a picks=2$
+cra://debug?pressRow=1&phase=down&mods=cmd
+cra://debug?pressRow=1&phase=up&mods=cmd
+expect-log press row 1 up cmd: selected=n=a picks=3$
+# A plain press on a pick keeps all three; without a drag, its release switches and clears them.
+cra://debug?pressRow=1&phase=down
+expect-log press row 1 down: selected=n=a picks=3$
+cra://debug?pressRow=1&phase=up
+expect-log press row 1 up: selected=n=c picks=0$
+# Pick n=b and n=a with n=c open, press n=a and drag it above n=d: the three picks go together.
+cra://debug?pressRow=2&phase=down&mods=cmd
+cra://debug?pressRow=2&phase=up&mods=cmd
+cra://debug?pressRow=3&phase=down&mods=cmd
+cra://debug?pressRow=3&phase=up&mods=cmd
+expect-log press row 3 up cmd: selected=n=c picks=3$
+cra://debug?pressRow=3&phase=down
+expect-log press row 3 down: selected=n=c picks=3$
+cra://debug?dragRow=3&onto=0&at=0.1
+wait 0.5
+cra://debug?listRows=dragged
+expect-log list rows dragged: n=c \| n=b \| n=a \| n=d$
+reject-log fault:

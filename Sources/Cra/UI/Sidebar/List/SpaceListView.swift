@@ -1367,6 +1367,23 @@ final class SpaceListView: NSView, NSDraggingSource {
         return "menu=\(menu == nil ? 0 : 1) hovered=\(lit)"
     }
 
+    /// cra://debug?pressRow=<n>&phase=down|up[&mods=cmd|shift]: listed row n's own mouseDown or mouseUp at its
+    /// middle, as a real press arrives (a tab switches on the press, picks wait for the release), then the
+    /// tab the window shows (by its fixture page) and how many tabs are picked.
+    static func debugPress(ui: SidebarUIState, space: UUID, row n: Int, up: Bool, mods: NSEvent.ModifierFlags) -> String {
+        guard let l = all.allObjects.first(where: { $0.ui === ui && $0.spaceID == space }) else { return "no list" }
+        let listed = l.debugListed
+        guard listed.indices.contains(n), let v = l.views[listed[n].key], let w = v.window else { return "no row" }
+        let p = v.convert(NSPoint(x: v.bounds.midX, y: v.bounds.midY), to: nil)
+        guard let e = NSEvent.mouseEvent(with: up ? .leftMouseUp : .leftMouseDown, location: p, modifierFlags: mods,
+                                         timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: w.windowNumber,
+                                         context: nil, eventNumber: 0, clickCount: 1, pressure: up ? 0 : 1) else { return "no event" }
+        if up { v.mouseUp(with: e) } else { v.mouseDown(with: e) }
+        let shown = l.store.selectedTabID(window: ui.windowID).flatMap { l.store.item($0)?.tab?.url }
+            .flatMap { URLComponents(string: $0)?.queryItems?.first { $0.name == "n" }?.value } ?? "none"
+        return "selected=n=\(shown) picks=\(ui.multiSelection.count)"
+    }
+
     static func debugRowMenu(ui: SidebarUIState, space: UUID, row n: Int, run: String?) -> String {
         guard let l = all.allObjects.first(where: { $0.ui === ui && $0.spaceID == space }) else { return "no list" }
         let listed = l.debugListed

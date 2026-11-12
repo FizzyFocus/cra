@@ -1193,6 +1193,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                 CraLog.note("drag row \(n) onto \(m): \(SpaceListView.debugDrag(ui: main.sidebarUI, space: store.focusedSpace(window: main.windowID).id, from: n, onto: m, at: at))")
                 return
             }
+            // pressRow=<n>&phase=down|up[&mods=cmd|shift]: that row's own press or release (debugPress).
+            if let n = dict["pressRow"].flatMap(Int.init) {
+                let up = dict["phase"] == "up"
+                let mods: NSEvent.ModifierFlags = dict["mods"] == "cmd" ? .command : dict["mods"] == "shift" ? .shift : []
+                let out = SpaceListView.debugPress(ui: main.sidebarUI, space: store.focusedSpace(window: main.windowID).id, row: n, up: up, mods: mods)
+                CraLog.note("press row \(n) \(up ? "up" : "down")\(dict["mods"].map { " " + $0 } ?? ""): \(out)")
+                return
+            }
             // rightClickRow=<n>: that row right-clicked (its menu made, not shown); then the hovered row.
             if let n = dict["rightClickRow"].flatMap(Int.init) {
                 CraLog.note("right-click row \(n): \(SpaceListView.debugRightClick(ui: main.sidebarUI, space: store.focusedSpace(window: main.windowID).id, row: n))")

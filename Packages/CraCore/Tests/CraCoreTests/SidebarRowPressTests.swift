@@ -29,4 +29,19 @@ struct SidebarRowPressTests {
         #expect(abs(SidebarRowPress.stiffness - 986.96) < 0.01)
         #expect(abs(SidebarRowPress.damping - 31.416) < 0.001)
     }
+
+    /// Arc switches a tab on the press (live Arc 1.173.1, 12 Nov 2026); picks and renames wait for the release.
+    @Test func tabsSwitchOnThePress() {
+        #expect(SidebarRowPress.selectsOnPress(.tab, clickCount: 1, modified: false))
+        #expect(!SidebarRowPress.selectsOnPress(.tab, clickCount: 2, modified: false), "a double-click's second press renames on release")
+        #expect(!SidebarRowPress.selectsOnPress(.tab, clickCount: 1, modified: true), "⌘ or ⇧ picks on release, as Arc's ⌘-press")
+        #expect(!SidebarRowPress.selectsOnPress(.favorite, clickCount: 1, modified: false))
+        #expect(!SidebarRowPress.selectsOnPress(.split, clickCount: 1, modified: false))
+    }
+
+    @Test func aPressOnSeveralPicksKeepsThem() {
+        #expect(SidebarRowPress.keepsPicksOnPress(picked: true, pickCount: 3), "a drag from a pick carries them all")
+        #expect(!SidebarRowPress.keepsPicksOnPress(picked: true, pickCount: 1), "a lone pick is just the row")
+        #expect(!SidebarRowPress.keepsPicksOnPress(picked: false, pickCount: 3), "a row outside the picks switches on the press")
+    }
 }

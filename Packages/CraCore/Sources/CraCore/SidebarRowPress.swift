@@ -13,6 +13,21 @@ public enum SidebarRowPress {
     public static var stiffness: Double { pow(2 * .pi / response, 2) }
     public static var damping: Double { 4 * .pi * dampingRatio / response }
 
+    /// Arc switches tabs on the press, not the release (Arc 1.173.1, 12 Nov 2026, live: 250 ms into
+    /// a held press the window already shows the pressed tab, and a press that becomes a drag has
+    /// switched too). A ⌘ or ⇧ press (picking), a double-click's second press (rename) and a press
+    /// with ⌃ (the menu) still act on the release, as Arc's ⌘-press does.
+    public static func selectsOnPress(_ row: Row, clickCount: Int, modified: Bool) -> Bool {
+        row == .tab && clickCount == 1 && !modified
+    }
+
+    /// Pane (13 Nov 2026): a press on one of several picked tabs doesn't switch, because the switch
+    /// clears the picks and a drag from that row carries every picked tab. Its release still does
+    /// (a plain click there switches and clears the picks, as before).
+    public static func keepsPicksOnPress(picked: Bool, pickCount: Int) -> Bool {
+        picked && pickCount > 1
+    }
+
     /// Arc skips the second press of a double-click on tabs and splits only.
     public static func pushesIn(_ row: Row, clickCount: Int) -> Bool {
         switch row {
