@@ -1294,6 +1294,8 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
         // A Peek (and its dimming) stays above everything else in the window but the hidden sidebar
         // slid out at the edge: that one is the sidebar, whose rows stay in reach of a Peek (#242, #295).
         var wanted = panels.compactMap { $0 } + peeks.flatMap(\.peekWindows) + (floatingSidebar?.attachedPanels ?? [])
+        // Permission cards over their page's top left corner (#371).
+        wanted += PermissionPopover.panels(over: window)
         // The address field's dropdown over the floating sidebar's field: above the sidebar, or the
         // sidebar covered its left part and cut off what was typed (11 Nov 2026); and the command bar ⌘T
         // opened from a Peek stays above the Peek (#379).
