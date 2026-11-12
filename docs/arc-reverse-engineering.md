@@ -4310,3 +4310,13 @@ Visual references: paired YouTube Music footage in dark spaces and light-theme s
 - Pane: the card keeps Arc's layout and sizes but takes the space's popover look (SpacePopoverTones, as Translate
   and Blocked pop-ups): AppKit's frosted popover material, light or dark with the space, the question and hint in
   the space's dialog ink, Allow in its primary hue and Not Now in its plain button tone.
+
+## Previews: recent pages (Arc 1.172.2, 12 Nov 2026, GitHub #376, static)
+- [O static] Arc's Previews Settings… keys: `gmailPreviewEnabled`, `outlookCalendarPreviewEnabled`, `outlookEmailPreviewEnabled`,
+  `recentPagesPreviewEnabled`, `cronPreviewEnabled` (Notion Calendar).
+- Arc 1.172.2's main binary, recent pages: `Previews/RecentPagesFetcher.swift` `search(domain:tidyTitleConfiguration:browserContextID:)`
+  (per profile, titles through Tidy Tab Titles), left out: `notion.so/samlauthcallback`, `…/externalintegrationauthcallback`,
+  `…/googlepopupcallback`, `…/oauth2callback`, `figma.com/files/recent`. Empty lines "Recent Linear projects and issues appear
+  here.", "Recent Notion docs appear here.", "Recent Figma files appear here.", "Recent Confluence pages appear here."; the ＋ opens
+  linear.app/new, notion.so/new, figma.com/new, confluence.new. The card itself wasn't seen (no accounts); Cra's (CraCore
+  RecentPagesPreview) lists favicon, title and age in the Gmail card's style, on favorites and pinned tabs.

@@ -370,14 +370,20 @@
           toggle('newTabButtonAtTop', 'Show the New Tab button above tabs', 'The + New Tab row sits at the top of the tab list, where you can always reach it.'),
           toggle('hapticFeedbackOnReorder', 'Haptic feedback when reordering tabs', 'The trackpad taps as a dragged tab moves past another one.'),
           toggle('middleClickUnloadsTab', 'Middle-click a tab to unload it instead of closing it', 'The tab stays in the sidebar with its memory freed, and loads again when you open it.'),
-          toggle('folderPreviews', 'Preview a folder’s tabs when hovering over it', 'Hover over a closed folder to see the tabs inside it.'),
           toggle('autoPictureInPicture', 'Enable Picture in Picture when you leave a video tab', 'For every site you haven’t switched yourself: a site switched in its Extensions menu keeps that until you switch it again.'),
         ], { footnote: 'Right-click a tab ▸ Load on Start to have it load when Pane opens and stay in memory.' }),
         card('Favorites', [
-          toggle('favoritePreviews', 'Preview unread Gmail when hovering its favorite', 'Hover over Gmail in your Favorites to see your unread mail.'),
           toggle('favoriteLogoOutline', 'Outline the open favorite in its logo’s colors', 'The open favorite gets a rim in its logo’s colors instead of a plain one.'),
           toggle('sharedFavorites', 'Share favorites across spaces', 'Spaces on the same profile show the same Favorites, as in Arc. Turning it on combines their Favorites; turning it off gives each Space its own copy.'),
         ]),
+        // Arc's Previews Settings… sheet (#376), its rows in Arc's order: what a hover over a folder, a
+        // pinned tab or a favorite shows.
+        card('Previews', [
+          toggle('folderPreviews', 'Folders', 'Hover over a closed folder to see the tabs inside it.'),
+          toggle('calendarHoverPreview', 'Google Calendar', 'Hover over Google Calendar in your Favorites or pinned tabs to see today’s events.'),
+          toggle('favoritePreviews', 'Google Mail', 'Hover over Gmail in your Favorites or pinned tabs to see your unread mail.'),
+          toggle('recentPagesPreviews', 'Recent pages on Linear, Notion, and Figma', 'Hover over Linear, Notion, Figma or Confluence in your Favorites or pinned tabs to see the pages you visited there last.'),
+        ], { footnote: 'Save a click: hover over a folder, a pinned tab or a favorite to preview what you need from that site.' }),
         card('Spaces', [
           toggle('showSpaceHeaderOnSingleSpace', 'Show the space header with only one space', 'Show the space’s name at the top and its icon at the bottom of the sidebar, even while you have only one space.'),
           button('Your spaces', 'Rename, reorder, theme and delete spaces in the Library.', 'Manage Spaces…', 'manageSpaces'),
