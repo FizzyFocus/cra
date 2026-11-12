@@ -1422,11 +1422,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak main] in
                     guard let main else { return }
                     let waiting = main.browsers.blockedPopups(id)
-                    let rows = main.blockedPopupsMenu(id).items.map { $0.isSeparatorItem ? "-" : $0.title + ($0.state == .on ? "✓" : "") }
+                    let rows = BlockedPopups.readout(main.blockedPopupsRows(id))
                     let today = self.store.tabs(under: self.store.focusedSpace(window: main.windowID).todayContainerID).count
                     CraLog.note("popups \(label): waiting=\(waiting.count) urls=\(waiting.map(\.url).joined(separator: " ")) "
                                 + "button=\(main.sidebarUI.navState(for: id).blockedPopups) line=\((main.shell.sidebarHost as? SidebarView)?.debugTranslateLine ?? "-") "
-                                + "allowed=\(main.browsers.popupsAllowed(id) ? 1 : 0) today=\(today) menu=\(rows.joined(separator: " | "))")
+                                + "allowed=\(main.browsers.popupsAllowed(id) ? 1 : 0) today=\(today) menu=\(rows)")
                 }
                 return
             }

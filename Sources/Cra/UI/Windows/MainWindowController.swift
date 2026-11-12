@@ -3225,42 +3225,26 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
         }
         if state.languages.isEmpty { browsers.refreshTranslation(id, then: show) } else { show() }
     }
-    /// The blocked pop-ups menu (#357) under the button that was pressed (screen rect): the
-    /// toolbar's, or the sidebar URL field's "Pop-ups Blocked".
+    /// The blocked pop-ups popover (#357) under the button that was pressed (screen rect): the
+    /// toolbar's, or the sidebar URL field's "Pop-ups Blocked". Upstream showed a menu; here it is a
+    /// popover in the space's colours (BlockedPopupsPopover), with the same rows.
     func showBlockedPopups(_ id: UUID, from anchor: NSRect?) {
         guard let window, let content = window.contentView,
               let anchor = anchor ?? (shell.sidebarHost as? SidebarView)?.blockedPopupsFrameOnScreen else { return }
         let rect = content.convert(window.convertFromScreen(anchor), from: nil)
-        blockedPopupsMenu(id).popUp(positioning: nil, at: NSPoint(x: rect.minX, y: rect.minY - 4), in: content)
+        var actions = BlockedPopupsActions()
+        actions.open = { [weak self] popup in self?.browsers.openBlockedPopups(id, popup: popup) }
+        actions.setAllowed = { [weak self] on in self?.browsers.setPopupsAllowed(id, on) }
+        blockedPopupsPopover.toggle(relativeTo: rect, of: content, rows: blockedPopupsRows(id), actions: actions)
     }
 
-    /// Chrome's blocked pop-ups bubble as a menu: the pop-ups (each opens as a tab below the page),
-    /// Open All, and the site's Always Allow switch.
-    func blockedPopupsMenu(_ id: UUID) -> NSMenu {
-        let menu = NSMenu()
-        menu.autoenablesItems = false
-        let popups = browsers.blockedPopups(id)
-        let heading = NSMenuItem(title: BlockedPopups.heading(count: popups.count), action: nil, keyEquivalent: "")
-        heading.isEnabled = false
-        menu.addItem(heading)
-        for p in popups {
-            let item = BlockMenuItem(title: BlockedPopups.menuTitle(url: p.url)) { [weak self] in self?.browsers.openBlockedPopups(id, popup: p.id) }
-            item.toolTip = p.url
-            menu.addItem(item)
-        }
-        if popups.count > 1 {
-            menu.addItem(.separator())
-            menu.addItem(BlockMenuItem(title: BlockedPopups.openAllTitle(count: popups.count)) { [weak self] in self?.browsers.openBlockedPopups(id) })
-        }
-        let pageURL = browsers.runtime(for: id)?.browser.currentURL ?? ""
-        if let title = BlockedPopups.allowTitle(pageURL: pageURL) {
-            menu.addItem(.separator())
-            let allowed = browsers.popupsAllowed(id)
-            let allow = BlockMenuItem(title: title) { [weak self] in self?.browsers.setPopupsAllowed(id, !allowed) }
-            allow.state = allowed ? .on : .off
-            menu.addItem(allow)
-        }
-        return menu
+    let blockedPopupsPopover = BlockedPopupsPopover()
+
+    /// Chrome's blocked pop-ups bubble, row by row (CraCore BlockedPopups.rows): the pop-ups (each
+    /// opens as a tab below the page), Open All, and the site's Always Allow switch.
+    func blockedPopupsRows(_ id: UUID) -> [BlockedPopups.Row] {
+        BlockedPopups.rows(browsers.blockedPopups(id), pageURL: browsers.runtime(for: id)?.browser.currentURL ?? "",
+                           allowed: browsers.popupsAllowed(id))
     }
 
     /// The space the Site Control Center was opened in.
@@ -4169,7 +4153,8 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
     /// `cra://debug?windowState`: which of its popovers are up ("extensions,bookmark", "-").
     var debugPopovers: String {
         let up = [siteControlCenter.isShown ? "extensions" : nil, BookmarkEditPopover.isOpen(in: window) ? "bookmark" : nil,
-                  themePicker != nil ? "theme" : nil].compactMap { $0 }
+                  themePicker != nil ? "theme" : nil, translatePopover.isShown ? "translate" : nil,
+                  blockedPopupsPopover.isShown ? "popups" : nil].compactMap { $0 }
         return up.isEmpty ? "-" : up.joined(separator: ",")
     }
 
@@ -4199,7 +4184,8 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
         CraLog.note("settings tab shown (\((section ?? .general).rawValue), \(existing == nil ? "new" : "existing"))")
     }
 
-    /// The popovers hung from the sidebar and the bar (the Extensions popover, the bookmark card)
+    /// The popovers hung from the sidebar and the bar (the Extensions popover, the bookmark card,
+    /// Translate, Blocked pop-ups)
     /// go when what they belong to does: the floating sidebar starting to hide, another space.
     /// `spaceChange`: another space came up; the theme picker goes only when it belongs to another
     /// space than the one now shown (Edit Theme Color… on another space's icon opens it as that
@@ -4209,6 +4195,9 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
         guard up != "-" else { return }
         if siteControlCenter.isShown { siteControlCenter.close() }
         BookmarkEditPopover.close(in: window)
+        // Translate and Blocked pop-ups hang from the same bar and URL field (#310, #357).
+        if translatePopover.isShown { translatePopover.close() }
+        if blockedPopupsPopover.isShown { blockedPopupsPopover.close() }
         if let picker = themePicker, !spaceChange || themePickerSpaceID != focusedSpaceID, sidebarUI.creatingSpace == nil {
             picker.close()
         }

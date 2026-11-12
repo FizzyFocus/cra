@@ -88,4 +88,19 @@ struct BlockedPopupsTests {
         #expect(BlockedPopups.allowTitle(pageURL: "file:///Users/me/page.html") == nil)
         #expect(BlockedPopups.allowTitle(pageURL: "cra://settings") == nil)
     }
+
+    /// The popover's rows (this fork shows Chrome's list in a popover, not upstream's menu): the
+    /// heading and the pop-ups, Open All only with two or more, Always Allow only for a web page.
+    @Test func popoverRows() {
+        let two = [BlockedPopups.Popup(id: 1, url: "https://a.example/x"), BlockedPopups.Popup(id: 2, url: "https://www.b.example/")]
+        let rows = BlockedPopups.rows(two, pageURL: "https://www.site.example/page", allowed: false)
+        #expect(rows == [.heading("2 Pop-ups Blocked on This Page"), .popup(id: 1, title: "a.example/x", url: "https://a.example/x"),
+                         .popup(id: 2, title: "b.example", url: "https://www.b.example/"), .separator, .openAll("Open All 2 Pop-ups"),
+                         .separator, .allow("Always Allow Pop-ups from site.example", on: false)])
+        #expect(BlockedPopups.readout(rows) == "2 Pop-ups Blocked on This Page | a.example/x | b.example | - | Open All 2 Pop-ups | - | Always Allow Pop-ups from site.example")
+        let one = BlockedPopups.rows([two[0]], pageURL: "https://site.example/", allowed: true)
+        #expect(!one.contains(.openAll("Open All 1 Pop-ups")) && one.last == .allow("Always Allow Pop-ups from site.example", on: true))
+        #expect(BlockedPopups.readout(one).hasSuffix("site.example✓"))
+        #expect(BlockedPopups.rows([two[0]], pageURL: "file:///page.html", allowed: false).last == .popup(id: 1, title: "a.example/x", url: "https://a.example/x"))
+    }
 }

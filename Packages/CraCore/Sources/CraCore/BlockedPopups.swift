@@ -57,6 +57,39 @@ public struct BlockedPopups: Equatable, Sendable {
         return !ids.isEmpty
     }
 
+    // MARK: The popover
+
+    /// What the blocked pop-ups popover lists, top to bottom, as Chrome's bubble (and upstream's
+    /// menu) does: the heading, each pop-up, Open All with two or more, then the site's Always Allow.
+    public enum Row: Equatable, Sendable {
+        case heading(String)
+        case popup(id: Int, title: String, url: String)
+        case separator
+        case openAll(String)
+        case allow(String, on: Bool)
+    }
+
+    public static func rows(_ popups: [Popup], pageURL: String, allowed: Bool) -> [Row] {
+        var rows: [Row] = [.heading(heading(count: popups.count))]
+        rows += popups.map { .popup(id: $0.id, title: menuTitle(url: $0.url), url: $0.url) }
+        if popups.count > 1 { rows += [.separator, .openAll(openAllTitle(count: popups.count))] }
+        if let title = allowTitle(pageURL: pageURL) { rows += [.separator, .allow(title, on: allowed)] }
+        return rows
+    }
+
+    /// The rows on one line for a scenario: their titles, "-" for a separator, "✓" after Always Allow
+    /// while it is on (the form the menu's readout had).
+    public static func readout(_ rows: [Row]) -> String {
+        rows.map { row in
+            switch row {
+            case .heading(let t), .openAll(let t): return t
+            case .popup(_, let t, _): return t
+            case .separator: return "-"
+            case .allow(let t, let on): return t + (on ? "✓" : "")
+            }
+        }.joined(separator: " | ")
+    }
+
     // MARK: Words
 
     /// Help for the toolbar button and the URL field's affordance.
