@@ -598,6 +598,10 @@
 #357   Tests/BrowserManagerLifecycleTests.swift::leaveVideoTabPictureInPictureCase  a12153424813
 #357   Tests/Scenarios/blocked-popups.scenario  9004e8b5813e
 #357   Tests/Scenarios/pip-leave-tab.scenario  c4d89f9ecfb9
+#361   Packages/CraCore/Tests/CraCoreTests/CopyCheckTests.swift::inkFillsTheMeasuredSquare  e442b6d5379c
+#361   Packages/CraCore/Tests/CraCoreTests/CopyCheckTests.swift::phasesInOrder  62ce482ede57
+#361   Packages/CraCore/Tests/CraCoreTests/CopyCheckTests.swift::shapeIsACheckmark  e89f94442e28
+#361   Packages/CraCore/Tests/CraCoreTests/CopyCheckTests.swift::springMatchesTheCapture  8cd896255e14
 #363   Packages/CraCore/Tests/CraCoreTests/PageTopDragTests.swift::underABarTheBandIsWhatIsLeftOf60Points  5f3b649778c7
 #363   Tests/Scenarios/page-top-click.scenario  ee4243bd50dc
 #363   Tests/WindowContentGrabberTests.swift::checkClicksAndDrag  4ed1aa99b31d

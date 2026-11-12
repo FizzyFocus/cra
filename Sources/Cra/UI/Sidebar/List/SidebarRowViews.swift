@@ -260,6 +260,9 @@ final class SidebarGlyphButton: NSView {
     private var mark: CAShapeLayer?
     private var markMinus = false
     private var tip: ArcTooltipAnchorView?
+
+    /// Arc's link → checkmark → link after a click on Copy Link (upstream eda6089, #361).
+    func playCopyCheck(glyphSize: CGFloat) { glyph.playCopyCheck(glyphSize: glyphSize) }
     private var hovering = false { didSet { refresh() } }
     var colors: SidebarColors { didSet { if colors != oldValue { refresh() } } }
 

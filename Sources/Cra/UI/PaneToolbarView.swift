@@ -976,10 +976,17 @@ final class ToolbarURLButton: NSView, NSTextFieldDelegate {
     override func mouseUp(with event: NSEvent) {
         guard !contextClick, press.finish() else { return }
         switch region(at: event) {
-        case .copy: onCopy()
+        case .copy: copyFromGlyph()
         case .address: action()
         case .none: break
         }
+    }
+
+    /// A click on the link glyph: Copy Current URL, and Arc's link → checkmark → link in its place
+    /// (upstream eda6089, #361). ⇧⌘C and the address menu's Copy URL only show the toast, as in Arc.
+    func copyFromGlyph() {
+        onCopy()
+        icon.playCopyCheck(glyphSize: 12)
     }
     override func menu(for event: NSEvent) -> NSMenu? { field == nil ? menuProvider?() : nil }
 }
