@@ -1,7 +1,11 @@
-// Renders the alternate app icons in Settings ▸ General ▸ App Icon from the brand marks
-// (brand/*.svg) into resources/app-icons/<id>.png, 512 px (Dock tiles top out at 128 pt), on Apple's icon grid:
-// the tile is 824 of 1024 px, centred, the size the Dock gives the edge-to-edge AppIcon.icns.
-// segments.png is only the picker's preview of the bundled icon.
+// Renders Cra's app icons from the brand marks (brand/*.svg), all on Apple's icon grid: the tile
+// is 824 of 1024 px, centred, with a clear margin round it, as on every macOS icon (Arc's too).
+// - resources/AppIcon.icns, the bundled icon (Segments), from a 1024 px render.
+// - resources/app-icons/<id>.png, the alternates in Settings ▸ General ▸ App Icon, 512 px (Dock
+//   tiles top out at 128 pt). segments.png is the picker's preview of the bundled icon.
+// The bundled icon was drawn edge to edge until 11 Nov 2026: Finder and the idle Dock fit it onto
+// the grid themselves, but where the running app's tile drew the file as it is, Cra stood a fifth
+// larger than Arc beside it. lint's app-icon-grid rule checks every image.
 // WebKit draws them so the ribbons' multiply blending survives (see brand/README.md).
 //   swift scripts/make-app-icons.swift
 import AppKit
@@ -42,44 +46,131 @@ let icons: [String: String] = [
         + #"<g style="isolation:isolate">"# + violetRibbons + "</g></g></svg>",
 ]
 
+/// One icon to draw: its SVG on the grid at `pixels` a side, handed to `write`.
+struct Job {
+    let id: String
+    let svg: String
+    let pixels: Int
+    let write: (NSBitmapImageRep) -> Void
+}
+
 final class Renderer: NSObject, WKNavigationDelegate {
     let view = WKWebView(frame: NSRect(x: 0, y: 0, width: 256, height: 256))
-    var queue: [(String, String)]
-    init(_ icons: [String: String]) { queue = icons.sorted { $0.key < $1.key } }
+    var queue: [Job]
+    init(_ jobs: [Job]) { queue = jobs }
 
     func next() {
-        guard let (_, svg) = queue.first else { exit(0) }
+        guard let job = queue.first else { exit(0) }
+        // Half the pixels in points: a Retina screen draws it 1:1, a 1x one is scaled by the snapshot.
+        view.window?.setContentSize(NSSize(width: job.pixels / 2, height: job.pixels / 2))
         view.navigationDelegate = self
         view.setValue(false, forKey: "drawsBackground")
         // Only the <svg> tag's size: the tile <rect> has the same attributes.
-        let tag = svg.range(of: #"width="64" height="64""#)!
-        let sized = svg.replacingCharacters(in: tag, with: #"style="display:block;width:80.46875vw;height:80.46875vw;margin:9.765625vw""#)
+        let tag = job.svg.range(of: #"width="64" height="64""#)!
+        let sized = job.svg.replacingCharacters(in: tag, with: #"style="display:block;width:80.46875vw;height:80.46875vw;margin:9.765625vw""#)
         view.loadHTMLString("<!doctype html><html><body style='margin:0;background:transparent;overflow:hidden'>\(sized)</body></html>", baseURL: nil)
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        let (id, _) = queue.removeFirst()
-        // 512 px on any display: 256 pt at 2x, or rendered at 512 pt where the window is 1x.
+        let job = queue.removeFirst()
+        // The job's pixels on any display.
         let config = WKSnapshotConfiguration()
-        config.snapshotWidth = NSNumber(value: 512 / Double(webView.window?.backingScaleFactor ?? 2))
+        config.snapshotWidth = NSNumber(value: Double(job.pixels) / Double(webView.window?.backingScaleFactor ?? 2))
         webView.takeSnapshot(with: config) { image, error in
             guard let image, let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
-                fatalError("\(id): \(error?.localizedDescription ?? "no image")")
+                fatalError("\(job.id): \(error?.localizedDescription ?? "no image")")
             }
             let rep = NSBitmapImageRep(cgImage: cg)
-            let out = root.appendingPathComponent("resources/app-icons/\(id).png")
-            try! FileManager.default.createDirectory(at: out.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try! rep.representation(using: .png, properties: [:])!.write(to: out)
-            print("wrote \(out.path) (\(rep.pixelsWide) px)")
+            guard rep.pixelsWide == job.pixels else { fatalError("\(job.id): \(rep.pixelsWide) px, not \(job.pixels)") }
+            job.write(rep)
             self.next()
         }
     }
 }
 
+func writePNG(_ rep: NSBitmapImageRep, to out: URL) {
+    try! FileManager.default.createDirectory(at: out.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try! rep.representation(using: .png, properties: [:])!.write(to: out)
+    print("wrote \(out.path) (\(rep.pixelsWide) px)")
+}
+
+/// An icon's premultiplied RGBA, in the render's own colour space (nothing converted).
+struct Pixels {
+    let px: Int
+    let bytes: [UInt8]
+    let space: CGColorSpace
+
+    init(px: Int, bytes: [UInt8], space: CGColorSpace) {
+        self.px = px
+        self.bytes = bytes
+        self.space = space
+    }
+
+    init(_ image: CGImage) {
+        px = image.width
+        space = image.colorSpace ?? CGColorSpace(name: CGColorSpace.sRGB)!
+        var bytes = [UInt8](repeating: 0, count: px * px * 4)
+        let ctx = CGContext(data: &bytes, width: px, height: px, bitsPerComponent: 8, bytesPerRow: px * 4, space: space,
+                            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+        ctx.draw(image, in: CGRect(x: 0, y: 0, width: px, height: px))
+        self.bytes = bytes
+    }
+
+    /// Half the size, each pixel the average of the four under it: the tile's edge keeps its true
+    /// coverage at every size (CoreGraphics' own downscale left the 32 px edge half as opaque).
+    func halved() -> Pixels {
+        let n = px / 2, row = px * 4
+        var out = [UInt8](repeating: 0, count: n * n * 4)
+        for y in 0..<n {
+            for x in 0..<n {
+                for c in 0..<4 {
+                    let i = 2 * y * row + 2 * x * 4 + c
+                    let sum = Int(bytes[i]) + Int(bytes[i + 4]) + Int(bytes[i + row]) + Int(bytes[i + row + 4])
+                    out[(y * n + x) * 4 + c] = UInt8((sum + 2) / 4)
+                }
+            }
+        }
+        return Pixels(px: n, bytes: out, space: space)
+    }
+
+    func png() -> Data {
+        var copy = bytes
+        let ctx = CGContext(data: &copy, width: px, height: px, bitsPerComponent: 8, bytesPerRow: px * 4, space: space,
+                            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+        return NSBitmapImageRep(cgImage: ctx.makeImage()!).representation(using: .png, properties: [:])!
+    }
+}
+
+/// AppIcon.icns from the 1024 px render, through iconutil.
+func writeICNS(_ full: NSBitmapImageRep) {
+    var sizes = [1024: Pixels(full.cgImage!)]
+    for px in [512, 256, 128, 64, 32, 16] { sizes[px] = sizes[px * 2]!.halved() }
+    let set = FileManager.default.temporaryDirectory.appendingPathComponent("AppIcon-\(UUID().uuidString).iconset")
+    try! FileManager.default.createDirectory(at: set, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: set) }
+    for pt in [16, 32, 128, 256, 512] {
+        try! sizes[pt]!.png().write(to: set.appendingPathComponent("icon_\(pt)x\(pt).png"))
+        try! sizes[pt * 2]!.png().write(to: set.appendingPathComponent("icon_\(pt)x\(pt)@2x.png"))
+    }
+    let out = root.appendingPathComponent("resources/AppIcon.icns")
+    let iconutil = Process()
+    iconutil.executableURL = URL(fileURLWithPath: "/usr/bin/iconutil")
+    iconutil.arguments = ["-c", "icns", set.path, "-o", out.path]
+    try! iconutil.run()
+    iconutil.waitUntilExit()
+    guard iconutil.terminationStatus == 0 else { fatalError("iconutil failed (\(iconutil.terminationStatus))") }
+    print("wrote \(out.path) (16 to 1024 px)")
+}
+
+let jobs = [Job(id: "AppIcon", svg: segments, pixels: 1024, write: writeICNS)]
+    + icons.sorted { $0.key < $1.key }.map { id, svg in
+        Job(id: id, svg: svg, pixels: 512) { writePNG($0, to: root.appendingPathComponent("resources/app-icons/\(id).png")) }
+    }
+
 let app = NSApplication.shared
 let window = NSWindow(contentRect: NSRect(x: -10000, y: -10000, width: 256, height: 256), styleMask: .borderless, backing: .buffered, defer: false)
 window.backingType = .buffered
-let renderer = Renderer(icons)
+let renderer = Renderer(jobs)
 window.contentView = renderer.view
 window.orderBack(nil)
 renderer.next()

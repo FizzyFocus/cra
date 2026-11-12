@@ -122,9 +122,10 @@ final class AppIconManager {
         DistributedNotificationCenter.default().postNotificationName(Self.changedNotification, object: nil, userInfo: nil, deliverImmediately: true)
     }
 
-    /// Apple's macOS icon grid: the tile is 824 of 1024 px, centred. The Dock fits the bundled
-    /// AppIcon.icns (drawn edge to edge) into it by itself, but draws applicationIconImage and
-    /// the plug-in's image as they are, so every alternate and custom icon is made on the grid.
+    /// Apple's macOS icon grid: the tile is 824 of 1024 px, centred. The Dock, ⌘-Tab and Cra's own
+    /// dialogs draw applicationIconImage and the plug-in's image as they are, so every icon is on
+    /// it: AppIcon.icns and the alternates from scripts/make-app-icons.swift (lint: app-icon-grid),
+    /// a custom one made here.
     static let gridBody: CGFloat = 824.0 / 1024
 
     /// 512 px on Apple's grid, like the alternates. An opaque image (a photo, a logo on a
@@ -185,14 +186,19 @@ final class AppIconManager {
     /// cra://debug?dockTile (#319): "view=none" while the Dock draws the bundle's icon itself,
     /// else the tile's content view and whether its drawing is nearer the picked icon or the
     /// bundle's.
+    /// `body=` and `appIcon=` are how much of the canvas the tile's drawing and
+    /// NSApp.applicationIconImage fill: 81 % on Apple's grid (52 of 64 px), 100 % edge to edge.
     func dockTileReadout() -> String {
-        guard let view = NSApp.dockTile.contentView else { return "view=none" }
-        let px = 32
-        let drawn = Self.pixels(px) { rect in
+        let appIcon = "appIcon=\(Self.bodyPercent(Self.pixels(64) { NSApp.applicationIconImage.draw(in: $0) }, px: 64))%"
+        guard let view = NSApp.dockTile.contentView else { return "view=none \(appIcon)" }
+        func tile(_ rect: NSRect) {
             guard view.bounds.width > 0, let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return }
             view.cacheDisplay(in: view.bounds, to: rep)
             rep.draw(in: rect)
         }
+        let px = 32
+        let drawn = Self.pixels(px, tile)
+        let body = Self.bodyPercent(Self.pixels(64, tile), px: 64)
         let bundleIcon = NSWorkspace.shared.icon(forFile: Bundle.main.bundlePath)
         let picked = Self.pixels(px) { (self.image(for: self.selectedID) ?? bundleIcon).draw(in: $0) }
         let bundle = Self.pixels(px) { bundleIcon.draw(in: $0) }
@@ -200,7 +206,22 @@ final class AppIconManager {
             a.isEmpty || a.count != b.count ? Int.max : zip(a, b).reduce(0) { $0 + abs(Int($1.0) - Int($1.1)) } / a.count
         }
         let toPicked = distance(drawn, picked), toBundle = distance(drawn, bundle)
-        return "view=\(type(of: view)) draws=\(toPicked < toBundle ? "picked" : "bundle") (\(toPicked) vs \(toBundle))"
+        return "view=\(type(of: view)) draws=\(toPicked < toBundle ? "picked" : "bundle") (\(toPicked) vs \(toBundle)) body=\(body)% \(appIcon)"
+    }
+
+    /// The width of the more-than-half-opaque part of `px`-wide RGBA pixels (rows from the top), in
+    /// whole percent of `px`; 0 when nothing is.
+    static func bodyPercent(_ pixels: [UInt8], px: Int) -> Int {
+        guard px > 0, pixels.count >= px * px * 4 else { return 0 }
+        let row = pixels.count / px
+        var minX = px, maxX = -1
+        for y in 0..<px {
+            for x in 0..<px where pixels[y * row + x * 4 + 3] > 127 {
+                minX = min(minX, x)
+                maxX = max(maxX, x)
+            }
+        }
+        return maxX < 0 ? 0 : Int((Double(maxX - minX + 1) * 100 / Double(px)).rounded())
     }
 
     private static func pixels(_ px: Int, _ draw: (NSRect) -> Void) -> [UInt8] {

@@ -308,8 +308,10 @@ raw `NSVisualEffectView.Material` value, `alpha` scales the gradient opacity.
 
 Logo sources are in `brand/` (see `brand/README.md`). `resources/brand/*.png` are WebKit
 renders of them (so the multiply blends survive) used by `BrandMark`, and
-`resources/AppIcon.icns` is built from `brand/cra-segments-icon.svg` (render at 1024 px,
-`iconutil`). The marketing site lives in a separate private repository.
+`resources/AppIcon.icns` (from `brand/cra-segments-icon.svg`) and the alternates in
+`resources/app-icons` are rendered by `swift scripts/make-app-icons.swift`, all on Apple's icon
+grid: the tile 824 of 1024 px, centred (lint's `app-icon-grid` checks every image). The
+marketing site lives in a separate private repository.
 
 ## Releasing
 

@@ -29,6 +29,12 @@ gains a finding fails, one that loses one is reported so the baseline can come d
   app-icon-size
       A resources/app-icons PNG that isn't 512×512 px. The generator once followed the display's
       scale and wrote 256 px icons on a 1x screen, which the Dock would draw blurry.
+  app-icon-grid
+      An app icon whose tile isn't on Apple's icon grid (824 of 1024 px, centred, clear around
+      it): each image in resources/AppIcon.icns and each resources/app-icons PNG. AppIcon.icns
+      was drawn edge to edge: Finder and the idle Dock fit it onto the grid themselves, but where
+      the running app's tile drew the file as it is, Cra stood a fifth larger than Arc beside it
+      (11 Nov 2026). scripts/make-app-icons.swift writes them all.
   core-platform-import
       Packages/CraCore importing AppKit, Cocoa, SwiftUI, UIKit or CraCEF. The core is models and
       decisions that build and test without a window or Chromium (#51); what needs one stays in
@@ -49,7 +55,9 @@ gains a finding fails, one that loses one is reported so the baseline can come d
 import collections
 import os
 import re
+import struct
 import sys
+import zlib
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SOURCES = os.path.join(ROOT, "Sources", "Cra")
@@ -134,9 +142,17 @@ def findings():
     for n in sorted(os.listdir(icons)) if os.path.isdir(icons) else []:
         if n.endswith(".png"):
             with open(os.path.join(icons, n), "rb") as f:
-                head = f.read(24)  # PNG signature, IHDR length + type, then width and height
-            if head[12:16] != b"IHDR" or head[16:24] != (512).to_bytes(4, "big") * 2:
+                data = f.read()
+            if data[12:16] != b"IHDR" or data[16:24] != (512).to_bytes(4, "big") * 2:
                 hit("app-icon-size", f"resources/app-icons/{n}", 1)
+            if not on_icon_grid(data):
+                hit("app-icon-grid", f"resources/app-icons/{n}", 1)
+    bundled = os.path.join(ROOT, "resources", "AppIcon.icns")
+    if os.path.isfile(bundled):
+        with open(bundled, "rb") as f:
+            for kind, png in icns_pngs(f.read()):
+                if not on_icon_grid(png):
+                    hit("app-icon-grid", f"resources/AppIcon.icns:{kind}", 1)
     for dirpath, _, names in os.walk(CORE):
         for n in sorted(names):
             if n.endswith(".swift"):
@@ -159,6 +175,79 @@ def load_baseline():
                     rule, rel, n = line.rstrip("\n").split("\t")
                     base[(rule, rel)] = int(n)
     return base
+
+
+def icns_pngs(data):
+    """The PNG images in an .icns file, with their chunk types (the 16 and 32 px ARGB ones aren't PNG)."""
+    out, i = [], 8
+    while i + 8 <= len(data):
+        kind, length = data[i:i + 4], struct.unpack(">I", data[i + 4:i + 8])[0]
+        if length < 8:
+            break
+        body = data[i + 8:i + length]
+        if body[:8] == b"\x89PNG\r\n\x1a\n":
+            out.append((kind.decode("latin-1"), body))
+        i += length
+    return out
+
+
+def png_alpha_rows(data):
+    """Width, height and each row's alpha bytes of an 8-bit RGBA, non-interlaced PNG; None otherwise."""
+    if data[:8] != b"\x89PNG\r\n\x1a\n":
+        return None
+    i, idat, head = 8, [], None
+    while i + 8 <= len(data):
+        length, kind = struct.unpack(">I", data[i:i + 4])[0], data[i + 4:i + 8]
+        chunk = data[i + 8:i + 8 + length]
+        if kind == b"IHDR":
+            head = struct.unpack(">IIBBBBB", chunk)
+        elif kind == b"IDAT":
+            idat.append(chunk)
+        elif kind == b"IEND":
+            break
+        i += 12 + length
+    if not head or head[2:5] != (8, 6, 0) or head[6] != 0:
+        return None
+    w, h = head[0], head[1]
+    raw, stride, rows, prev = zlib.decompress(b"".join(idat)), w * 4, [], bytearray(w * 4)
+    for y in range(h):
+        kind, line = raw[y * (stride + 1)], bytearray(raw[y * (stride + 1) + 1:(y + 1) * (stride + 1)])
+        if kind == 1:
+            for x in range(4, stride):
+                line[x] = (line[x] + line[x - 4]) & 255
+        elif kind == 2:
+            line = bytearray((a + b) & 255 for a, b in zip(line, prev))
+        elif kind == 3:
+            for x in range(stride):
+                line[x] = (line[x] + ((line[x - 4] if x >= 4 else 0) + prev[x]) // 2) & 255
+        elif kind == 4:
+            for x in range(stride):
+                a, b, c = (line[x - 4] if x >= 4 else 0), prev[x], (prev[x - 4] if x >= 4 else 0)
+                p = a + b - c
+                pa, pb, pc = abs(p - a), abs(p - b), abs(p - c)
+                line[x] = (line[x] + (a if pa <= pb and pa <= pc else b if pb <= pc else c)) & 255
+        rows.append(line[3::4])
+        prev = line
+    return w, h, rows
+
+
+def on_icon_grid(png):
+    """Whether the icon's more-than-half-opaque part is Apple's tile: 824/1024 of the canvas each
+    way, centred."""
+    read = png_alpha_rows(png)
+    if not read:
+        return False
+    w, h, rows = read
+    xs = [x for row in rows for x in (next((i for i, a in enumerate(row) if a > 127), None),
+                                       next((w - 1 - i for i, a in enumerate(reversed(row)) if a > 127), None))
+          if x is not None]
+    ys = [y for y, row in enumerate(rows) if max(row) > 127]
+    if not xs or not ys:
+        return False
+    slack = max(1.5, w * 0.012)
+    def fits(lo, hi, n):
+        return abs((hi - lo + 1) - n * 824 / 1024) <= slack and abs(lo - (n - 1 - hi)) <= slack
+    return fits(min(xs), max(xs), w) and fits(min(ys), max(ys), h)
 
 
 def main():

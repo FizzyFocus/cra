@@ -1,0 +1,23 @@
+# The running app's Dock tile keeps the bundled icon on Apple's icon grid, its tile 824 of 1024 px
+# with a clear margin, the size of Arc's beside it, also once Chromium's download view takes the
+# tile (it draws the bundle's icon under its badge; ⌘-Tab shows that tile). AppIcon.icns was drawn
+# edge to edge until 11 Nov 2026 and stood a fifth larger where it was drawn as it is; lint's
+# app-icon-grid rule checks the file. Segments (the bundled icon) comes in through the argument
+# domain, so the run never writes the installed Cra's defaults. body= and appIcon= are how much of
+# the canvas the drawing fills: 81 % on the grid.
+home
+seed settings.json {"hasSeenImportPrompt": true, "toolbarDefaultMigrated": true}
+arg -appIcon
+arg segments
+cra://debug?dockTile=before
+expect-log dock tile before: view=none appIcon=8[01]%
+# A download puts Chromium's view on the tile, drawing the bundled icon under its badge.
+cra://open?url=${TRICKLE}/trickle.bin
+wait 2
+cra://debug?downloadState=started
+expect-log download state started: running=true
+cra://debug?download=cancel
+expect-log download control: cancel
+wait 1
+cra://debug?dockTile=after
+expect-log dock tile after: view=DockTileView .* body=8[01]% appIcon=8[01]%
