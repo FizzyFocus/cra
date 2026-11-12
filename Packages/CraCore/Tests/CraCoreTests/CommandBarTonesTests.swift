@@ -16,6 +16,14 @@ struct CommandBarTonesTests {
     static let gold = CommandBarTones(shadedDark: rgb(0x6F5600), shaded: rgb(0xE9B300), midTone: rgb(0xE9B300), tintedLight: rgb(0xFCEDBC), dark: true)
     static let arcDefault = CommandBarTones(shadedDark: rgb(0x212AFB), shaded: rgb(0x3139FB), midTone: rgb(0x8489FB), tintedLight: rgb(0xECEDFE), dark: true)
 
+    /// A dark space's (and so an Incognito window's) bar was a white card on its dark window on a
+    /// light Mac (12 Nov 2026); a light space's still follows macOS (#187).
+    @Test func aDarkSpacesBarIsDarkAndALightOnesFollowsMacOS() {
+        #expect(CommandBarTones.appearance(spaceIsDark: SpaceTheme.incognito.isDark) == "dark")
+        #expect(CommandBarTones.appearance(spaceIsDark: true) == "dark")
+        #expect(CommandBarTones.appearance(spaceIsDark: false) == nil)
+    }
+
     @Test func theSelectedRowIsTheSpacesFocusColour() {
         #expect(Self.gap(Self.onPanel(Self.gold.selection), (121, 104, 33)) <= 8, "gold: \(Self.onPanel(Self.gold.selection))")
         #expect(Self.gap(Self.onPanel(Self.arcDefault.selection), (70, 77, 219)) <= 8, "default: \(Self.onPanel(Self.arcDefault.selection))")

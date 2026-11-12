@@ -538,8 +538,11 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
             // alert and popover it presents, and those follow macOS as Arc's do, whatever the
             // space colour (#171).
             shell.appearance = NSAppearance(named: palette.isDark ? .darkAqua : .aqua)
-            // The command bar follows macOS (#187); only its selected row and info badge take the
+            // The command bar is dark in a dark space (an Incognito window's too) and follows macOS
+            // in a light one (CommandBarTones.appearance); its selected row and info badge take the
             // space's palette, also when the space changes under an open bar.
+            commandPanel.appearance = CommandBarTones.appearance(spaceIsDark: palette.isDark)
+                .flatMap { NSAppearance(named: $0 == "dark" ? .darkAqua : .aqua) }
             commandBar.theme = space.theme.shown
             // Vibrant themes see through to the desktop like Arc; others are opaque.
             shell.vibrancy.isHidden = !palette.vibrant
@@ -3519,8 +3522,10 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
     func debugCommandBarState(_ label: String) {
         func rect(_ r: NSRect?) -> String { r.map { "\(Int($0.minX)),\(Int($0.minY)),\(Int($0.width)),\(Int($0.height))" } ?? "-" }
         let field = (shell.sidebarHost as? SidebarView)?.urlFieldFrameOnScreen
+        let dark = commandPanel.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
         CraLog.note("command bar \(label): open=\(commandBar.isOpen ? 1 : 0) dropdown=\(commandBar.attached ? 1 : 0) "
-            + "panel=\(rect(commandPanel.isVisible ? commandPanel.frame : nil)) field=\(rect(field)) window=\(rect(window?.frame))")
+            + "panel=\(rect(commandPanel.isVisible ? commandPanel.frame : nil)) field=\(rect(field)) window=\(rect(window?.frame)) "
+            + "dark=\(dark ? 1 : 0)")
     }
 
     func debugURLFieldPress(_ name: String) {
