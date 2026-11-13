@@ -365,6 +365,11 @@ built release app with a test profile. Note anything that fails in the release's
   with fades. Esc or ✕ closes it and the next ⌘F starts over. Compare with Arc's card on the same page
   (Arc's own numbers are in arc-reverse-engineering.md; its placement, corner and colours weren't read).
 
+- **#417, Ask on Page follow-ups:** on a long article ask something the page can't answer ("why did el
+  salvador succeed?"), then "Summarize the key points of this article in bullet points": the second answer
+  is a summary, not the first answer again, and no answer starts with "BEGIN DIALOGUE", "Human:" or a made-up
+  question. Then a factual follow-up gets its own quote. The model is on-device and varies, so ask a few times.
+
 - **PR #324, 5-Second Previews:** with Apple Intelligence on and Settings ▸ Max ▸ 5-Second Previews
   on, rest 1 s on a story title on Hacker News, a Google result and a link in a post on X: a loading
   card hangs under the link, then the answer streams in (picture, bold line, 2–4 rows), next to Arc's
