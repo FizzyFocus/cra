@@ -2715,7 +2715,7 @@ final class DividerRowView: SidebarRowView {
         if show, clear == nil, let list {
             let b = ClearButton(colors: colors) { [weak list] in
                 guard let list else { return }
-                list.store.undoable("Clear Today") { list.store.clearToday(list.spaceID) }
+                list.store.undoable("Clear Today") { list.store.clearToday(list.spaceID, playing: list.ui.audibleTabIDs) }
             }
             b.alphaValue = 0
             addSubview(b)

@@ -74,6 +74,8 @@ enum StoreTests {
         tornOffTabMovesToABlankWindow()
         tornOffTabKeepsItsProfile()
         archiveTabsBelow()
+        clearTodayKeepsSelectedAndPlaying()
+        clearTodayClearsInsideSections()
         allFoldersExpanded()
         dropIntoFolderGoesOnTop()
         revealInSidebar()
@@ -2631,6 +2633,59 @@ enum StoreTests {
         store.archiveTabsBelow(pinned.id)
         expect(store.item(pinned.id) != nil, "a pinned tab archives nothing below it (Arc offers it on Today tabs only)")
         expect(store.integrityProblems().isEmpty, "the sidebar stays sound")
+    }
+
+    /// Arc's Clear on Today ("Clear unselected Today tabs"): the tab on screen and a tab playing
+    /// sound stay; a split stays whole with them.
+    // promise: #406
+    @MainActor
+    private static func clearTodayKeepsSelectedAndPlaying() {
+        let store = AppComposition(clock: ManualScheduler()).store
+        let sid = store.createSpace(title: "Clear", emoji: "🧹").id
+        let today = store.space(sid)!.todayContainerID
+        let a = store.createTab(url: "https://a.example/", in: sid, select: false, parent: today, index: 0)
+        let video = store.createTab(url: "https://video.example/", in: sid, select: false, parent: today, index: 1)
+        let c = store.createTab(url: "https://c.example/", in: sid, select: false, parent: today, index: 2)
+        let d = store.createTab(url: "https://d.example/", in: sid, select: false, parent: today, index: 3)
+        let split = store.createSplit(with: [c.id, d.id])!
+        let shown = store.createTab(url: "https://shown.example/", in: sid, parent: today, index: 3)
+        expect(store.selectedTabID == shown.id, "set up: the last tab is on screen")
+        store.clearToday(sid, playing: [video.id])
+        expect(store.children(of: today).map(\.id) == [video.id, shown.id],
+               "Clear keeps the tab on screen and the one playing sound, and archives the rest")
+        expect(store.item(split.id) == nil && store.item(a.id) == nil, "the split and the idle tab are archived")
+
+        let e = store.createTab(url: "https://e.example/", in: sid, select: false, parent: today, index: 2)
+        let f = store.createTab(url: "https://f.example/", in: sid, select: false, parent: today, index: 3)
+        let paneSplit = store.createSplit(with: [e.id, f.id])!
+        store.selectTab(f.id)
+        store.clearToday(sid, playing: [])
+        expect(store.children(of: today).map(\.id) == [paneSplit.id], "a split with the selected pane stays whole")
+        expect(store.integrityProblems().isEmpty, "the sidebar stays sound")
+    }
+
+    /// Pane's sections (tab groups, Tidy's or made by hand) are headings: Clear takes their tabs one by
+    /// one, so the tab on screen keeps only itself in its section, not the whole section, and a ⌘Z
+    /// brings every cleared tab back into its section.
+    @MainActor
+    private static func clearTodayClearsInsideSections() {
+        let store = AppComposition(clock: ManualScheduler()).store
+        let sid = store.createSpace(title: "Sections", emoji: "🗂️").id
+        let today = store.space(sid)!.todayContainerID
+        let tabs = (0..<5).map { store.createTab(url: "https://s\($0).example/", in: sid, select: false, parent: today, index: $0).id }
+        guard let shownIn = store.createSection("Work", with: Array(tabs[0..<3]), in: sid),
+              let idle = store.createSection("Later", with: Array(tabs[3..<5]), in: sid) else {
+            expect(false, "set up: two sections"); return
+        }
+        store.selectTab(tabs[1])
+        expect(store.selectedTabID == tabs[1], "set up: a tab in Work is on screen")
+        store.undoable("Clear Today") { store.clearToday(sid, playing: [tabs[4]]) }
+        expect(store.item(shownIn.id)?.children == [tabs[1]], "Work keeps only the tab on screen")
+        expect(store.item(idle.id)?.children == [tabs[4]], "Later keeps only the tab playing sound")
+        expect([tabs[0], tabs[2], tabs[3]].allSatisfy { store.item($0) == nil }, "the rest of both sections is archived")
+        expect(store.integrityProblems().isEmpty, "the sidebar stays sound")
+        expect(store.undo() == .done("Clear Today") && store.item(shownIn.id)?.children == Array(tabs[0..<3])
+               && store.item(idle.id)?.children == Array(tabs[3..<5]), "⌘Z puts every cleared tab back in its section")
     }
 
     /// Arc's Shortcuts list: Collapse All Folders / Expand All Folders, nested folders included.

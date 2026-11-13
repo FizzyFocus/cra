@@ -2486,9 +2486,22 @@ final class SidebarStore {
         }
     }
 
-    func clearToday(_ sid: UUID? = nil) {
+    /// Arc's Clear on Today (`TodayClear`): the tab each window has on screen in this space and
+    /// the tabs in `playing` (the speaker's audible set) stay, with the split they're in; in a
+    /// section only they stay, and the section with them.
+    func clearToday(_ sid: UUID? = nil, playing: Set<UUID>) {
         guard let space = spaces[sid ?? focusedSpaceID] else { return }
-        for t in tabs(under: space.todayContainerID) { archiveTab(t.id, reason: .clear) }
+        let selected = Set(prefs.windows.compactMap { $0.selectedTabPerSpace[space.id] })
+        func row(_ r: SidebarItem) -> TodayClear.Row {
+            TodayClear.Row(id: r.id, tabs: r.isTab ? [r.id] : tabs(under: r.id).map(\.id))
+        }
+        // A section (a tab group, Tidy's or made by hand) is a heading over Today's rows, not one
+        // row: its tabs and splits are cleared one by one, so the tab on screen keeps only itself
+        // and its split, not the whole section (Pane, 13 Nov 2026).
+        let rows = children(of: space.todayContainerID).flatMap { r in
+            r.isTabGroup ? children(of: r.id).map(row) : [row(r)]
+        }
+        for t in TodayClear.archived(rows, selected: selected, playing: playing) { archiveTab(t, reason: .clear) }
     }
 
     /// Today tabs idle longer than the threshold are archived (Arc:
