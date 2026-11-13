@@ -191,6 +191,9 @@ public struct SidebarItem: Identifiable, Codable, Equatable {
     /// A Today folder shown as a group header, as Tidy Tabs makes them (Arc: SidebarItemData.tabGroup,
     /// its title in `title`). Kept on a folder so a Cra that predates groups still reads the file.
     public var tabGroup: Bool? = nil
+    /// A section's Tidy Tabs Behavior (TidyPolicy, 13 Nov 2026); missing is Full, as Tidy makes them.
+    /// A value this build doesn't know reads as missing.
+    public var tidyPolicy: TidyPolicy? = nil
 
     public init(id: UUID, parentID: UUID?, title: String?, children: [UUID], isUnread: Bool, createdAt: Date, data: ItemData,
                 folderIcon: FolderIconStyle? = nil, folderSymbol: FolderSymbol? = nil, liveFolder: LiveFolderData? = nil, tabGroup: Bool? = nil) {
@@ -209,6 +212,7 @@ public struct SidebarItem: Identifiable, Codable, Equatable {
 
     private enum CodingKeys: String, CodingKey {
         case id, parentID, title, children, isUnread, createdAt, data, folderIcon, folderColor, folderSymbol, liveFolder, pluginFolder, tabGroup
+        case tidyPolicy
     }
 
     public init(from decoder: Decoder) throws {
@@ -226,6 +230,7 @@ public struct SidebarItem: Identifiable, Codable, Equatable {
         liveFolder = try c.decodeIfPresent(LiveFolderData.self, forKey: .pluginFolder)
             ?? c.decodeIfPresent(LiveFolderData.self, forKey: .liveFolder)
         tabGroup = try c.decodeIfPresent(Bool.self, forKey: .tabGroup)
+        tidyPolicy = (try? c.decodeIfPresent(String.self, forKey: .tidyPolicy)).flatMap { $0.flatMap(TidyPolicy.init(rawValue:)) }
     }
 
     /// A folder from a plugin with no GitHub or GitLab source of its own (Jira, an installed plugin)
@@ -245,6 +250,7 @@ public struct SidebarItem: Identifiable, Codable, Equatable {
         try c.encodeIfPresent(folderSymbol, forKey: .folderSymbol)
         try c.encodeIfPresent(liveFolder, forKey: liveFolder?.source == .plugin ? .pluginFolder : .liveFolder)
         try c.encodeIfPresent(tabGroup, forKey: .tabGroup)
+        try c.encodeIfPresent(tidyPolicy?.rawValue, forKey: .tidyPolicy)
     }
 
     public var tab: TabData? {
@@ -255,6 +261,8 @@ public struct SidebarItem: Identifiable, Codable, Equatable {
     public var isFolder: Bool { if case .folder = data { return true }; return false }
     public var isLiveFolder: Bool { isFolder && liveFolder != nil }
     public var isTabGroup: Bool { isFolder && tabGroup == true }
+    /// What Tidy Tabs may do to this section.
+    public var sectionTidyPolicy: TidyPolicy { tidyPolicy ?? .full }
     public var split: SplitData? {
         if case .split(let s) = data { return s }
         return nil

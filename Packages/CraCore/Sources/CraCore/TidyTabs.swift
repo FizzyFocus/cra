@@ -192,3 +192,135 @@ public enum TabGroups {
         return out
     }
 }
+
+/// What Tidy Tabs may do to a section (13 Nov 2026, the owner's call), set in its header's menu ▸
+/// Tidy Tabs Behavior. It belongs to the section: tabs moved in or out by hand leave it as it is.
+public enum TidyPolicy: String, Codable, CaseIterable, Sendable {
+    /// Tidy may rename the section, regroup its tabs, add and take tabs, and replace or delete it.
+    /// Tidy's own sections start here.
+    case full
+    /// Tidy only adds loose tabs that belong; the name and the tabs already there stay. Sections
+    /// made by hand start here.
+    case addOnly
+    /// Tidy leaves the section alone and doesn't tell the model about it.
+    case locked
+
+    public var title: String {
+        switch self {
+        case .full: "Full"
+        case .addOnly: "Add Only"
+        case .locked: "Locked"
+        }
+    }
+
+    /// The menu item's explanation (its tooltip).
+    public var detail: String {
+        switch self {
+        case .full: "Tidy Tabs can rename this section, move its tabs, add tabs, and replace or remove it."
+        case .addOnly: "Tidy Tabs only adds matching loose tabs to this section."
+        case .locked: "Tidy Tabs leaves this section alone."
+        }
+    }
+}
+
+/// One press of Tidy over Today's loose tabs and its sections, each section as its TidyPolicy
+/// allows (13 Nov 2026). `ID` is an item's id.
+public enum TidyRun {
+    public struct Section<ID: Hashable>: Equatable {
+        public var id: ID
+        public var policy: TidyPolicy
+        public var tabs: [ID]
+
+        public init(id: ID, policy: TidyPolicy, tabs: [ID]) {
+            self.id = id
+            self.policy = policy
+            self.tabs = tabs
+        }
+    }
+
+    /// What the model is shown: the loose tabs first (they are what Tidy is for, and come first
+    /// under the cap), then Full sections' tabs; and, by name, the sections it may add to (Full and
+    /// Add Only; a Locked one is not mentioned).
+    public static func offer<ID: Hashable>(loose: [ID], sections: [Section<ID>]) -> (tabs: [ID], groups: [ID]) {
+        let full = sections.filter { $0.policy == .full }.flatMap(\.tabs)
+        let tabs = Array((loose + full).prefix(TidyTabs.maximumTabs))
+        return (tabs, sections.filter { $0.policy != .locked }.map(\.id))
+    }
+
+    public struct Outcome<ID: Hashable>: Equatable {
+        /// The tabs each kept section ends with, in order (only the sections that change).
+        public var sections: [ID: [ID]] = [:]
+        /// Full sections that take a new group's name: the model regrouped mostly their own tabs.
+        public var renamed: [ID: String] = [:]
+        /// Full sections left with no tabs: they go.
+        public var removed: [ID] = []
+        /// New sections, in order: a name and its tabs.
+        public var created: [Created<ID>] = []
+
+        public init() {}
+    }
+
+    /// Where a tab the plan places ends: an existing section, or a new one.
+    private enum End<ID: Hashable>: Equatable { case section(ID), new }
+
+    public struct Created<ID: Hashable>: Equatable {
+        public var name: String
+        public var tabs: [ID]
+    }
+
+    /// The plan (`TidyTabs.plan` over `offer`'s tabs and groups) applied as each section allows:
+    /// - Add Only takes joins of tabs that were loose, nothing else;
+    /// - Full takes any offered tab, gives up a tab the plan puts elsewhere, takes the name of a
+    ///   new group made mostly of its own tabs (half or more of them) instead of that group being
+    ///   made beside it, and goes once it has none left. A tab of it the plan leaves out stays;
+    /// - Locked is never offered, so never touched.
+    public static func outcome<ID: Hashable>(_ plan: TidyTabs.Plan, tabs: [ID], groups: [ID], sections: [Section<ID>], loose: Set<ID>) -> Outcome<ID> {
+        func id(_ i: Int) -> ID? { tabs.indices.contains(i) ? tabs[i] : nil }
+        let byID = Dictionary(sections.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+        var home: [ID: ID] = [:]
+        for s in sections where s.policy == .full { for t in s.tabs { home[t] = s.id } }
+        var out = Outcome<ID>()
+        var ends: [ID: End<ID>] = [:]
+        var addOnly: [ID: [ID]] = [:]
+
+        // Joins to the sections the model was told about.
+        for (g, indices) in plan.joins.sorted(by: { $0.key < $1.key }) where groups.indices.contains(g) {
+            guard let s = byID[groups[g]] else { continue }
+            for t in indices.compactMap(id) {
+                if s.policy == .addOnly, loose.contains(t) { addOnly[s.id, default: []].append(t) }
+                if s.policy == .full { ends[t] = .section(s.id) }
+            }
+        }
+        // New groups: a Full section whose tabs make up half or more of one takes its name.
+        var claimed = Set<ID>()
+        var made: [(name: String, tabs: [ID], reuse: ID?)] = []
+        for p in plan.newGroups {
+            // Each tab is in one proposal at most (TidyTabs.plan); one a join took stays there.
+            let ts = p.tabs.compactMap(id).filter { ends[$0] == nil }
+            guard ts.count >= 2 else { continue }
+            var counts: [ID: Int] = [:]
+            for t in ts { if let h = home[t] { counts[h, default: 0] += 1 } }
+            var reuse: ID?
+            for s in sections where s.policy == .full && !claimed.contains(s.id) {
+                let n = counts[s.id] ?? 0
+                if n > 0, n * 2 >= s.tabs.count, n > (reuse.flatMap { counts[$0] } ?? 0) { reuse = s.id }
+            }
+            if let reuse { claimed.insert(reuse) }
+            for t in ts { ends[t] = reuse.map(End.section) ?? .new }
+            made.append((p.name, ts, reuse))
+        }
+        let order = { (t: ID) in tabs.firstIndex(of: t) ?? Int.max }
+        for s in sections where s.policy == .full {
+            // Its own tabs that stay (left out by the plan, or placed back in it), in their order,
+            // then what it gains, in the order the model was shown them.
+            let kept = s.tabs.filter { ends[$0] == nil || ends[$0] == .section(s.id) }
+            let gained = ends.filter { $0.value == .section(s.id) && !s.tabs.contains($0.key) }.map(\.key).sorted { order($0) < order($1) }
+            let list = kept + gained
+            if let g = made.first(where: { $0.reuse == s.id }) { out.renamed[s.id] = g.name }
+            if list.isEmpty { out.removed.append(s.id) } else if list != s.tabs { out.sections[s.id] = list }
+        }
+        for (sid, ts) in addOnly { out.sections[sid] = (byID[sid]?.tabs ?? []) + ts }
+        out.created = made.filter { $0.reuse == nil }.map { Created(name: $0.name, tabs: $0.tabs) }
+        return out
+    }
+}

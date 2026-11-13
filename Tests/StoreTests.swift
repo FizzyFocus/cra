@@ -1633,7 +1633,7 @@ enum StoreTests {
         let plan = TidyTabs.plan([.init(name: "Planets", tabs: [at("Mars"), at("Saturn")]),
                                   .init(name: "Bread", tabs: [at("Baguette"), at("Croissant")])],
                                  tabCount: loose.count, existingGroups: [])
-        store.undoable("Tidy Tabs") { store.applyTidy(plan, tabIDs: loose, in: sid) }
+        store.undoable("Tidy Tabs") { store.applyTidy(plan, tabIDs: loose, groups: [], in: sid) }
         var groups = store.tabGroups(in: sid)
         expect(groups.map(\.title) == ["Bread", "Planets"], "groups follow their first tab's place")
         expect(store.item(today)!.children == [byName["Mail"]!, byName["Python"]!] + groups.map(\.id),
@@ -1651,7 +1651,7 @@ enum StoreTests {
                "and ⌘Z once more; Tidy still on offer")
         expect(store.integrityProblems().isEmpty, "undo and redo leave the sidebar sound")
 
-        store.applyTidy(plan, tabIDs: loose, in: sid)
+        store.applyTidy(plan, tabIDs: loose, groups: [], in: sid)
         let fresh = store.createTab(url: "https://example.org/Jupiter", in: sid, select: false)
         let more = (0..<4).map { store.createTab(url: "https://example.org/more\($0)", in: sid, select: false) }
         expect(store.tidyVisibility(sid) == .shown, "eleven Today tabs, grouped ones counted: Tidy without Shift")
@@ -1659,7 +1659,7 @@ enum StoreTests {
         let loose2 = store.looseTodayTabs(sid).map(\.id)
         let existing = store.tabGroups(in: sid).map { $0.title ?? "" }
         let join = TidyTabs.plan([.init(name: "planets", tabs: [loose2.firstIndex(of: fresh.id)!])], tabCount: loose2.count, existingGroups: existing)
-        store.applyTidy(join, tabIDs: loose2, in: sid)
+        store.applyTidy(join, tabIDs: loose2, groups: store.tabGroups(in: sid).map(\.id), in: sid)
         groups = store.tabGroups(in: sid)
         expect(groups[1].children.last == fresh.id, "a second run adds a tab to the group the model named")
 
@@ -1714,7 +1714,7 @@ enum StoreTests {
                "Create Folder makes an open folder at the top of Pinned with the group's tabs, now pinned")
 
         store.applyTidy(TidyTabs.plan([.init(name: "Bread", tabs: [0, 1])], tabCount: 2, existingGroups: []),
-                        tabIDs: [byName["Baguette"]!, byName["Croissant"]!], in: sid)
+                        tabIDs: [byName["Baguette"]!, byName["Croissant"]!], groups: [], in: sid)
         let bread = store.tabGroups(in: sid)[0]
         store.undoable("Close Tab") { store.archiveTab(byName["Baguette"]!, reason: .manual) }
         expect(store.item(bread.id)?.children == [byName["Croissant"]!], "closing one tab keeps the group")
@@ -1736,6 +1736,20 @@ enum StoreTests {
         let section = store.createSection("Mine", with: Array(loose3.prefix(2)), in: sid)
         expect(section?.isTabGroup == true && section?.children == Array(loose3.prefix(2))
                && store.item(today)!.children.firstIndex(of: section!.id) == firstAt, "New Section takes the picks, in their place")
+        // Its Tidy Tabs Behavior (13 Nov 2026): Add Only by hand, Full for Tidy's; set from the menu, it
+        // stays with the section whatever tabs move in or out, and a ⌘Z puts the old one back.
+        expect(section?.sectionTidyPolicy == .addOnly && (store.item(bread.id).map { $0.sectionTidyPolicy == .full } ?? true),
+               "a section by hand is Add Only, Tidy's is Full")
+        let extra = store.createTab(url: "https://example.org/extra", in: sid, select: false)
+        store.undoable("Change Tidy Tabs Behavior") { store.setTidyPolicy(section!.id, .locked) }
+        store.moveItem(extra.id, to: section!.id, index: nil)
+        store.moveItem(loose3[0], to: today, index: 0)
+        expect(store.item(section!.id)?.sectionTidyPolicy == .locked && store.tidySections(in: sid).first { $0.id == section!.id }?.policy == .locked,
+               "tabs moved in and out by hand leave it Locked")
+        store.moveItem(loose3[0], to: section!.id, index: 0)
+        store.moveItem(extra.id, to: today, index: 0)
+        expect(store.undo() == .done("Change Tidy Tabs Behavior") && store.item(section!.id)?.sectionTidyPolicy == .addOnly,
+               "⌘Z puts Add Only back")
         // A move made since that ⌘Z's step can't go back over: it is refused, the sidebar left alone.
         let pinnedNow = store.focusedSpace.pinnedContainerID
         let probe = store.createTab(url: "https://example.org/probe", in: sid, select: false)

@@ -2157,6 +2157,22 @@ final class SidebarStore {
         return children(of: space.todayContainerID).filter(\.isTabGroup)
     }
 
+    /// A section's header menu ▸ Tidy Tabs Behavior. Kept on the section whatever moves in or out.
+    func setTidyPolicy(_ id: UUID, _ policy: TidyPolicy) {
+        guard var g = items[id], g.isTabGroup, g.sectionTidyPolicy != policy else { return }
+        g.tidyPolicy = policy
+        items[id] = g
+        touch()
+    }
+
+    /// What Tidy works with in a space: its loose Today tabs and its sections, each with its
+    /// policy and tabs (TidyRun).
+    func tidySections(in sid: UUID) -> [TidyRun.Section<UUID>] {
+        tabGroups(in: sid).map { g in
+            TidyRun.Section(id: g.id, policy: g.sectionTidyPolicy, tabs: children(of: g.id).filter(\.isTab).map(\.id))
+        }
+    }
+
     /// When the divider shows Tidy for the space: always, only with Shift, or not (TidyTabs.visibility;
     /// the Apple Intelligence check is the caller's).
     func tidyVisibility(_ sid: UUID) -> TidyTabs.Visibility {
@@ -2208,6 +2224,8 @@ final class SidebarStore {
         guard !members.isEmpty, let index = TabGroups.newSectionIndex(picked: members, today: items[today]?.children ?? [], topLevel: top) else { return nil }
         var g = SidebarItem.tabGroup(name, parent: today)
         g.createdAt = clock.now
+        // Made by hand: Tidy Tabs may only add to it (TidyPolicy, 13 Nov 2026).
+        g.tidyPolicy = .addOnly
         items[g.id] = g
         var t = items[today]!
         t.children.insert(g.id, at: min(index, t.children.count))
@@ -2340,25 +2358,27 @@ final class SidebarStore {
     /// Sorts `tabIDs` (the loose tabs the model saw, in prompt order) as the plan says: new groups
     /// under the loose tabs left over, tabs joining groups Today already had. A plan that changes
     /// nothing still counts as a run, as Arc's did.
-    func applyTidy(_ plan: TidyTabs.Plan, tabIDs: [UUID], in sid: UUID) {
+    func applyTidy(_ plan: TidyTabs.Plan, tabIDs: [UUID], groups: [UUID], in sid: UUID) {
         guard let space = spaces[sid] else { return }
         let today = space.todayContainerID
-        let groups = tabGroups(in: sid)
+        // As things are now: a tab closed or moved by hand while the model thought drops out.
+        let sections = tidySections(in: sid)
         let loose = Set(looseTodayTabs(sid).map(\.id))
-        func ids(_ indices: [Int]) -> [UUID] {
-            indices.compactMap { tabIDs.indices.contains($0) ? tabIDs[$0] : nil }.filter(loose.contains)
+        let out = TidyRun.outcome(plan, tabs: tabIDs, groups: groups, sections: sections, loose: loose)
+        let present = loose.union(sections.flatMap(\.tabs))
+        // Each section takes what it gains, in order; what leaves goes with the tab to its new place.
+        for (gid, list) in out.sections.sorted(by: { a, b in
+            (sections.firstIndex { $0.id == a.key } ?? 0) < (sections.firstIndex { $0.id == b.key } ?? 0)
+        }) where items[gid]?.isTabGroup == true {
+            let had = Set(children(of: gid).map(\.id))
+            moveItems(list.filter { !had.contains($0) && present.contains($0) }, to: gid, index: nil)
         }
-        var moved: [UUID] = []
-        for (g, indices) in plan.joins.sorted(by: { $0.key < $1.key }) where groups.indices.contains(g) {
-            let tabs = ids(indices)
-            moveItems(tabs, to: groups[g].id, index: nil)
-            moved += tabs
-        }
+        for (gid, name) in out.renamed { items[gid]?.title = name }
         var newGroups: [UUID] = []
-        for p in plan.newGroups {
-            let tabs = ids(p.tabs)
+        for c in out.created {
+            let tabs = c.tabs.filter(present.contains)
             guard tabs.count >= 2 else { continue }
-            var g = SidebarItem.tabGroup(p.name, parent: today)
+            var g = SidebarItem.tabGroup(c.name, parent: today)
             g.createdAt = clock.now
             items[g.id] = g
             var t = items[today]!
@@ -2366,13 +2386,14 @@ final class SidebarStore {
             items[today] = t
             moveItems(tabs, to: g.id, index: nil)
             newGroups.append(g.id)
-            moved += tabs
         }
         if var t = items[today] {
             let rest = t.children.filter { !newGroups.contains($0) }
             t.children = TidyTabs.order(today: rest, isGroup: { self.items[$0]?.isTabGroup == true }, grouped: [], newGroups: newGroups)
             items[today] = t
         }
+        // A Full section left with nothing goes with the next touch (pruneEmptyGroups).
+        CraLog.note("Tidy Tabs applied: \(newGroups.count) new, \(out.sections.count) changed, \(out.renamed.count) renamed, \(out.removed.count) emptied; untouched: \(sections.filter { $0.policy == .locked }.count) locked")
         touch()
     }
 

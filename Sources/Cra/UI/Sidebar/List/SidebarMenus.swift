@@ -84,6 +84,13 @@ enum SidebarMenus {
         add(menu, "Rename Section…") { list.ui.renamingID = id }
         add(menu, "Move Section Up", enabled: store.canMoveTabGroup(id, .up)) { store.moveTabGroup(id, .up) }
         add(menu, "Move Section Down", enabled: store.canMoveTabGroup(id, .down)) { store.moveTabGroup(id, .down) }
+        // What Tidy Tabs may do to it (TidyPolicy, 13 Nov 2026): Full, Add Only or Locked, ticked.
+        let policy = store.item(id)?.sectionTidyPolicy ?? .full
+        let behavior = submenu(menu, "Tidy Tabs Behavior")
+        for p in TidyPolicy.allCases {
+            let item = add(behavior, p.title, on: p == policy, undo: "Change Tidy Tabs Behavior") { store.setTidyPolicy(id, p) }
+            item.toolTip = p.detail
+        }
         menu.addItem(.separator())
         // Arc's "Create Folder": an open folder at the top of Pinned with the section's tabs.
         add(menu, "Convert Section to Folder") {

@@ -1127,11 +1127,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             // the header's click or menu on that group (TabGroups, 12 Nov 2026).
             if let name = dict["makeTabGroup"] {
                 let sid = store.focusedSpace(window: main.windowID).id
-                let loose = store.looseTodayTabs(sid).map(\.id)
-                let n = min(loose.count, dict["tabs"].flatMap(Int.init) ?? 2)
-                let plan = TidyTabs.plan([.init(name: name, tabs: Array(0..<n))], tabCount: loose.count,
-                                         existingGroups: store.tabGroups(in: sid).map { $0.title ?? "" })
-                store.applyTidy(plan, tabIDs: loose, in: sid)
+                let offer = TidyRun.offer(loose: store.looseTodayTabs(sid).map(\.id), sections: store.tidySections(in: sid))
+                let n = min(store.looseTodayTabs(sid).count, dict["tabs"].flatMap(Int.init) ?? 2)
+                let plan = TidyTabs.plan([.init(name: name, tabs: Array(0..<n))], tabCount: offer.tabs.count,
+                                         existingGroups: offer.groups.map { store.item($0)?.title ?? "" })
+                store.applyTidy(plan, tabIDs: offer.tabs, groups: offer.groups, in: sid)
+                return
+            }
+            // tidyPlan=<name>:<i>,<j>…|<name>:…: a Tidy run with this answer from the model, the ids
+            // being the tabs Tidy offers it (loose ones, then Full sections'), as Tidy does after its
+            // ask, one ⌘Z step; logs what was offered (TidyRun, 13 Nov 2026).
+            if let spec = dict["tidyPlan"] {
+                let sid = store.focusedSpace(window: main.windowID).id
+                let offer = TidyRun.offer(loose: store.looseTodayTabs(sid).map(\.id), sections: store.tidySections(in: sid))
+                let names = offer.groups.map { store.item($0)?.title ?? "" }
+                let titles = offer.tabs.map { id -> String in
+                    guard let t = store.item(id)?.tab else { return "?" }
+                    return URLComponents(string: t.url)?.queryItems?.first { $0.name == "n" }.map { "n=\($0.value ?? "")" } ?? t.url
+                }
+                CraLog.note("tidy offer: tabs=\(titles.enumerated().map { "\($0.offset):\($0.element)" }.joined(separator: ",")) sections=\(names.joined(separator: ","))")
+                let proposals = spec.split(separator: "|").compactMap { part -> TidyTabs.Proposal? in
+                    let bits = part.split(separator: ":", maxSplits: 1)
+                    guard bits.count == 2 else { return nil }
+                    return TidyTabs.Proposal(name: String(bits[0]), tabs: bits[1].split(separator: ",").compactMap { Int($0) })
+                }
+                store.undoable("Tidy Tabs") {
+                    store.applyTidy(TidyTabs.plan(proposals, tabCount: offer.tabs.count, existingGroups: names), tabIDs: offer.tabs, groups: offer.groups, in: sid)
+                }
                 return
             }
             // newSection=<name>[&tabs=<n>]: New Section with the space's first n loose Today tabs (2), as
@@ -1178,6 +1200,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                 }
                 let today = store.space(sid).map { store.children(of: $0.todayContainerID).map(name) } ?? []
                 CraLog.note("today rows \(label): \(today.joined(separator: " | "))")
+                return
+            }
+            // sectionPolicies=<label>: each section's Tidy Tabs Behavior and tabs (TidyPolicy, 13 Nov 2026).
+            if let label = dict["sectionPolicies"] {
+                let sid = store.focusedSpace(window: main.windowID).id
+                // Tabs as todayRows= names them: the test page's n=, else the host.
+                func name(_ it: SidebarItem) -> String {
+                    guard let t = it.tab else { return it.displayTitle }
+                    let u = URLComponents(string: t.url)
+                    return u?.queryItems?.first { $0.name == "n" }.map { "n=\($0.value ?? "")" } ?? u?.host ?? t.url
+                }
+                let all = store.tabGroups(in: sid).map { g in
+                    "\(g.title ?? "?")=\(g.sectionTidyPolicy.title)[\(store.children(of: g.id).map(name).joined(separator: ","))]"
+                }
+                CraLog.note("section policies \(label): \(all.joined(separator: " "))")
                 return
             }
             if let label = dict["tabGroups"] {

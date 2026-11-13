@@ -1,0 +1,72 @@
+# Sections' Tidy Tabs Behavior (13 Nov 2026, the owner's calls; TidyPolicy, TidyRun). A section Tidy
+# made is Full: Tidy may move its tabs, rename it and replace it. One made by hand is Add Only: Tidy
+# only adds loose tabs to it. Locked: Tidy leaves it alone and doesn't tell the model of it. The header's
+# right-click ▸ Tidy Tabs Behavior sets it, and it stays whatever tabs move in or out by hand. The runs use
+# cra://debug?tidyPlan=, a model answer over the tabs Tidy offers (loose ones, then Full sections').
+budget rss=800 stalls50=40
+seed settings.json {"hasSeenImportPrompt": true, "toolbarDefaultMigrated": true}
+
+cra://open?url=${PAGE}?n=1
+expect-log loaded 127\.0\.0\.1 \(HTTP 200\)
+cra://open?url=${PAGE}?n=2
+cra://open?url=${PAGE}?n=3
+cra://open?url=${PAGE}?n=4
+cra://open?url=${PAGE}?n=5
+cra://open?url=${PAGE}?n=6
+wait 2
+# Tidy's section (Full) of n=6 and n=5; then a section by hand (Add Only) of n=4 and n=3.
+cra://debug?makeTabGroup=Tidy&tabs=2
+cra://debug?newSection=Mine&tabs=2
+wait 0.5
+cra://debug?sectionPolicies=start
+expect-log section policies start: Mine=Add Only\[n=4,n=3\] Tidy=Full\[n=6,n=5\]$
+cra://debug?rowMenu=0
+expect-log row menu 0: .*Tidy Tabs Behavior ▸
+
+# Add Only: a loose tab joins it; a Full section's tab the model put there stays where it was.
+cra://debug?tidyPlan=Mine:0,2
+expect-log tidy offer: tabs=0:n=2,1:n=1,2:n=6,3:n=5 sections=Mine,Tidy$
+wait 0.5
+cra://debug?sectionPolicies=addOnly
+expect-log section policies addOnly: Mine=Add Only\[n=4,n=3,n=2\] Tidy=Full\[n=6,n=5\]$
+
+# Full: the model regroups its tabs with a loose one under a new name: the section takes the name.
+cra://debug?tidyPlan=Reading:0,1,2
+expect-log tidy offer: tabs=0:n=1,1:n=6,2:n=5 sections=Mine,Tidy$
+wait 0.5
+cra://debug?sectionPolicies=full
+expect-log section policies full: Mine=Add Only\[n=4,n=3,n=2\] Reading=Full\[n=6,n=5,n=1\]$
+cra://debug?undo=1
+wait 0.5
+cra://debug?sectionPolicies=fullUndone
+expect-log section policies fullUndone: Mine=Add Only\[n=4,n=3,n=2\] Tidy=Full\[n=6,n=5\]$
+
+# Locked, from the header's menu (rows: 0 n=1, 1 §Mine, …): the model isn't told of it, and nothing
+# it says touches it.
+cra://debug?rowMenu=1&run=Locked
+cra://debug?sectionPolicies=locked
+expect-log section policies locked: Mine=Locked\[n=4,n=3,n=2\] Tidy=Full\[n=6,n=5\]$
+cra://open?url=${PAGE}?n=7
+wait 1.5
+cra://debug?tidyPlan=Mine:0,1
+expect-log tidy offer: tabs=0:n=7,1:n=1,2:n=6,3:n=5 sections=Tidy$
+wait 0.5
+cra://debug?sectionPolicies=lockedRun
+expect-log section policies lockedRun: Mine=Locked\[n=4,n=3,n=2\] Tidy=Full\[n=6,n=5\] Mine=Full\[n=7,n=1\]$
+cra://debug?undo=1
+wait 0.5
+
+# A tab dragged into the Locked section by hand, under n=3 (rows: 0 n=7, 1 n=1, 2 §Mine, 3 n=4,
+# 4 n=3, …): still Locked.
+cra://debug?todayRows=beforeDrag
+expect-log today rows beforeDrag: n=7 \| n=1 \| §Mine\[n=4,n=3,n=2\] \| §Tidy\[n=6,n=5\]$
+cra://debug?dragRow=0&onto=4&at=0.9
+wait 0.5
+cra://debug?sectionPolicies=dragged
+expect-log section policies dragged: Mine=Locked\[n=4,n=3,n=7,n=2\] Tidy=Full\[n=6,n=5\]$
+# Back to Full from the menu, and the run may now regroup it.
+cra://debug?rowMenu=1&run=Full
+cra://debug?sectionPolicies=fullAgain
+expect-log section policies fullAgain: Mine=Full\[
+cra://debug?checkStore=1
+reject-log sidebar (undo|redo) of .* would tear the sidebar

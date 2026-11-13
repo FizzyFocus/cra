@@ -178,6 +178,24 @@ struct SidebarUndoTests {
         #expect(undone.items == reopened.items && undone.archive.isEmpty, "and ⌘Z brings it back")
     }
 
+    /// Every field a change can make is put back: a section's Tidy Tabs Behavior too (13 Nov 2026; its
+    /// ⌘Z said "Undid" and left it as it was).
+    @Test func aSectionsTidyBehaviorIsPutBack() throws {
+        var f = Fixture()
+        var g = SidebarItem.tabGroup("Mine", parent: f.today.id)
+        g.tidyPolicy = .addOnly
+        f.items[g.id] = g
+        f.items[f.today.id]!.children.append(g.id)
+        let before = f.state()
+        f.items[g.id]!.tidyPolicy = .locked
+        let after = f.state()
+        let change = try #require(SidebarUndo.change("Change Tidy Tabs Behavior", before: before, after: after))
+        let undone = Self.applied(after, try #require(SidebarUndo.apply(change, undo: true, to: after)))
+        #expect(undone.items[g.id]?.tidyPolicy == .addOnly)
+        let redone = Self.applied(undone, try #require(SidebarUndo.apply(change, undo: false, to: undone)))
+        #expect(redone.items[g.id]?.tidyPolicy == .locked)
+    }
+
     @Test func nothingToUndoWithoutAnItemOrArchiveChange() {
         let f = Fixture()
         #expect(SidebarUndo.change("Select", before: f.state(selected: f["a"]), after: f.state(selected: f["b"])) == nil)

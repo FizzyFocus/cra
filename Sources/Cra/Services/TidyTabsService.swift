@@ -101,13 +101,18 @@ final class TidyTabsService {
     /// The Tidy button: ask the model about the space's loose Today tabs and apply its answer.
     func tidy(_ sid: UUID, store: SidebarStore) {
         guard modelAvailable, !store.tidyingSpaces.contains(sid) else { return }
-        let loose = Array(store.looseTodayTabs(sid).prefix(TidyTabs.maximumTabs))
+        let loose = store.looseTodayTabs(sid).map(\.id)
         guard !loose.isEmpty else { return }
-        let tabs = loose.map { item in
+        // Each section as its Tidy Tabs Behavior allows (TidyRun, 13 Nov 2026): a Full one's tabs
+        // are offered with the loose ones, a Full or Add Only one by name, a Locked one not at all.
+        let offer = TidyRun.offer(loose: loose, sections: store.tidySections(in: sid))
+        let tabs = offer.tabs.compactMap(store.item).map { item in
             TidyTabs.Tab(title: item.displayTitle, host: item.tab.flatMap { URL(string: $0.url)?.host() } ?? "")
         }
-        let groups = store.tabGroups(in: sid).map { $0.title ?? "" }
-        let ids = loose.map(\.id)
+        guard tabs.count == offer.tabs.count else { return }
+        let groupIDs = offer.groups
+        let groups = groupIDs.map { store.item($0)?.title ?? "" }
+        let ids = offer.tabs
         let prompt = TidyTabs.prompt(tabs: tabs, existingGroups: groups)
         store.setTidying(sid, true)
         let started = Date()
@@ -124,7 +129,7 @@ final class TidyTabsService {
             // The list slides the tabs under their new headers (SpaceListView.placeViews).
             // One ⌘Z puts every tab back where it was before the tidy (SidebarUndo).
             store.undoable("Tidy Tabs") {
-                store.applyTidy(TidyTabs.plan(proposals, tabCount: tabs.count, existingGroups: groups), tabIDs: ids, in: sid)
+                store.applyTidy(TidyTabs.plan(proposals, tabCount: tabs.count, existingGroups: groups), tabIDs: ids, groups: groupIDs, in: sid)
             }
         }
     }

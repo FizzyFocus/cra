@@ -249,6 +249,7 @@ public enum SidebarUndo {
         take(\.folderSymbol)
         take(\.liveFolder)
         take(\.tabGroup)
+        take(\.tidyPolicy)
         return out
     }
 }
