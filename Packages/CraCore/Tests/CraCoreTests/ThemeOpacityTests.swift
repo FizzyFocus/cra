@@ -99,6 +99,23 @@ import Testing
         let bottom = ThemePickerPlacement.place(sourceY: 40, cardHeight: 300, windowMinY: 0, windowMaxY: 1000)
         #expect(bottom.top == 306 && bottom.arrowY == 300 - ThemePickerPlacement.arrowInset, "clear of the corner")
     }
+
+    /// Library ▸ Spaces' last card by the window's right edge (13 Nov 2026): the card opened past
+    /// the window. It opens to the card's left instead, else inside the window.
+    @Test func theCardFlipsLeftBeforeItLeavesTheWindow() {
+        // Room on the right (a card 355 wide, arrow 10.5, 2 pt gap: 367.5 past the edge).
+        #expect(ThemePickerPlacement.side(rightEdge: 600, leftEdge: 360, cardWidth: 355, arrowDepth: 10.5,
+                                          windowMinX: 0, windowMaxX: 1000) == .right)
+        // The rightmost column, 1300 in a 1440 window: left of it.
+        #expect(ThemePickerPlacement.side(rightEdge: 1300, leftEdge: 1060, cardWidth: 355, arrowDepth: 10.5,
+                                          windowMinX: 0, windowMaxX: 1440) == .left)
+        // A narrow window with room on neither side: inside, flush with the right margin.
+        #expect(ThemePickerPlacement.side(rightEdge: 520, leftEdge: 280, cardWidth: 355, arrowDepth: 10.5,
+                                          windowMinX: 0, windowMaxX: 700) == .inside(cardMinX: 700 - 6 - 355))
+        // The sidebar's edge has no left side to try.
+        #expect(ThemePickerPlacement.side(rightEdge: 520, leftEdge: nil, cardWidth: 355, arrowDepth: 10.5,
+                                          windowMinX: 0, windowMaxX: 700) == .inside(cardMinX: 339))
+    }
 }
 
 @Suite struct CardReorderTests {

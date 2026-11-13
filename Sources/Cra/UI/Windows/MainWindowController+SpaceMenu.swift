@@ -47,23 +47,36 @@ extension MainWindowController {
     func showSpaceStyleEditor(space: Space, at point: NSPoint? = nil, beside anchor: NSView? = nil) {
         guard let window else { return }
         let store = self.store, id = space.id
+        // With Library ▸ Spaces open, beside that space's card whichever menu asked (its •••, a
+        // right-click on its tab list, the command bar): the sidebar's edge is the Library's far
+        // side then, and the picker went over another card (13 Nov 2026).
+        let anchor = anchor ?? window.contentView.flatMap { SpacesManagerView.card(for: id, in: $0) }
         let mouse = NSEvent.mouseLocation
         let card = anchor.flatMap { v in v.window.map { $0.convertToScreen(v.convert(v.bounds, to: nil)) } }
         let source: NSPoint
         let edge: CGFloat
         if let card {
-            source = NSPoint(x: card.maxX, y: card.insetBy(dx: -4, dy: -4).contains(mouse) ? mouse.y : card.maxY - 37)
+            // The arrow at the menu's point (its ••• or the right-click) or the pointer when either
+            // is on the card, else at the card's header row.
+            let at = [point, mouse].compactMap { $0 }.first { card.insetBy(dx: -4, dy: -4).contains($0) }
+            source = NSPoint(x: card.maxX, y: at?.y ?? card.maxY - 37)
             edge = card.maxX
         } else {
             source = point ?? (window.frame.contains(mouse) ? mouse : NSPoint(x: window.frame.minX, y: window.frame.maxY - 60))
             // Over the sidebar the arrow stands at its edge; past it, just right of the point.
             edge = sidebarEdgeOnScreen.map { $0 >= source.x - 1 ? $0 : source.x + 6 } ?? source.x + 6
         }
-        let place = placeThemePicker(sourceY: source.y, edgeX: edge)
+        // A Library card by the window's right edge opens it on its left (13 Nov 2026).
+        let place = placeThemePicker(sourceY: source.y, edgeX: edge, leftEdgeX: card?.minX)
         themePickerSpaceID = id
-        ThemePickerPopover.present(on: window, theme: space.theme, topLeft: place.topLeft, arrowY: place.arrowY,
-                                   onChange: { theme in store.previewTheme(theme, forSpace: id) },
-                                   onClose: { store.endThemePreview(forSpace: id, keep: true) })
+        let panel = ThemePickerPopover.present(on: window, theme: space.theme, topLeft: place.topLeft, arrowY: place.arrowY,
+                                               arrowOnTrailing: place.arrowOnTrailing,
+                                               onChange: { theme in store.previewTheme(theme, forSpace: id) },
+                                               onClose: { store.endThemePreview(forSpace: id, keep: true) })
+        let shown = NSRect(x: panel.frame.minX + ThemePickerPopover.cardLeading, y: panel.frame.maxY - ThemePickerPopover.cardTop - ThemePickerPopover.cardSize.height,
+                           width: ThemePickerPopover.cardSize.width, height: ThemePickerPopover.cardSize.height)
+        let side = place.arrowOnTrailing ? "left" : place.arrowY == nil ? "inside" : "right"
+        CraLog.note("theme picker opens \(side) of \(card == nil ? "the sidebar" : "its card"), in the window: \(window.frame.contains(shown) ? "yes" : "no")")
     }
 
     /// The sidebar's right edge on screen while it is in sight: docked (the Library's drawer
@@ -76,14 +89,27 @@ extension MainWindowController {
     }
 
     /// The picker's panel for something at height `sourceY`: the card centred on it inside the window
-    /// (ThemePickerPlacement), the arrow's tip just past `edgeX`.
-    func placeThemePicker(sourceY: CGFloat, edgeX: CGFloat) -> (topLeft: NSPoint, arrowY: CGFloat) {
+    /// (ThemePickerPlacement), the arrow's tip just past `edgeX`. Where the card would leave the
+    /// window there, it opens left of `leftEdgeX` with its arrow on its trailing edge, else inside
+    /// the window with no arrow (ThemePickerPlacement.side, 13 Nov 2026).
+    func placeThemePicker(sourceY: CGFloat, edgeX: CGFloat, leftEdgeX: CGFloat? = nil) -> (topLeft: NSPoint, arrowY: CGFloat?, arrowOnTrailing: Bool) {
         let frame = window?.frame ?? .zero
         let card = ThemePickerPopover.cardSize
         let p = ThemePickerPlacement.place(sourceY: Double(sourceY), cardHeight: Double(card.height),
                                            windowMinY: Double(frame.minY), windowMaxY: Double(frame.maxY))
-        let x = edgeX - (ThemePickerPopover.cardLeading - PickerCardShape.arrowDepth) + 2
-        return (NSPoint(x: x, y: CGFloat(p.top) + ThemePickerPopover.cardTop), CGFloat(p.arrowY))
+        let gap: CGFloat = 2, depth = PickerCardShape.arrowDepth, lead = ThemePickerPopover.cardLeading
+        let side = ThemePickerPlacement.side(rightEdge: Double(edgeX), leftEdge: leftEdgeX.map(Double.init), cardWidth: Double(card.width),
+                                             arrowDepth: Double(depth), gap: Double(gap), windowMinX: Double(frame.minX), windowMaxX: Double(frame.maxX))
+        let y = CGFloat(p.top) + ThemePickerPopover.cardTop
+        switch side {
+        case .right:
+            return (NSPoint(x: edgeX + gap + depth - lead, y: y), CGFloat(p.arrowY), false)
+        case .left:
+            let left = leftEdgeX ?? edgeX
+            return (NSPoint(x: left - gap - depth - card.width - lead, y: y), CGFloat(p.arrowY), true)
+        case .inside(let minX):
+            return (NSPoint(x: CGFloat(minX) - lead, y: y), nil, false)
+        }
     }
 
     /// Set Profile ▸ New Profile…: Arc's dialog over the dimmed window; Next asks which spaces use

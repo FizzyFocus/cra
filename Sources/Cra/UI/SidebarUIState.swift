@@ -268,8 +268,9 @@ final class SidebarActions {
     var changeSpaceIcon: (Space, NSView) -> Void = { _, _ in }
     /// Edit Theme Color…, with the screen point its menu was opened at: the picker points there.
     var editSpaceTheme: (Space, NSPoint?) -> Void = { _, _ in }
-    /// The theme editor beside a Spaces page card.
-    var editSpaceThemeBeside: (Space, NSView) -> Void = { _, _ in }
+    /// The theme editor beside a Spaces page card: its brush, or its menu (the screen point that
+    /// menu was opened at, where the picker's arrow points).
+    var editSpaceThemeBeside: (Space, NSView, NSPoint?) -> Void = { _, _, _ in }
     var newProfile: (UUID) -> Void = { _ in }
     var manageSpaces: () -> Void = {}
     var deleteSpace: (Space) -> Void = { _ in }

@@ -82,6 +82,29 @@ public enum ThemePickerPlacement {
         let arrow = min(max(top - sourceY, arrowInset), cardHeight - arrowInset)
         return (top, arrow)
     }
+
+    /// Which side of what opened it the card opens on (13 Nov 2026). Right, as Arc's does, while
+    /// it fits; else left, its arrow on its trailing edge (Library ▸ Spaces' last card by the
+    /// window's right edge); else, with room on neither side, inside the window over what opened
+    /// it, without an arrow.
+    public enum Side: Equatable {
+        case right
+        case left
+        /// The card's left edge, kept `margin` inside the window.
+        case inside(cardMinX: Double)
+    }
+
+    /// The card is `cardWidth` wide and its arrow `arrowDepth` deep, tip `gap` past the edge it
+    /// points from: `rightEdge` opening right, `leftEdge` opening left (nil: it can't).
+    public static func side(rightEdge: Double, leftEdge: Double?, cardWidth: Double, arrowDepth: Double, gap: Double = 2,
+                            windowMinX: Double, windowMaxX: Double, margin: Double = 6) -> Side {
+        let reach = gap + arrowDepth + cardWidth
+        if rightEdge + reach <= windowMaxX - margin { return .right }
+        if let leftEdge, leftEdge - reach >= windowMinX + margin { return .left }
+        // Over what opened it, as far right as the window allows (or as far left).
+        let x = min(max(rightEdge + gap + arrowDepth, windowMinX + margin), windowMaxX - margin - cardWidth)
+        return .inside(cardMinX: max(x, windowMinX + margin))
+    }
 }
 
 /// A row of cards reordered by dragging one (Library ▸ Spaces): the slot the dragged card is over

@@ -94,10 +94,51 @@ final class SpacesManagerView: NSView {
 
     @objc private func newSpace() { actions.editSpace(nil) }
 
-    /// Scenario hook (13 Nov 2026): each card's profile pill as drawn.
+    /// Scenario hooks (13 Nov 2026): each card's profile pill as drawn, and the brush of the card
+    /// at `index` (from the left; -1 the last) pressed, which opens the theme picker beside it.
     static func debugBadges(in root: NSView) -> String? {
         guard let v = find(root) else { return nil }
         return v.order.compactMap { id in v.cards[id].map { "\(v.store.space(id)?.title ?? "?")=\($0.debugBadge)" } }.joined(separator: " ")
+    }
+
+    /// Nil once pressed, else why not.
+    static func debugEditTheme(in root: NSView, index: Int) -> String? {
+        guard let v = find(root) else { return "no Spaces page" }
+        let i = index < 0 ? v.order.count + index : index
+        guard v.order.indices.contains(i) else { return "no card \(index) of \(v.order.count)" }
+        guard let card = v.cards[v.order[i]], let s = v.store.space(v.order[i]) else { return "card \(index) has no space" }
+        v.layoutSubtreeIfNeeded()
+        // The card scrolled into sight first, as a person would see it before pressing its brush.
+        card.scrollToVisible(card.bounds)
+        v.actions.editSpaceThemeBeside(s, card, nil)
+        return nil
+    }
+
+    /// Card `index`'s ••• menu (SpaceMenu from the Library), or the right-click menu of its tab
+    /// list (`list`), its row `run` chosen.
+    static func debugCardMenu(in root: NSView, index: Int, run: String, list: Bool = false) -> String? {
+        guard let v = find(root) else { return "no Spaces page" }
+        let i = index < 0 ? v.order.count + index : index
+        guard v.order.indices.contains(i), let card = v.cards[v.order[i]] else { return "no card \(index)" }
+        v.layoutSubtreeIfNeeded()
+        card.scrollToVisible(card.bounds)
+        let menu = list ? card.listMenu : SpaceMenu.make(spaceID: v.order[i], store: v.store, ui: v.ui, actions: v.actions, anchor: card, from: .library, rename: {})
+        guard let menu, let item = menu.items.first(where: { $0.title == run || $0.title == run + "…" }) else { return "no row \(run)" }
+        menu.performActionForItem(at: menu.index(of: item))
+        return nil
+    }
+
+    /// The card showing space `id` on the Spaces page, while the page shows it: the theme picker
+    /// goes beside it whichever menu asked (13 Nov 2026).
+    static func card(for id: UUID, in root: NSView) -> NSView? {
+        guard let v = find(root), !v.isHiddenOrHasHiddenAncestor, let card = v.cards[id], card.window != nil else { return nil }
+        return card
+    }
+
+    /// Each card's icon at rest: emoji, symbol, dot (no icon) or none.
+    static func debugIcons(in root: NSView) -> String? {
+        guard let v = find(root) else { return nil }
+        return v.order.compactMap { id in v.cards[id].map { "\(v.store.space(id)?.title ?? "?")=\($0.debugIcon)" } }.joined(separator: " ")
     }
 
     private static func find(_ v: NSView) -> SpacesManagerView? {
@@ -189,6 +230,8 @@ private final class SpaceManagerCard: NSView {
     private let background: PaletteBackgroundView
     private let emoji = NSTextField.sidebarLabel(size: 14.5)
     private let symbol = NSImageView()
+    /// A space with no icon: the dock's dot in the icon's place (13 Nov 2026).
+    private let dot = NSView()
     private let title = NSTextField.sidebarLabel(size: 13, weight: .semibold)
     /// The space's profile beside its name, with more than one profile (ProfileBadge, 13 Nov 2026).
     private let badge = ProfileBadgeView()
@@ -197,7 +240,7 @@ private final class SpaceManagerCard: NSView {
     private lazy var brush = SidebarGlyphButton(symbol: "paintbrush.pointed.fill", size: 26, iconSize: 13, help: "Edit Theme Color",
                                                 colors: colors) { [weak self] in
         guard let self, let s = self.store.space(self.spaceID) else { return }
-        self.actions.editSpaceThemeBeside(s, self)
+        self.actions.editSpaceThemeBeside(s, self, nil)
     }
     /// Dragging it carries the card along the row; where it is let go is the space's new place.
     private let move = SpaceMoveHandle()
@@ -226,7 +269,8 @@ private final class SpaceManagerCard: NSView {
         layer?.masksToBounds = true
         symbol.imageScaling = .scaleNone
         badge.isHidden = true
-        for v in [background, emoji, symbol, title, badge, list, brush, move, more] as [NSView] { addSubview(v) }
+        dot.wantsLayer = true
+        for v in [background, emoji, symbol, dot, title, badge, list, brush, move, more] as [NSView] { addSubview(v) }
         sync()
     }
 
@@ -239,6 +283,7 @@ private final class SpaceManagerCard: NSView {
             guard let s = store.space(spaceID) else { return }
             emoji.stringValue = s.emoji
             symbol.image = s.symbol.flatMap { SidebarSymbols.image($0, size: 13, weight: .medium) }
+            dot.isHidden = s.icon != .none
             title.stringValue = s.title
             background.palette = s.theme.palette
             colors = SidebarColors(s.theme.palette)
@@ -250,10 +295,16 @@ private final class SpaceManagerCard: NSView {
         }
         title.textColor = colors.textSecondary
         symbol.contentTintColor = colors.textSecondary
+        dot.layer?.backgroundColor = (colors.isDark ? NSColor.white : NSColor.black)
+            .withAlphaComponent(SpaceDock.dotAlpha(dark: colors.isDark, lit: true)).cgColor
         for b in [brush, more] { b.colors = colors }
         move.tint = colors.isDark ? NSColor.white.withAlphaComponent(0.55) : colors.glyph
         needsLayout = true
     }
+
+    var listMenu: NSMenu? { list.listMenu() }
+
+    var debugIcon: String { !emoji.stringValue.isEmpty ? "emoji" : symbol.image != nil ? "symbol" : dot.isHidden ? "none" : "dot" }
 
     var debugBadge: String { badge.isHidden ? "none" : "\(badge.name)\(badge.showsName ? "" : "(icon only)")" }
 
@@ -278,6 +329,10 @@ private final class SpaceManagerCard: NSView {
         let ew = ceil(emoji.attributedStringValue.size().width)
         emoji.frame = NSRect(x: 25.5 - ew / 2 - SidebarText.inset, y: 25 - es.height / 2, width: ew + 2 * SidebarText.inset, height: es.height)
         symbol.frame = NSRect(x: 12.5, y: 12, width: 26, height: 26)
+        if case .dot(let d) = SpaceDock.mark(for: .none, isOpen: true, squeezed: false) {
+            dot.frame = NSRect(x: 25.5 - d / 2, y: 25 - d / 2, width: d, height: d)
+            dot.layer?.cornerRadius = d / 2
+        }
         let th = title.intrinsicContentSize.height
         let tw = badge.place(besideTitle: ceil(title.attributedStringValue.size().width), from: 44, to: 213 - 13 - 4, midY: 25, shown: showsBadge)
         title.frame = NSRect(x: 44 - SidebarText.inset, y: 25 - th / 2, width: tw + 2 * SidebarText.inset, height: th)

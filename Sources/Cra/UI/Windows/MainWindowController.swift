@@ -352,7 +352,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
         }
         sidebarActions.changeSpaceIcon = { [weak self] s, anchor in self?.showSpaceIconPicker(space: s, anchor: anchor) }
         sidebarActions.editSpaceTheme = { [weak self] s, point in self?.showSpaceStyleEditor(space: s, at: point) }
-        sidebarActions.editSpaceThemeBeside = { [weak self] s, card in self?.showSpaceStyleEditor(space: s, beside: card) }
+        sidebarActions.editSpaceThemeBeside = { [weak self] s, card, point in self?.showSpaceStyleEditor(space: s, at: point, beside: card) }
         sidebarActions.newProfile = { [weak self] id in self?.showNewProfileDialog(forSpace: id) }
         sidebarActions.manageSpaces = { [weak self] in self?.showManageSpaces() }
         sidebarActions.deleteSpace = { [weak self] s in self?.app.confirmDeleteSpace(s, in: self?.window) }
@@ -4714,7 +4714,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
         let preview = createPreviewSpace, store = self.store
         model.pickingTheme = true
         ThemePickerPopover.present(on: window, theme: model.theme, topLeft: place.topLeft,
-                                   arrowY: place.arrowY,
+                                   arrowY: place.arrowY, arrowOnTrailing: place.arrowOnTrailing,
                                    onChange: { [weak model] theme in
                                        model?.theme = theme
                                        if let preview { store.previewTheme(theme, forSpace: preview) }

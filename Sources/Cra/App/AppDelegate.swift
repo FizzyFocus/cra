@@ -1222,7 +1222,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             }
             // profileBadges=<label>: each space's profile pill, in the sidebar (as decided, and as the
             // shown space's header draws it) and in Library ▸ Spaces (as decided, and as drawn while
-            // that page is open) (13 Nov 2026).
+            // that page is open); libraryEditTheme=<i>: card i's brush (-1 the last), as pressed (13 Nov 2026).
             if let label = dict["profileBadges"] {
                 let decided = store.orderedSpaces.map { s -> String in
                     let side = store.profileBadge(space: s.id, in: .sidebar)
@@ -1237,6 +1237,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                 if let root = main.window?.contentView { walk(root) }
                 let cards = main.window?.contentView.flatMap(SpacesManagerView.debugBadges) ?? "-"
                 CraLog.note("profile badges \(label): \(decided.joined(separator: " ")) header=\(headers.first ?? "-") cards=\(cards)")
+                return
+            }
+            // spaceIcons=<label>: what stands in each icon's place: the shown space's header, and Library
+            // ▸ Spaces' cards while that page is open (a space with no icon draws the dock's dot).
+            if let label = dict["spaceIcons"] {
+                var header = "-"
+                func walk(_ v: NSView) {
+                    if let h = v as? SpaceHeaderView, h.window != nil, h.debugBadge.space == store.focusedSpaceID(window: main.windowID) { header = h.debugIcon }
+                    v.subviews.forEach(walk)
+                }
+                if let root = main.window?.contentView { walk(root) }
+                CraLog.note("space icons \(label): header=\(header) cards=\(main.window?.contentView.flatMap(SpacesManagerView.debugIcons) ?? "-")")
+                return
+            }
+            // libraryCardMenu=<i>&run=<title>[&list=1]: card i's ••• menu (-1 the last), or its tab list's
+            // right-click menu, that row chosen.
+            if let i = dict["libraryCardMenu"].flatMap(Int.init), let run = dict["run"] {
+                let why = main.window?.contentView.map { SpacesManagerView.debugCardMenu(in: $0, index: i, run: run, list: dict["list"] == "1") } ?? "no window"
+                if let why { CraLog.note("library card menu \(i): \(why)") }
                 return
             }
             // editBoost=<host>: Library ▸ Boosts' click on that site's boost; boostEditor=<label>|close|showAll:
@@ -1258,6 +1277,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                 case "showAll": BoostEditorController.shared.debugShowAllZapped()
                 default: CraLog.note("boost editor \(e): \(BoostEditorController.shared.debugState)")
                 }
+                return
+            }
+            if let i = dict["libraryEditTheme"].flatMap(Int.init) {
+                let why = main.window?.contentView.map { SpacesManagerView.debugEditTheme(in: $0, index: i) } ?? "no window"
+                if let why { CraLog.note("library edit theme \(i): \(why)") }
                 return
             }
             // sectionPolicies=<label>: each section's Tidy Tabs Behavior and tabs (TidyPolicy, 13 Nov 2026).

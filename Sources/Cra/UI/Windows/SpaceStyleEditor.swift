@@ -20,15 +20,18 @@ import SwiftUI
 /// The card follows the look being picked (CreateSpaceTones.pickerIsLight): in Light, and before
 /// any colour is picked on a light Mac, black ink on a light card (the colours lifted toward white);
 /// otherwise white ink on the space's colours darkened ~58%. `arrowY` points a popover arrow from
-/// the card's leading edge at what opened it (Create a Space's "Choose a Theme" row).
+/// the card's leading edge at what opened it (Create a Space's "Choose a Theme" row), or from its
+/// trailing edge when the card opened on the left of it (`arrowOnTrailing`, 13 Nov 2026).
 struct SpaceStyleEditor: View {
     @State private var theme: SpaceTheme
     @State private var pad: PadState
     let onChange: (SpaceTheme) -> Void
     var arrowY: CGFloat? = nil
+    var arrowOnTrailing = false
 
-    init(theme: SpaceTheme, arrowY: CGFloat? = nil, onChange: @escaping (SpaceTheme) -> Void) {
+    init(theme: SpaceTheme, arrowY: CGFloat? = nil, arrowOnTrailing: Bool = false, onChange: @escaping (SpaceTheme) -> Void) {
         self.arrowY = arrowY
+        self.arrowOnTrailing = arrowOnTrailing
         _theme = State(initialValue: theme)
         // A one-colour theme stores its colour twice (a flat fill): one handle on the pad.
         let key = theme.key ?? (theme.solid || Set(theme.colors).count == 1 ? Array(theme.colors.prefix(1)) : theme.colors)
@@ -88,11 +91,11 @@ struct SpaceStyleEditor: View {
         .frame(width: Self.cardSize.width, height: Self.cardSize.height)
         // The card's fill reaches the arrow's depth past its leading edge, so the arrow has
         // something to show: clipped to the card's own frame it was all but gone.
-        .background(alignment: .leading) {
+        .background(alignment: arrowOnTrailing ? .trailing : .leading) {
             let d = arrowY == nil ? 0 : PickerCardShape.arrowDepth
             card.frame(width: Self.cardSize.width + d, height: Self.cardSize.height)
-                .clipShape(PickerCardShape(arrowY: arrowY, leading: d))
-                .offset(x: -d)
+                .clipShape(PickerCardShape(arrowY: arrowY, leading: arrowOnTrailing ? 0 : d, trailing: arrowOnTrailing ? d : 0))
+                .offset(x: arrowOnTrailing ? d : -d)
         }
         .environment(\.colorScheme, light ? .light : .dark)
         .environment(\.pickerInk, light ? .black : .white)
@@ -144,31 +147,34 @@ extension EnvironmentValues {
 }
 
 /// The picker's card, 22 pt continuous corners, with a popover arrow on its leading edge at
-/// `arrowY` (from the top) pointing at what opened it.
+/// `arrowY` (from the top) pointing at what opened it, or on its trailing edge pointing right.
 struct PickerCardShape: Shape {
     var radius: CGFloat = 22
     var arrowY: CGFloat?
     /// How far the shape's rect reaches past the card's leading edge, for the arrow.
     var leading: CGFloat = 0
+    /// Or past its trailing edge: the arrow is there instead.
+    var trailing: CGFloat = 0
     /// The arrow: NSPopover's (the Extensions popover's) turned to point left from the card's edge.
     static let arrowDepth: CGFloat = 10.5
     static let arrowHalf: CGFloat = 14
 
     func path(in r: CGRect) -> Path {
-        let card = CGRect(x: r.minX + leading, y: r.minY, width: max(0, r.width - leading), height: r.height)
+        let card = CGRect(x: r.minX + leading, y: r.minY, width: max(0, r.width - leading - trailing), height: r.height)
         let body = Path(roundedRect: card, cornerRadius: radius, style: .continuous)
         guard let arrowY else { return body }
         let y = min(max(card.minY + arrowY, card.minY + radius + Self.arrowHalf), card.maxY - radius - Self.arrowHalf)
-        return body.union(Self.arrow(edgeX: card.minX, y: y))
+        return body.union(trailing > 0 ? Self.arrow(edgeX: card.maxX, y: y, pointingRight: true) : Self.arrow(edgeX: card.minX, y: y))
     }
 
     /// The popover arrow's outline: shoulders that leave the card's edge along it (concave), sides
     /// that run toward the tip, and a tip rounded over, as NSPopover draws its own (10 Nov 2026).
     /// It starts 1 pt inside the card, so the union has no seam.
-    static func arrow(edgeX x0: CGFloat, y: CGFloat) -> Path {
-        let d = arrowDepth, h = arrowHalf
+    static func arrow(edgeX x0: CGFloat, y: CGFloat, pointingRight: Bool = false) -> Path {
+        // Drawn pointing left; mirrored about the edge to point right.
+        let d = pointingRight ? -arrowDepth : arrowDepth, h = arrowHalf, inside: CGFloat = pointingRight ? -1 : 1
         var a = Path()
-        a.move(to: CGPoint(x: x0 + 1, y: y - h))
+        a.move(to: CGPoint(x: x0 + inside, y: y - h))
         a.addLine(to: CGPoint(x: x0, y: y - h))
         a.addCurve(to: CGPoint(x: x0 - d * 0.76, y: y - h * 0.17),
                    control1: CGPoint(x: x0, y: y - h * 0.55), control2: CGPoint(x: x0 - d * 0.56, y: y - h * 0.31))
@@ -176,7 +182,7 @@ struct PickerCardShape: Shape {
                    control1: CGPoint(x: x0 - d * 1.03, y: y - h * 0.09), control2: CGPoint(x: x0 - d * 1.03, y: y + h * 0.09))
         a.addCurve(to: CGPoint(x: x0, y: y + h),
                    control1: CGPoint(x: x0 - d * 0.56, y: y + h * 0.31), control2: CGPoint(x: x0, y: y + h * 0.55))
-        a.addLine(to: CGPoint(x: x0 + 1, y: y + h))
+        a.addLine(to: CGPoint(x: x0 + inside, y: y + h))
         a.closeSubpath()
         return a
     }

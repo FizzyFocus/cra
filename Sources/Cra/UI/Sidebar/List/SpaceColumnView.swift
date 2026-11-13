@@ -109,6 +109,9 @@ final class SpaceHeaderView: NSView, NSTextFieldDelegate {
     private var showsBadge = false
     /// An Icon-tab glyph in the emoji's place.
     private let symbol = NSImageView()
+    /// A space with no icon: the dock's dot in the icon's place (SpaceDock.mark, 13 Nov 2026).
+    private let dot = NSView()
+    private var iconless = false
     private let chevron = NSImageView()
     /// Holds the chevron at a fixed 20 pt frame, so it turns about its own centre while layout
     /// moves the box.
@@ -160,7 +163,9 @@ final class SpaceHeaderView: NSView, NSTextFieldDelegate {
         moveToPill.layer?.cornerRadius = 8
         moveToPill.isHidden = true
         badge.isHidden = true
-        for v in [emoji, symbol, title, badge, chevronBox, more, done, moveToPill, moveTo] { addSubview(v) }
+        dot.wantsLayer = true
+        dot.isHidden = true
+        for v in [emoji, symbol, dot, title, badge, chevronBox, more, done, moveToPill, moveTo] { addSubview(v) }
         sync()
     }
 
@@ -194,6 +199,7 @@ final class SpaceHeaderView: NSView, NSTextFieldDelegate {
             guard let space = store.space(spaceID) else { return }
             emoji.stringValue = space.emoji
             symbol.image = space.symbol.flatMap { SidebarSymbols.image($0, size: 13, weight: .medium) }
+            iconless = space.icon == .none
             title.stringValue = space.title
             blank = space.standaloneWindowID != nil
             colors = SidebarColors(space.theme.palette)
@@ -233,6 +239,11 @@ final class SpaceHeaderView: NSView, NSTextFieldDelegate {
         chevron.alphaValue = showsChevron ? 1 : 0
         emoji.alphaValue = showsChevron ? 0 : 1
         symbol.alphaValue = showsChevron ? 0 : 1
+        // No icon: the dock's dot at rest, as the open space's cell draws it (collapsed, the chevron
+        // stays, the one sign of it).
+        dot.isHidden = !iconless || showsChevron || blank
+        dot.layer?.backgroundColor = (colors.isDark ? NSColor.white : NSColor.black)
+            .withAlphaComponent(SpaceDock.dotAlpha(dark: colors.isDark, lit: true)).cgColor
         symbol.contentTintColor = colors.textSecondary
         more.colors = colors
         more.isHidden = !lit || renameField != nil || blank
@@ -318,6 +329,10 @@ final class SpaceHeaderView: NSView, NSTextFieldDelegate {
         emoji.frame = emoji.frameHoldingInk(NSRect(x: 18.25 - ew / 2 - SidebarText.inset, y: (h - es.height) / 2 - 1.25,
                                                    width: ew + 2 * SidebarText.inset, height: es.height))
         symbol.frame = iconRect
+        if case .dot(let d) = SpaceDock.mark(for: .none, isOpen: true, squeezed: false) {
+            dot.frame = NSRect(x: 18.25 - d / 2, y: (h - d) / 2, width: d, height: d)
+            dot.layer?.cornerRadius = d / 2
+        }
         // Turned right, Arc's chevron sits a little higher than chevron.down turned about its centre.
         let (cx, cy): (CGFloat, CGFloat) = collapsed ? (18.5, h / 2 - 0.25) : (18.25, h / 2 + 0.5)
         chevronBox.frame = NSRect(x: cx - 10, y: cy - 10, width: 20, height: 20)
@@ -339,6 +354,13 @@ final class SpaceHeaderView: NSView, NSTextFieldDelegate {
                              shown: showsBadge && !blank && renameField == nil)
         title.frame = NSRect(x: x - SidebarText.inset, y: (h - th) / 2, width: tw + 2 * SidebarText.inset, height: th)
         renameField?.frame = NSRect(x: x - SidebarText.inset, y: (h - th) / 2, width: max(0, end - x) + 2 * SidebarText.inset, height: th)
+    }
+
+    /// Scenario hook: what stands in the icon's place at rest.
+    var debugIcon: String {
+        if !emoji.stringValue.isEmpty { return "emoji" }
+        if symbol.image != nil { return "symbol" }
+        return dot.isHidden ? "none" : "dot"
     }
 
     /// Scenario hook: the profile pill as drawn beside the name (ProfileBadge).
@@ -490,14 +512,16 @@ enum SpaceMenu {
                 // From the dock, a space that isn't open opens first for what shows in its sidebar.
                 let open: () -> Void = SpaceMenuLayout.opensSpaceFirst(item, from: origin, spaceIsOpen: isOpen)
                     ? { store.focusSpace(id, window: ui.windowID) } : {}
-                add(item, to: m, space: space, store: store, ui: ui, actions: actions, anchor: anchor, asked: asked, open: open, rename: rename)
+                add(item, to: m, space: space, store: store, ui: ui, actions: actions, anchor: anchor, origin: origin, asked: asked,
+                    open: open, rename: rename)
             }
         }
         return m
     }
 
     private static func add(_ item: SpaceMenuLayout.Item, to m: NSMenu, space: Space, store: SidebarStore, ui: SidebarUIState,
-                            actions: SidebarActions, anchor: NSView, asked: NSPoint, open: @escaping () -> Void, rename: @escaping () -> Void) {
+                            actions: SidebarActions, anchor: NSView, origin: SpaceMenuLayout.Origin, asked: NSPoint,
+                            open: @escaping () -> Void, rename: @escaping () -> Void) {
         let id = space.id
         switch item {
         case .changeIcon:
@@ -505,7 +529,13 @@ enum SpaceMenu {
         case .rename:
             MenuItems.add(m, "Rename Space…") { open(); rename() }
         case .editTheme:
-            MenuItems.add(m, "Edit Theme Color…") { open(); actions.editSpaceTheme(space, asked) }
+            // From a Library ▸ Spaces card, beside that card as its brush opens it (flipping left by the
+            // window's right edge), the arrow where the menu was opened; elsewhere at the sidebar's edge
+            // (13 Nov 2026: from a card it fell to the window's bottom corner).
+            MenuItems.add(m, "Edit Theme Color…") { [weak anchor] in
+                open()
+                if origin == .library, let anchor, anchor.window != nil { actions.editSpaceThemeBeside(space, anchor, asked) } else { actions.editSpaceTheme(space, asked) }
+            }
         case .setProfile:
             let profiles = MenuItems.submenu(m, "Set Profile")
             MenuItems.add(profiles, "Default", on: space.profileID == nil) { store.setProfile(nil, forSpace: id) }

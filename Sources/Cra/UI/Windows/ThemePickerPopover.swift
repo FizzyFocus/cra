@@ -19,12 +19,12 @@ enum ThemePickerPopover {
     /// top, points its arrow at the row that opened it; the card then grows out of the arrow's tip,
     /// else out of its top-left corner by the sidebar.
     @discardableResult
-    static func present(on window: NSWindow, theme: SpaceTheme, topLeft: NSPoint, arrowY: CGFloat? = nil,
+    static func present(on window: NSWindow, theme: SpaceTheme, topLeft: NSPoint, arrowY: CGFloat? = nil, arrowOnTrailing: Bool = false,
                         onChange: @escaping (SpaceTheme) -> Void, onClose: @escaping () -> Void) -> StyleEditorPanel {
         for open in window.childWindows ?? [] where open is StyleEditorPanel { open.close() }
         let frame = NSRect(x: topLeft.x.rounded(), y: (topLeft.y - panelSize.height).rounded(), width: panelSize.width, height: panelSize.height)
         let panel = StyleEditorPanel(contentRect: frame, onClose: onClose)
-        let editor = SpaceStyleEditor(theme: theme, arrowY: arrowY, onChange: onChange)
+        let editor = SpaceStyleEditor(theme: theme, arrowY: arrowY, arrowOnTrailing: arrowOnTrailing, onChange: onChange)
         let host = NSHostingView(rootView: editor.shadow(color: .black.opacity(0.3), radius: 10, y: 4)
             .padding(.top, cardTop).padding(.horizontal, cardLeading).padding(.bottom, panelSize.height - cardTop - cardSize.height))
         host.sizingOptions = []
@@ -33,7 +33,8 @@ enum ThemePickerPopover {
         window.addChildWindow(panel, ordered: .above)
         panel.makeKeyAndOrderFront(nil)
         // The point it grows from, in the host's (flipped) space: the arrow's tip, or the card's corner.
-        let origin = arrowY.map { CGPoint(x: cardLeading - PickerCardShape.arrowDepth, y: cardTop + $0) }
+        let tipX = arrowOnTrailing ? cardLeading + cardSize.width + PickerCardShape.arrowDepth : cardLeading - PickerCardShape.arrowDepth
+        let origin = arrowY.map { CGPoint(x: tipX, y: cardTop + $0) }
             ?? CGPoint(x: cardLeading, y: cardTop)
         springIn(host, from: origin)
         panel.closeAnimation = { [weak host] done in

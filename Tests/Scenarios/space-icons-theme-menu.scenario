@@ -1,0 +1,44 @@
+# A space with no icon, and Edit Theme Color… from a Library card's menu (13 Nov 2026, the owner's calls).
+# The sidebar's header draws such a space's icon as the dock does, a dot in the icon's place, as do
+# Library ▸ Spaces' cards (collapsed, the header shows its chevron there instead, the one sign of it).
+# From a card's ••• menu the theme picker opens beside that card, as its brush does, flipping to the
+# left by the window's right edge; it fell to the window's bottom corner. So does the menu of its
+# tab list, which went by the Library's far edge and opened over the last card.
+budget rss=800 stalls50=30
+seed settings.json {"hasSeenImportPrompt": true, "toolbarDefaultMigrated": true, "favoritesDefaultMigrated": true}
+seed sidebar.json {"version":1,"spaceOrder":["A0000000-0000-0000-0000-000000000001","A0000000-0000-0000-0000-000000000002","A0000000-0000-0000-0000-000000000003"],"spaces":[{"id":"A0000000-0000-0000-0000-000000000001","title":"Home","emoji":"🏠","favoritesContainerID":"C0000000-0000-0000-0000-000000000011","pinnedContainerID":"C0000000-0000-0000-0000-000000000012","todayContainerID":"C0000000-0000-0000-0000-000000000013","createdAt":"2026-11-06T08:00:00Z","theme":{"colors":["#8389FF","#8389FF"],"intensity":0.5,"noise":0,"appearance":"light","accent":"#8389FF","solid":true,"key":["#8389FF"]}},{"id":"A0000000-0000-0000-0000-000000000002","title":"Notes","emoji":"📝","favoritesContainerID":"C0000000-0000-0000-0000-000000000021","pinnedContainerID":"C0000000-0000-0000-0000-000000000022","todayContainerID":"C0000000-0000-0000-0000-000000000023","createdAt":"2026-11-06T08:00:00Z","theme":{"colors":["#8389FF","#8389FF"],"intensity":0.5,"noise":0,"appearance":"light","accent":"#8389FF","solid":true,"key":["#8389FF"]}},{"id":"A0000000-0000-0000-0000-000000000003","title":"ASD","emoji":"","favoritesContainerID":"C0000000-0000-0000-0000-000000000031","pinnedContainerID":"C0000000-0000-0000-0000-000000000032","todayContainerID":"C0000000-0000-0000-0000-000000000033","createdAt":"2026-11-06T08:00:00Z","theme":{"colors":["#8389FF","#8389FF"],"intensity":0.5,"noise":0,"appearance":"light","accent":"#8389FF","solid":true,"key":["#8389FF"]}}],"items":[{"id":"E0000000-0000-0000-0000-000000000001","parentID":"C0000000-0000-0000-0000-000000000011","children":[],"isUnread":false,"createdAt":"2026-11-06T08:00:00Z","data":{"tab":{"_0":{"url":"https://example.com/","savedTitle":"Example"}}}},{"id":"E0000000-0000-0000-0000-000000000002","parentID":"C0000000-0000-0000-0000-000000000011","children":[],"isUnread":false,"createdAt":"2026-11-06T08:00:00Z","data":{"tab":{"_0":{"url":"https://example.org/","savedTitle":"Org"}}}},{"id":"C0000000-0000-0000-0000-000000000011","children":["E0000000-0000-0000-0000-000000000001","E0000000-0000-0000-0000-000000000002"],"isUnread":false,"createdAt":"2026-11-06T08:00:00Z","data":{"container":{"_0":{"favorites":{"spaceID":"A0000000-0000-0000-0000-000000000001"}}}}},{"id":"C0000000-0000-0000-0000-000000000012","children":[],"isUnread":false,"createdAt":"2026-11-06T08:00:00Z","data":{"container":{"_0":{"pinned":{"spaceID":"A0000000-0000-0000-0000-000000000001"}}}}},{"id":"C0000000-0000-0000-0000-000000000013","children":[],"isUnread":false,"createdAt":"2026-11-06T08:00:00Z","data":{"container":{"_0":{"today":{"spaceID":"A0000000-0000-0000-0000-000000000001"}}}}},{"id":"C0000000-0000-0000-0000-000000000021","children":[],"isUnread":false,"createdAt":"2026-11-06T08:00:00Z","data":{"container":{"_0":{"favorites":{"spaceID":"A0000000-0000-0000-0000-000000000002"}}}}},{"id":"C0000000-0000-0000-0000-000000000022","children":[],"isUnread":false,"createdAt":"2026-11-06T08:00:00Z","data":{"container":{"_0":{"pinned":{"spaceID":"A0000000-0000-0000-0000-000000000002"}}}}},{"id":"C0000000-0000-0000-0000-000000000023","children":[],"isUnread":false,"createdAt":"2026-11-06T08:00:00Z","data":{"container":{"_0":{"today":{"spaceID":"A0000000-0000-0000-0000-000000000002"}}}}},{"id":"E0000000-0000-0000-0000-000000000003","parentID":"C0000000-0000-0000-0000-000000000031","children":[],"isUnread":false,"createdAt":"2026-11-06T08:00:00Z","data":{"tab":{"_0":{"url":"https://example.net/","savedTitle":"Net"}}}},{"id":"C0000000-0000-0000-0000-000000000031","children":["E0000000-0000-0000-0000-000000000003"],"isUnread":false,"createdAt":"2026-11-06T08:00:00Z","data":{"container":{"_0":{"favorites":{"spaceID":"A0000000-0000-0000-0000-000000000003"}}}}},{"id":"C0000000-0000-0000-0000-000000000032","children":[],"isUnread":false,"createdAt":"2026-11-06T08:00:00Z","data":{"container":{"_0":{"pinned":{"spaceID":"A0000000-0000-0000-0000-000000000003"}}}}},{"id":"C0000000-0000-0000-0000-000000000033","children":[],"isUnread":false,"createdAt":"2026-11-06T08:00:00Z","data":{"container":{"_0":{"today":{"spaceID":"A0000000-0000-0000-0000-000000000003"}}}}}]}
+
+cra://debug?windowSize=1200x800
+wait 2
+cra://debug?spaceIcons=home
+expect-log space icons home: header=emoji cards=-
+cra://action/space3
+wait 1
+cra://debug?spaceIcons=asd
+expect-log space icons asd: header=dot cards=-
+cra://debug?collapsePinned=1
+wait 0.3
+cra://debug?spaceIcons=collapsed
+expect-log space icons collapsed: header=none cards=-
+cra://debug?collapsePinned=0
+wait 0.3
+
+cra://action/manageSpaces
+wait 1.5
+cra://debug?spaceIcons=library
+expect-log space icons library: .* cards=Home=emoji Notes=emoji ASD=dot$
+cra://debug?libraryCardMenu=0&run=Edit Theme Color
+expect-log theme picker opens right of its card, in the window: yes
+wait 0.8
+cra://debug?libraryCardMenu=-1&run=Edit Theme Color
+expect-log theme picker opens left of its card, in the window: yes
+wait 0.8
+# The first card's tab list, right-clicked: beside that card too (it opened over the last card).
+cra://debug?libraryCardMenu=0&run=Edit Theme Color&list=1
+expect-log theme picker opens right of its card, in the window: yes
+wait 0.8
+reject-log theme picker opens (right|inside) of the sidebar
+reject-log in the window: no
+reject-log library card menu
+cra://debug?leaveLibrary=1
+wait 1

@@ -1,0 +1,81 @@
+# Profiles across the sidebar (13 Nov 2026, the owner's calls). Home and Notes are on Default, Work on
+# the Work profile. (1) Between spaces that share a profile the favorites stay still; across profiles
+# each list rides with its space's page, under the fingers and on the settle (FavoritesSlide). (2) With
+# more than one profile each space names its profile in a pill: in Library ▸ Spaces, and in the sidebar's
+# space header while Settings ▸ "Show profile indicator in sidebar" is on (ProfileBadge). (3) Settings ▸
+# Profiles edits a profile's name, emoji and accent, and deletes one after moving its spaces to Default.
+# (4) The theme picker opened from Library ▸ Spaces' last card opens on its left, inside the window.
+budget rss=800 stalls50=40
+seed settings.json {"hasSeenImportPrompt": true, "toolbarDefaultMigrated": true, "favoritesDefaultMigrated": true}
+seed sidebar.json {"version":1,"spaceOrder":["A0000000-0000-0000-0000-000000000001","A0000000-0000-0000-0000-000000000002","A0000000-0000-0000-0000-000000000003"],"spaces":[{"id":"A0000000-0000-0000-0000-000000000001","title":"Home","emoji":"🏠","favoritesContainerID":"C0000000-0000-0000-0000-000000000011","pinnedContainerID":"C0000000-0000-0000-0000-000000000012","todayContainerID":"C0000000-0000-0000-0000-000000000013","createdAt":"2026-11-06T08:00:00Z","theme":{"colors":["#8389FF","#8389FF"],"intensity":0.5,"noise":0,"appearance":"light","accent":"#8389FF","solid":true,"key":["#8389FF"]}},{"id":"A0000000-0000-0000-0000-000000000002","title":"Notes","emoji":"📝","favoritesContainerID":"C0000000-0000-0000-0000-000000000021","pinnedContainerID":"C0000000-0000-0000-0000-000000000022","todayContainerID":"C0000000-0000-0000-0000-000000000023","createdAt":"2026-11-06T08:00:00Z","theme":{"colors":["#8389FF","#8389FF"],"intensity":0.5,"noise":0,"appearance":"light","accent":"#8389FF","solid":true,"key":["#8389FF"]}},{"id":"A0000000-0000-0000-0000-000000000003","title":"Work","emoji":"💼","favoritesContainerID":"C0000000-0000-0000-0000-000000000031","pinnedContainerID":"C0000000-0000-0000-0000-000000000032","todayContainerID":"C0000000-0000-0000-0000-000000000033","createdAt":"2026-11-06T08:00:00Z","theme":{"colors":["#8389FF","#8389FF"],"intensity":0.5,"noise":0,"appearance":"light","accent":"#8389FF","solid":true,"key":["#8389FF"]},"profileID":"B0000000-0000-0000-0000-000000000001"}],"profiles":[{"id":"B0000000-0000-0000-0000-000000000001","name":"Work"}],"items":[{"id":"E0000000-0000-0000-0000-000000000001","parentID":"C0000000-0000-0000-0000-000000000011","children":[],"isUnread":false,"createdAt":"2026-11-06T08:00:00Z","data":{"tab":{"_0":{"url":"https://example.com/","savedTitle":"Example"}}}},{"id":"E0000000-0000-0000-0000-000000000002","parentID":"C0000000-0000-0000-0000-000000000011","children":[],"isUnread":false,"createdAt":"2026-11-06T08:00:00Z","data":{"tab":{"_0":{"url":"https://example.org/","savedTitle":"Org"}}}},{"id":"C0000000-0000-0000-0000-000000000011","children":["E0000000-0000-0000-0000-000000000001","E0000000-0000-0000-0000-000000000002"],"isUnread":false,"createdAt":"2026-11-06T08:00:00Z","data":{"container":{"_0":{"favorites":{"spaceID":"A0000000-0000-0000-0000-000000000001"}}}}},{"id":"C0000000-0000-0000-0000-000000000012","children":[],"isUnread":false,"createdAt":"2026-11-06T08:00:00Z","data":{"container":{"_0":{"pinned":{"spaceID":"A0000000-0000-0000-0000-000000000001"}}}}},{"id":"C0000000-0000-0000-0000-000000000013","children":[],"isUnread":false,"createdAt":"2026-11-06T08:00:00Z","data":{"container":{"_0":{"today":{"spaceID":"A0000000-0000-0000-0000-000000000001"}}}}},{"id":"C0000000-0000-0000-0000-000000000021","children":[],"isUnread":false,"createdAt":"2026-11-06T08:00:00Z","data":{"container":{"_0":{"favorites":{"spaceID":"A0000000-0000-0000-0000-000000000002"}}}}},{"id":"C0000000-0000-0000-0000-000000000022","children":[],"isUnread":false,"createdAt":"2026-11-06T08:00:00Z","data":{"container":{"_0":{"pinned":{"spaceID":"A0000000-0000-0000-0000-000000000002"}}}}},{"id":"C0000000-0000-0000-0000-000000000023","children":[],"isUnread":false,"createdAt":"2026-11-06T08:00:00Z","data":{"container":{"_0":{"today":{"spaceID":"A0000000-0000-0000-0000-000000000002"}}}}},{"id":"E0000000-0000-0000-0000-000000000003","parentID":"C0000000-0000-0000-0000-000000000031","children":[],"isUnread":false,"createdAt":"2026-11-06T08:00:00Z","data":{"tab":{"_0":{"url":"https://example.net/","savedTitle":"Net"}}}},{"id":"C0000000-0000-0000-0000-000000000031","children":["E0000000-0000-0000-0000-000000000003"],"isUnread":false,"createdAt":"2026-11-06T08:00:00Z","data":{"container":{"_0":{"favorites":{"spaceID":"A0000000-0000-0000-0000-000000000003"}}}}},{"id":"C0000000-0000-0000-0000-000000000032","children":[],"isUnread":false,"createdAt":"2026-11-06T08:00:00Z","data":{"container":{"_0":{"pinned":{"spaceID":"A0000000-0000-0000-0000-000000000003"}}}}},{"id":"C0000000-0000-0000-0000-000000000033","children":[],"isUnread":false,"createdAt":"2026-11-06T08:00:00Z","data":{"container":{"_0":{"today":{"spaceID":"A0000000-0000-0000-0000-000000000003"}}}}}]}
+
+cra://debug?windowSize=1200x800
+wait 2
+cra://debug?profileBadges=start
+expect-log profile badges start: Home=Default/Default Notes=Default/Default Work=Work/Work header=Default cards=-$
+
+# (1) Home → Notes share Default's favorites: nothing moves.
+cra://action/space2
+wait 1
+reject-log favorites ride with the pages
+# Notes → Work: Work's list comes in with Work's page, and lands (on the first frame only Notes' is
+# in sight, at its place).
+cra://action/space3
+expect-log favorites ride with the pages: [12] lists? in sight
+expect-log favorites still again
+cra://debug?profileBadges=work
+expect-log profile badges work: .* header=Work cards=-$
+# Back toward Notes under the fingers, let go past halfway: Default's list rides in with the swipe.
+cra://debug?swipe=24,12
+wait 1.2
+expect-log favorites ride with the pages under the fingers: 2 lists in sight
+
+# (2) The sidebar's pill follows its setting; the Library's doesn't.
+pane://debug?settingsPane=profiles
+wait 1.5
+pane://debug?settingsPageJS=craSettings.set('showProfileIndicator',false).then(s=>`indicator ${s.settings.showProfileIndicator}`)
+expect-log settings page js: indicator false
+cra://debug?profileBadges=off
+expect-log profile badges off: Home=-/Default Notes=-/Default Work=-/Work header=none
+pane://debug?settingsPageJS=craSettings.set('showProfileIndicator',true).then(s=>`indicator ${s.settings.showProfileIndicator}`)
+expect-log settings page js: indicator true
+
+# (3) Each profile with its spaces; Edit… opens its emoji and accent choices in place.
+pane://debug?settingsPageJS=craSettings.state().then(s=>`profiles ${s.profiles.list.map(p=>p.name+':'+p.spaceCount).join(',')} accents ${s.profiles.accents.length}`)
+expect-log settings page js: profiles Default:2,Work:1 accents 8
+pane://debug?settingsPageJS=(()=>{const r=[...document.querySelectorAll('.profile-row')];[...r[1].querySelectorAll('button')].find(x=>x.textContent==='Edit…').click();return new Promise(res=>setTimeout(()=>{const e=document.querySelector('.profile-editor');res(`editor ${!!e} swatches ${e.querySelectorAll('.swatch').length} icons ${e.querySelectorAll('.choice').length} detail ${r[1].querySelector('.detail').textContent}`)},300))})()
+expect-log settings page js: editor true swatches 9 icons 17 detail 1 Space: 💼 Work
+pane://debug?settingsPageJS=(()=>{const e=document.querySelector('.profile-editor');e.querySelector('.swatch[data-color=purple]').click();e.querySelector('.choice[data-icon="🎓"]').click();e.querySelector('input.field').value='Office';e.querySelector('input.field').dispatchEvent(new Event('input'));[...e.querySelectorAll('button')].find(x=>x.textContent==='Save').click();return new Promise(res=>setTimeout(()=>res('closed '+!document.querySelector('.profile-editor')),500))})()
+expect-log settings page edited profile Office: icon=🎓 color=purple
+expect-log settings page js: closed true
+pane://debug?settingsPageJS=craSettings.action('editProfile',{icon:'🏠',color:'green'}).then(s=>`default ${s.profiles.list[0].icon} ${s.profiles.list[0].color}`)
+expect-log settings page js: default 🏠 green
+cra://debug?profileBadges=edited
+expect-log profile badges edited: Home=🏠 Default/Default Notes=🏠 Default/Default Work=🎓 Office/Office
+
+# (4) Library ▸ Spaces: each card names its profile; the first card's theme picker opens on its right,
+# the last one's on its left (it went past the window's right edge, 13 Nov 2026), both in the window.
+cra://action/manageSpaces
+wait 1.5
+cra://debug?profileBadges=library
+expect-log profile badges library: .* cards=Home=Default Notes=Default Work=Office$
+cra://debug?libraryEditTheme=0
+expect-log theme picker opens right of its card, in the window: yes
+wait 0.8
+cra://debug?libraryEditTheme=-1
+expect-log theme picker opens left of its card, in the window: yes
+wait 0.8
+reject-log in the window: no
+cra://debug?leaveLibrary=1
+wait 1
+
+# (3) Delete… a profile in use: refused unless its spaces move to Default, then they do.
+pane://debug?settingsPageJS=craSettings.state().then(s=>craSettings.action('deleteProfile',{id:s.profiles.list[1].id})).then(()=>'deleted',e=>`refused ${e.message}`)
+expect-log settings page js: refused Only Profiles not assigned to any Spaces can be deleted\.
+pane://debug?settingsPageJS=craSettings.state().then(s=>craSettings.action('deleteProfile',{id:s.profiles.list[1].id,reassign:true})).then(s=>`after ${s.profiles.list.map(p=>p.name+':'+p.spaceCount).join(',')}`)
+expect-log settings page deleted a profile: 1 space moved to Default
+expect-log settings page js: after Default:3
+# One profile left: no pill anywhere.
+cra://debug?profileBadges=one
+expect-log profile badges one: Home=-/- Notes=-/- Work=-/- header=none
+cra://debug?checkStore=1
