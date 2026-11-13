@@ -1220,6 +1220,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                 CraLog.note("today rows \(label): \(today.joined(separator: " | "))")
                 return
             }
+            // profileBadges=<label>: each space's profile pill, in the sidebar (as decided, and as the
+            // shown space's header draws it) and in Library ▸ Spaces (as decided, and as drawn while
+            // that page is open) (13 Nov 2026).
+            if let label = dict["profileBadges"] {
+                let decided = store.orderedSpaces.map { s -> String in
+                    let side = store.profileBadge(space: s.id, in: .sidebar)
+                    let lib = store.profileBadge(space: s.id, in: .library)
+                    return "\(s.title)=\(side.map { ($0.look.icon.map { $0 + " " } ?? "") + $0.name } ?? "-")/\(lib?.name ?? "-")"
+                }
+                var headers: [String] = []
+                func walk(_ v: NSView) {
+                    if let h = v as? SpaceHeaderView, h.window != nil, h.debugBadge.space == store.focusedSpaceID(window: main.windowID) { headers.append(h.debugBadge.shown) }
+                    v.subviews.forEach(walk)
+                }
+                if let root = main.window?.contentView { walk(root) }
+                let cards = main.window?.contentView.flatMap(SpacesManagerView.debugBadges) ?? "-"
+                CraLog.note("profile badges \(label): \(decided.joined(separator: " ")) header=\(headers.first ?? "-") cards=\(cards)")
+                return
+            }
             // editBoost=<host>: Library ▸ Boosts' click on that site's boost; boostEditor=<label>|close|showAll:
             // what the editor shows, Done, or its zap menu's Show All Zapped Elements (13 Nov 2026).
             if let host = dict["editBoost"] {

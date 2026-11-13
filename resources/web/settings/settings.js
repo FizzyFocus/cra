@@ -143,6 +143,79 @@
   /// Create Profile…: Cra's own Create a new Profile dialog (its name, then which spaces use it).
   function createProfileDialog() { run('newProfileDialog').catch(() => {}); }
 
+  /// A Profile's badge as the page shows it: its emoji (else its initial) on its accent.
+  function profileAvatar(p, size) {
+    const a = el('span', { class: `profile-avatar${p.hex ? ' tinted' : ''}`, 'aria-hidden': 'true' }, p.icon || (p.name || '?').slice(0, 1).toUpperCase());
+    if (p.hex) a.style.setProperty('--tint', p.hex);
+    if (size) { a.style.width = a.style.height = `${size}px`; }
+    return a;
+  }
+
+  /// Delete…: a Profile with Spaces asks first, naming them, and moves them to Default.
+  function deleteProfile(p) {
+    const n = p.spaceCount || 0;
+    const moving = n === 0 ? '' : ` Its ${n === 1 ? 'Space' : `${n} Spaces`} (${(p.spaceNames || []).join(', ')}) will move to the Default Profile, and pages open there will load again signed in as Default.`;
+    pageDialog({ title: `Delete “${p.name}”?`, message: `Deleting this Profile will permanently remove any cookies, history, preferences, and logins that belong to it.${moving}`,
+      confirmLabel: 'Delete Profile', destructive: true }).then((r) => {
+      if (r.ok) run('deleteProfile', { id: p.id, reassign: n > 0 }).catch(() => {});
+    });
+  }
+
+  const PROFILE_ICONS = ['👤', '🏠', '💼', '🎓', '🎮', '🧪', '🛒', '✈️', '🎨', '💻', '🔒', '⭐️', '❤️', '🌱', '📚', '🎵'];
+
+  /// Edit…: the name (Default keeps its own), an emoji from the row or typed, and an accent.
+  function profileEditor(p, close) {
+    const P = () => (S && S.profiles) || { list: [], accents: [] };
+    const isDefault = p.id === 'default';
+    const draft = { name: p.name, icon: p.icon || '', color: p.color || '' };
+    const preview = el('span', { class: 'profile-pill' });
+    const drawPreview = () => {
+      const accent = (P().accents || []).find((a) => a.id === draft.color);
+      preview.replaceChildren(draft.icon ? el('span', { class: 'pill-icon' }, draft.icon) : el('span', { class: 'pill-dot' }), el('span', {}, draft.name || p.name));
+      preview.style.setProperty('--tint', accent ? accent.hex : 'var(--ink-3)');
+      preview.classList.toggle('tinted', !!accent);
+    };
+    const name = el('input', { type: 'text', class: 'field', value: p.name, 'aria-label': 'Profile name', maxlength: '60', disabled: isDefault });
+    name.addEventListener('input', () => { draft.name = name.value; drawPreview(); });
+    const icons = el('div', { class: 'choice-row', role: 'radiogroup', 'aria-label': 'Icon' });
+    const custom = el('input', { type: 'text', class: 'field emoji-field', placeholder: 'Other', 'aria-label': 'Another emoji', maxlength: '8' });
+    const drawIcons = () => {
+      for (const b of icons.children) b.classList.toggle('selected', b.dataset.icon === draft.icon);
+      custom.value = draft.icon && !PROFILE_ICONS.includes(draft.icon) ? draft.icon : '';
+    };
+    for (const ic of [''].concat(PROFILE_ICONS)) {
+      const b = el('button', { type: 'button', class: 'choice', role: 'radio', 'aria-label': ic || 'No icon', title: ic ? '' : 'None', dataset: { icon: ic } }, ic || el('span', { class: 'none-mark' }));
+      b.addEventListener('click', () => { draft.icon = ic; drawIcons(); drawPreview(); });
+      icons.append(b);
+    }
+    custom.addEventListener('input', () => { const v = [...custom.value.trim()].slice(0, 1).join(''); if (v || !custom.value) { draft.icon = v; for (const b of icons.children) b.classList.toggle('selected', b.dataset.icon === draft.icon); drawPreview(); } });
+    const colors = el('div', { class: 'choice-row', role: 'radiogroup', 'aria-label': 'Color' });
+    for (const a of [{ id: '', name: 'None', hex: '' }].concat(P().accents || [])) {
+      const b = el('button', { type: 'button', class: 'swatch', role: 'radio', 'aria-label': a.name, title: a.name, dataset: { color: a.id } });
+      if (a.hex) b.style.setProperty('--tint', a.hex); else b.classList.add('none');
+      b.addEventListener('click', () => { draft.color = a.id; for (const x of colors.children) x.classList.toggle('selected', x.dataset.color === draft.color); drawPreview(); });
+      colors.append(b);
+    }
+    for (const x of colors.children) x.classList.toggle('selected', x.dataset.color === draft.color);
+    drawIcons();
+    drawPreview();
+    const cancel = el('button', { class: 'btn', type: 'button' }, 'Cancel');
+    cancel.addEventListener('click', close);
+    const save = el('button', { class: 'btn primary', type: 'button' }, 'Save');
+    save.addEventListener('click', () => {
+      const args = { icon: draft.icon, color: draft.color };
+      if (!isDefault) { args.id = p.id; args.name = name.value.trim(); }
+      if (!isDefault && !args.name) { name.focus(); return; }
+      run('editProfile', args).then(close).catch(() => {});
+    });
+    const line = (label, control) => el('div', { class: 'editor-line' }, el('div', { class: 'editor-label' }, label), control);
+    return el('div', { class: 'row profile-editor', dataset: { search: `${p.name} profile edit`.toLowerCase() } },
+      line('Name', isDefault ? el('div', { class: 'detail' }, 'The Default Profile keeps its name.') : name),
+      line('Icon', el('div', { class: 'choice-wrap' }, icons, custom)),
+      line('Color', colors),
+      el('div', { class: 'editor-actions' }, el('span', { class: 'editor-preview' }, 'In the sidebar: ', preview), el('span', { class: 'spacer' }), cancel, save));
+  }
+
   // MARK: Rows
 
   function row({ title, detail, trailing, cls, search, onclick }) {
@@ -392,6 +465,7 @@
         ], { footnote: 'Save a click: hover over a folder, a pinned tab or a favorite to preview what you need from that site.' }),
         card('Spaces', [
           toggle('showSpaceHeaderOnSingleSpace', 'Show the space header with only one space', 'Show the space’s name at the top and its icon at the bottom of the sidebar, even while you have only one space.'),
+          toggle('showProfileIndicator', 'Show profile indicator in sidebar', 'With more than one Profile, show the Space’s Profile beside its name at the top of the sidebar. Library ▸ Spaces always shows it.'),
           button('Your spaces', 'Rename, reorder, theme and delete spaces in the Library.', 'Manage Spaces…', 'manageSpaces'),
         ]),
         card('Archive', [
@@ -527,15 +601,25 @@
     profiles() {
       const profiles = el('div'), downloads = el('div'), languages = el('div');
       const P = () => (S && S.profiles) || { list: [] };
-      list(profiles, () => S && S.profiles && S.profiles.list.map((p) => [p.id, p.name, p.spaces, p.canDelete]), () => {
-        profiles.replaceChildren(...P().list.map((p) => {
-          const rename = el('button', { class: 'btn', type: 'button' }, 'Rename…');
-          rename.addEventListener('click', () => pageDialog({ title: 'Rename your Profile', message: 'This won’t affect the names of any of the Spaces associated with this Profile.',
-            input: p.name, placeholder: 'Profile name', requiresInput: true, confirmLabel: 'Save' }).then((r) => { if (r.ok) run('renameProfile', { id: p.id, name: r.value }).catch(() => {}); }));
-          const del = el('button', { class: 'btn danger', type: 'button', disabled: !p.canDelete, title: p.canDelete ? '' : 'Only Profiles not assigned to any Spaces can be deleted.' }, 'Delete…');
-          del.addEventListener('click', () => pageDialog({ title: `Delete “${p.name}”?`, message: 'Deleting this Profile will permanently remove any cookies, history, preferences, and logins that belong to it.',
-            confirmLabel: 'Delete Profile', destructive: true }).then((r) => { if (r.ok) run('deleteProfile', { id: p.id }).catch(() => {}); }));
-          return row({ title: p.name, detail: p.spaces, trailing: p.id === 'default' ? null : [rename, del] });
+      // Manage Profiles (13 Nov 2026): each Profile with the Spaces on it, its badge (emoji and
+      // accent) edited in place, and Delete… for any but Default, its Spaces moving to Default.
+      let editing = null;
+      const redraw = () => { listShown.delete(profiles); update(); };
+      list(profiles, () => S && S.profiles && [editing, S.profiles.list.map((p) => [p.id, p.name, p.spaces, p.spaceCount, p.icon, p.color])], () => {
+        profiles.replaceChildren(...P().list.flatMap((p) => {
+          const edit = el('button', { class: 'btn', type: 'button', 'aria-expanded': editing === p.id ? 'true' : 'false' }, 'Edit…');
+          edit.addEventListener('click', () => { editing = editing === p.id ? null : p.id; redraw(); });
+          const trailing = [edit];
+          if (p.id !== 'default') {
+            const del = el('button', { class: 'btn danger', type: 'button' }, 'Delete…');
+            del.addEventListener('click', () => deleteProfile(p));
+            trailing.push(del);
+          }
+          const count = p.spaceCount === 0 ? 'No Spaces' : `${p.spaceCount} ${p.spaceCount === 1 ? 'Space' : 'Spaces'}: ${p.spaces}`;
+          const r = row({ title: p.name, detail: count, trailing, search: 'profile edit rename delete icon color' });
+          r.classList.add('profile-row');
+          r.prepend(profileAvatar(p));
+          return editing === p.id ? [r, profileEditor(p, () => { editing = null; redraw(); })] : [r];
         }));
       });
       list(downloads, () => S && S.profiles && S.profiles.list.map((p) => [p.id, p.name, p.downloads]), () => {
@@ -579,7 +663,7 @@
         }));
       });
       return [
-        card('Profiles', [profiles], { footnote: 'Profiles keep logins, cookies and site data apart. A Space picks its Profile in Spaces ▸ Change Profile. Spaces on the same Profile share their logins. Only Profiles no Space uses can be deleted.' }),
+        card('Profiles', [profiles], { footnote: 'Profiles keep logins, cookies and site data apart. A Space picks its Profile in Spaces ▸ Change Profile. Spaces on the same Profile share their logins. Deleting a Profile moves its Spaces to Default. With more than one Profile, each Space shows its Profile’s badge in Library ▸ Spaces and beside its name in the sidebar.' }),
         create,
         card('Downloads', [downloads], { footnote: 'Where each Profile saves downloaded files.' }),
         card('Languages', [languages], { footnote: 'The languages websites show their pages in for each Profile, most wanted first. Pane itself stays in English.' }),

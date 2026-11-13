@@ -404,3 +404,48 @@ dialog h2 { margin: 0 0 16px; font-size: 15px; font-weight: 700; }
 .agent-tile.outdated .agent-state { color: var(--accent); }
 .agent-tile.unreadable .agent-state { color: var(--danger); }
 .agent-actions { display: flex; gap: 8px; }
+
+/* Profiles (13 Nov 2026): a badge per Profile, and Edit…'s emoji and accent choices. */
+.profile-avatar {
+  width: 26px; height: 26px; flex: none; border-radius: 8px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--field); font-size: 14px; font-weight: 600; color: var(--ink-2);
+}
+.profile-avatar.tinted { background: color-mix(in srgb, var(--tint) 22%, transparent); color: var(--tint); }
+.profile-editor { display: block; padding: 14px 18px 16px; background: color-mix(in srgb, var(--accent) 4%, transparent); }
+.editor-line { display: flex; align-items: center; gap: 14px; margin: 0 0 12px; }
+.editor-label { width: 52px; flex: none; font-size: 12.5px; color: var(--ink-2); }
+.field {
+  height: 28px; padding: 0 9px; border-radius: 7px; border: 1px solid var(--field-border);
+  background: var(--field); color: var(--ink); font-size: 12.5px; outline: none; min-width: 0; width: 220px;
+}
+.field:focus-visible { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent); }
+.field:disabled { opacity: 0.5; }
+.emoji-field { width: 64px; text-align: center; }
+.choice-wrap { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.choice-row { display: flex; flex-wrap: wrap; gap: 4px; }
+.choice {
+  width: 28px; height: 28px; border-radius: 7px; border: 1px solid transparent; background: transparent;
+  font-size: 15px; display: inline-flex; align-items: center; justify-content: center; padding: 0;
+}
+.choice:hover { background: var(--hover); }
+.choice.selected { background: color-mix(in srgb, var(--accent) 14%, transparent); border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
+.none-mark { width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid var(--ink-3); position: relative; }
+.none-mark::after { content: ''; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1.5px; background: var(--ink-3); transform: rotate(45deg); }
+.swatch {
+  width: 22px; height: 22px; border-radius: 50%; border: 0; padding: 0; margin: 3px;
+  background: var(--tint); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+}
+.swatch.none { background: var(--field); box-shadow: inset 0 0 0 1.5px var(--ink-3); }
+.swatch.selected { box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--tint, var(--ink-3)); }
+.swatch.none.selected { box-shadow: inset 0 0 0 1.5px var(--ink-3), 0 0 0 2px var(--card), 0 0 0 4px var(--ink-3); }
+.editor-actions { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.editor-actions .spacer { flex: 1; }
+.editor-preview { font-size: 12px; color: var(--ink-2); display: inline-flex; align-items: center; gap: 6px; }
+.profile-pill {
+  display: inline-flex; align-items: center; gap: 4px; height: 18px; padding: 0 7px; border-radius: 9px;
+  font-size: 11px; font-weight: 600; color: var(--ink-2); background: var(--field); max-width: 140px; overflow: hidden; white-space: nowrap;
+}
+.profile-pill.tinted { background: color-mix(in srgb, var(--tint) 20%, transparent); color: color-mix(in srgb, var(--tint) 80%, var(--ink)); }
+.profile-pill .pill-icon { font-size: 11px; }
+.profile-pill .pill-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--tint); flex: none; }

@@ -104,6 +104,9 @@ final class SpaceHeaderView: NSView, NSTextFieldDelegate {
     private let actions: SidebarActions
     private let emoji = NSTextField.sidebarLabel(size: 14)
     private let title = NSTextField.sidebarLabel(size: 13, weight: .semibold)
+    /// The space's profile beside its name, with more than one profile (ProfileBadge).
+    private let badge = ProfileBadgeView()
+    private var showsBadge = false
     /// An Icon-tab glyph in the emoji's place.
     private let symbol = NSImageView()
     private let chevron = NSImageView()
@@ -156,7 +159,8 @@ final class SpaceHeaderView: NSView, NSTextFieldDelegate {
         moveToPill.wantsLayer = true
         moveToPill.layer?.cornerRadius = 8
         moveToPill.isHidden = true
-        for v in [emoji, symbol, title, chevronBox, more, done, moveToPill, moveTo] { addSubview(v) }
+        badge.isHidden = true
+        for v in [emoji, symbol, title, badge, chevronBox, more, done, moveToPill, moveTo] { addSubview(v) }
         sync()
     }
 
@@ -195,6 +199,9 @@ final class SpaceHeaderView: NSView, NSTextFieldDelegate {
             colors = SidebarColors(space.theme.palette)
             collapsed = store.isPinnedCollapsed(spaceID)
             hide = store.hidesSpaceHeader(spaceID)
+            let profile = store.profileBadge(space: spaceID, in: .sidebar)
+            showsBadge = profile != nil
+            if let profile { badge.show(name: profile.name, look: profile.look, colors: colors) }
         } onChange: { [weak self] in
             Task { @MainActor in
                 guard let self, !self.syncQueued else { return }
@@ -327,9 +334,16 @@ final class SpaceHeaderView: NSView, NSTextFieldDelegate {
         let end = blank ? (moveTo.isHidden ? w - 8.5 : moveTo.frame.minX - 6)
             : renameField != nil ? done.frame.minX - 6 : (more.isHidden ? w - 8.5 : w - 18.5 - 13 - 2)
         let th = title.intrinsicContentSize.height
-        let tw = min(ceil(title.attributedStringValue.size().width), max(0, end - x))
+        // The profile's pill after the name: not while it is renamed, nor in a Blank Window.
+        let tw = badge.place(besideTitle: ceil(title.attributedStringValue.size().width), from: x, to: end, midY: h / 2,
+                             shown: showsBadge && !blank && renameField == nil)
         title.frame = NSRect(x: x - SidebarText.inset, y: (h - th) / 2, width: tw + 2 * SidebarText.inset, height: th)
         renameField?.frame = NSRect(x: x - SidebarText.inset, y: (h - th) / 2, width: max(0, end - x) + 2 * SidebarText.inset, height: th)
+    }
+
+    /// Scenario hook: the profile pill as drawn beside the name (ProfileBadge).
+    var debugBadge: (space: UUID, shown: String) {
+        (spaceID, badge.isHidden ? "none" : "\(badge.look.icon.map { $0 + " " } ?? "")\(badge.name)\(badge.showsName ? "" : "(icon only)")")
     }
 
     /// The icon's 26 pt box: Change Space Icon… points its popover at it.

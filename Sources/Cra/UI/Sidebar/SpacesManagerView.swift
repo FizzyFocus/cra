@@ -94,6 +94,18 @@ final class SpacesManagerView: NSView {
 
     @objc private func newSpace() { actions.editSpace(nil) }
 
+    /// Scenario hook (13 Nov 2026): each card's profile pill as drawn.
+    static func debugBadges(in root: NSView) -> String? {
+        guard let v = find(root) else { return nil }
+        return v.order.compactMap { id in v.cards[id].map { "\(v.store.space(id)?.title ?? "?")=\($0.debugBadge)" } }.joined(separator: " ")
+    }
+
+    private static func find(_ v: NSView) -> SpacesManagerView? {
+        if let m = v as? SpacesManagerView { return m }
+        for s in v.subviews { if let m = find(s) { return m } }
+        return nil
+    }
+
     private var dragging: (id: UUID, dx: CGFloat)?
     /// The slot the dragged card is over (CardReorder): the others make room for it as it moves.
     private var dragSlot: Int?
@@ -178,6 +190,9 @@ private final class SpaceManagerCard: NSView {
     private let emoji = NSTextField.sidebarLabel(size: 14.5)
     private let symbol = NSImageView()
     private let title = NSTextField.sidebarLabel(size: 13, weight: .semibold)
+    /// The space's profile beside its name, with more than one profile (ProfileBadge, 13 Nov 2026).
+    private let badge = ProfileBadgeView()
+    private var showsBadge = false
     private let list: SpaceListView
     private lazy var brush = SidebarGlyphButton(symbol: "paintbrush.pointed.fill", size: 26, iconSize: 13, help: "Edit Theme Color",
                                                 colors: colors) { [weak self] in
@@ -210,7 +225,8 @@ private final class SpaceManagerCard: NSView {
         layer?.cornerCurve = .continuous
         layer?.masksToBounds = true
         symbol.imageScaling = .scaleNone
-        for v in [background, emoji, symbol, title, list, brush, move, more] as [NSView] { addSubview(v) }
+        badge.isHidden = true
+        for v in [background, emoji, symbol, title, badge, list, brush, move, more] as [NSView] { addSubview(v) }
         sync()
     }
 
@@ -226,6 +242,9 @@ private final class SpaceManagerCard: NSView {
             title.stringValue = s.title
             background.palette = s.theme.palette
             colors = SidebarColors(s.theme.palette)
+            let profile = store.profileBadge(space: spaceID, in: .library)
+            showsBadge = profile != nil
+            if let profile { badge.show(name: profile.name, look: profile.look, colors: colors) }
         } onChange: { [weak self] in
             Task { @MainActor in self?.sync() }
         }
@@ -235,6 +254,8 @@ private final class SpaceManagerCard: NSView {
         move.tint = colors.isDark ? NSColor.white.withAlphaComponent(0.55) : colors.glyph
         needsLayout = true
     }
+
+    var debugBadge: String { badge.isHidden ? "none" : "\(badge.name)\(badge.showsName ? "" : "(icon only)")" }
 
     private func showMenu() {
         guard let event = NSApp.currentEvent,
@@ -258,7 +279,8 @@ private final class SpaceManagerCard: NSView {
         emoji.frame = NSRect(x: 25.5 - ew / 2 - SidebarText.inset, y: 25 - es.height / 2, width: ew + 2 * SidebarText.inset, height: es.height)
         symbol.frame = NSRect(x: 12.5, y: 12, width: 26, height: 26)
         let th = title.intrinsicContentSize.height
-        title.frame = NSRect(x: 44 - SidebarText.inset, y: 25 - th / 2, width: max(0, 213 - 13 - 44) + 2 * SidebarText.inset, height: th)
+        let tw = badge.place(besideTitle: ceil(title.attributedStringValue.size().width), from: 44, to: 213 - 13 - 4, midY: 25, shown: showsBadge)
+        title.frame = NSRect(x: 44 - SidebarText.inset, y: 25 - th / 2, width: tw + 2 * SidebarText.inset, height: th)
         brush.frame = NSRect(x: 213 - 13, y: 12, width: 26, height: 26)
         // The first pinned row is centred 64 pt down: rows are 41 pt, 3 pt into the list.
         list.frame = NSRect(x: 0, y: 40.5, width: w, height: max(0, h - 40.5 - 42))

@@ -152,7 +152,7 @@ public enum SettingsBridge {
         "soundEffects", "shareThemeWithWebsites",
         // Tabs & Spaces
         "newTabsAtTop", "newTabButtonAtTop", "hapticFeedbackOnReorder", "middleClickUnloadsTab", "folderPreviews",
-        "favoritePreviews", "calendarHoverPreview", "outlookCalendarPreviews", "outlookMailPreviews", "recentPagesPreviews", "notionCalendarPreviews", "favoriteLogoOutline", "autoPictureInPicture", "showSpaceHeaderOnSingleSpace",
+        "favoritePreviews", "calendarHoverPreview", "outlookCalendarPreviews", "outlookMailPreviews", "recentPagesPreviews", "notionCalendarPreviews", "favoriteLogoOutline", "autoPictureInPicture", "showSpaceHeaderOnSingleSpace", "showProfileIndicator",
         "littleWindowShortcutEverywhere", "littleWindowOnOptionCommandClick", "littleWindowArchiveAfter", "peekLinksToOtherSites", "peekInEveryTab", "peekExpandInSourceTab",
         "peekOnShiftClick", "openLinksInForeground", "autoArchiveEnabled", "autoArchive",
         // Privacy

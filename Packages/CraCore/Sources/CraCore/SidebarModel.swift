@@ -356,10 +356,20 @@ public struct Space: Identifiable, Codable, Equatable {
 public struct BrowserProfile: Identifiable, Codable, Equatable {
     public var id: UUID
     public var name: String
+    /// Its badge's emoji and accent (ProfileLook; Settings ▸ Profiles ▸ Edit…), missing until chosen.
+    public var icon: String?
+    public var color: String?
 
-    public init(id: UUID, name: String) {
+    public init(id: UUID, name: String, icon: String? = nil, color: String? = nil) {
         self.id = id
         self.name = name
+        self.icon = icon
+        self.color = color
+    }
+
+    public var look: ProfileLook {
+        get { ProfileLook(icon: icon, color: color) }
+        set { icon = newValue.icon; color = newValue.color }
     }
 
     /// Chromium's folder for it, next to Default under AppPaths.chromiumCache.
@@ -391,9 +401,11 @@ public struct SidebarDocument: Codable, Equatable {
     /// Arc's favorites per profile (topApps{profile}), with AppSettings.sharedFavorites on: the
     /// list each profile's spaces show. A list outlives its spaces, as in Arc (#154).
     public var profileFavorites: [ProfileFavorites]?
+    /// The Default profile's badge look (it has no BrowserProfile entry); missing until chosen.
+    public var defaultProfileLook: ProfileLook?
 
     public init(version: Int = 1, spaceOrder: [UUID], spaces: [Space], favoritesContainerID: UUID? = nil, items: [SidebarItem],
-                profiles: [BrowserProfile]? = nil, profileFavorites: [ProfileFavorites]? = nil) {
+                profiles: [BrowserProfile]? = nil, profileFavorites: [ProfileFavorites]? = nil, defaultProfileLook: ProfileLook? = nil) {
         self.version = version
         self.spaceOrder = spaceOrder
         self.spaces = spaces
@@ -401,6 +413,7 @@ public struct SidebarDocument: Codable, Equatable {
         self.items = items
         self.profiles = profiles
         self.profileFavorites = profileFavorites
+        self.defaultProfileLook = defaultProfileLook
     }
 
     public static func fresh() -> SidebarDocument {
@@ -688,6 +701,9 @@ public struct AppSettings: Codable, Equatable {
     /// Arc's showSpaceHeaderOnSingleUnnamedSpaces: with only one space, its header (and the
     /// dock's lone space icon) can be hidden, for people who don't use spaces.
     public var showSpaceHeaderOnSingleSpace: Bool = true
+    /// With more than one profile, the space header in the sidebar names the space's profile in a
+    /// small pill beside the space's name (ProfileBadge, 13 Nov 2026). Library ▸ Spaces always does.
+    public var showProfileIndicator: Bool = true
     /// GitHub #154: the spaces of one profile show one set of favorites, as Arc's do (a topApps
     /// container per profile, FavoritesSharing). On by default: favorites are global, pinned in the
     /// sidebar's chrome under the URL field and still while the spaces change under them. Off, each
@@ -993,6 +1009,7 @@ extension AppSettings {
         searchSuggestions = try c.decodeIfPresent(Bool.self, forKey: .searchSuggestions) ?? true
         commandBarCurrentSpaceOnly = try c.decodeIfPresent(Bool.self, forKey: .commandBarCurrentSpaceOnly) ?? false
         showSpaceHeaderOnSingleSpace = try c.decodeIfPresent(Bool.self, forKey: .showSpaceHeaderOnSingleSpace) ?? true
+        showProfileIndicator = try c.decodeIfPresent(Bool.self, forKey: .showProfileIndicator) ?? true
         // Without the mark the file predates global favorites: they become shared, once.
         if try c.decodeIfPresent(Bool.self, forKey: .favoritesDefaultMigrated) == true {
             sharedFavorites = try c.decodeIfPresent(Bool.self, forKey: .sharedFavorites) ?? true

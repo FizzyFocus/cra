@@ -23,6 +23,8 @@ final class SidebarStore {
     private(set) var spaceOrder: [UUID] = []
     /// Profiles besides Default, in the order they were made.
     private(set) var profiles: [BrowserProfile] = []
+    /// The Default profile's badge look (Settings ▸ Profiles ▸ Edit…).
+    private(set) var defaultProfileLook: ProfileLook?
     /// Arc's favorites per profile, with Share Favorites on (#154): the list each profile's
     /// spaces show. One stays while no space uses its profile.
     private(set) var profileFavorites: [ProfileFavorites] = []
@@ -87,6 +89,7 @@ final class SidebarStore {
             if s.standaloneWindowID != nil { blankSpaceIDs.insert(s.id) }
         }
         profiles = doc.profiles ?? []
+        defaultProfileLook = doc.defaultProfileLook
         profileFavorites = doc.profileFavorites ?? []
         spaceOrder = BlankWindow.spaceOrder(saved: doc.spaceOrder, spaces: doc.spaces)
         for it in doc.items { items[it.id] = it }
@@ -858,6 +861,7 @@ final class SidebarStore {
         previousTab = [:]
         for s in doc.spaces { spaces[s.id] = s }
         profiles = doc.profiles ?? []
+        defaultProfileLook = doc.defaultProfileLook
         profileFavorites = doc.profileFavorites ?? []
         spaceOrder = BlankWindow.spaceOrder(saved: doc.spaceOrder, spaces: doc.spaces)
         for it in doc.items where !kept.contains(it.id) { items[it.id] = it }
@@ -887,7 +891,8 @@ final class SidebarStore {
         let blank = blankSpaceIDs.compactMap { spaces[$0] }.sorted { $0.createdAt < $1.createdAt }
         return SidebarDocument(version: 1, spaceOrder: spaceOrder, spaces: saved + blank,
                                items: hidden.isEmpty ? Array(items.values) : items.values.filter { !hidden.contains($0.id) },
-                               profiles: profiles, profileFavorites: profileFavorites.isEmpty ? nil : profileFavorites)
+                               profiles: profiles, profileFavorites: profileFavorites.isEmpty ? nil : profileFavorites,
+                               defaultProfileLook: defaultProfileLook)
     }
 
     /// The tab switcher's list (⌃Tab): a space's most recently used tabs, newest first
@@ -2622,6 +2627,36 @@ final class SidebarStore {
         touch()
     }
 
+    /// The badge's look of a profile (nil: Default).
+    func profileLook(_ id: UUID?) -> ProfileLook {
+        guard let id else { return defaultProfileLook ?? ProfileLook() }
+        return profile(id)?.look ?? ProfileLook()
+    }
+
+    func profileName(_ id: UUID?) -> String { profile(id)?.name ?? "Default" }
+
+    /// Settings ▸ Profiles ▸ Edit…: the badge's emoji and accent (nil id: Default).
+    func setProfileLook(_ id: UUID?, _ look: ProfileLook) {
+        let look = ProfileLook.cleaned(icon: look.icon, color: look.color)
+        if let id {
+            guard let i = profiles.firstIndex(where: { $0.id == id }), profiles[i].look != look else { return }
+            profiles[i].look = look
+        } else {
+            guard (defaultProfileLook ?? ProfileLook()) != look else { return }
+            defaultProfileLook = look.isEmpty ? nil : look
+        }
+        touch()
+    }
+
+    /// The pill a space shows for its profile, or nil where none shows (ProfileBadge).
+    func profileBadge(space id: UUID, in place: ProfileBadge.Place) -> (name: String, look: ProfileLook)? {
+        guard let s = spaces[id],
+              ProfileBadge.shows(profiles: profiles.count + 1, in: place, setting: settings.showProfileIndicator,
+                                 incognito: isIncognito(space: id), blank: s.standaloneWindowID != nil) else { return nil }
+        let p = profile(s.profileID)
+        return (p?.name ?? "Default", profileLook(p?.id))
+    }
+
     /// Pages already open in the space load again in the new profile (BrowserManager).
     func setProfile(_ profileID: UUID?, forSpace id: UUID) {
         guard var s = spaces[id], s.profileID != profileID, profileID == nil || profile(profileID) != nil else { return }
@@ -2647,9 +2682,15 @@ final class SidebarStore {
         touch()
     }
 
-    /// Arc: only profiles no space uses can be deleted. Chromium may still hold the
-    /// folder open, so it goes at the next launch (ProfileCleanup).
-    func deleteProfile(_ id: UUID) {
+    /// Arc: only profiles no space uses can be deleted. Settings ▸ Profiles ▸ Delete… first moves
+    /// the profile's spaces onto Default (`reassigning`, after asking), their open pages loading
+    /// again there. Chromium may still hold the folder open, so it goes at the next launch
+    /// (ProfileCleanup).
+    func deleteProfile(_ id: UUID, reassigning: Bool = false) {
+        guard profile(id) != nil else { return }
+        if reassigning {
+            for s in spaces.values where s.profileID == id { setProfile(nil, forSpace: s.id) }
+        }
         guard let p = profile(id), spaces.values.allSatisfy({ $0.profileID != id }) else { return }
         profiles.removeAll { $0.id == id }
         // Its favorites go with it.

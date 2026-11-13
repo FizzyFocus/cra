@@ -56,9 +56,12 @@ extension SettingsPageBridge {
             let location = store.settings.downloadLocation(profileID: id)
             let folder = DownloadDestinations.folder(profileID: id)
             let languages = BrowserLanguages.summary(Self.languages(store, profileID: id))
+            let look = store.profileLook(id)
             return ["id": id?.uuidString ?? "default", "name": name,
                     "spaces": spaces.isEmpty ? "No Spaces" : spaces.map(\.labeled).joined(separator: ", "),
-                    "canDelete": id != nil && spaces.isEmpty, "hasSpace": !spaces.isEmpty,
+                    "spaceCount": spaces.count, "spaceNames": spaces.map(\.labeled),
+                    "icon": look.icon ?? "", "color": look.accent?.rawValue ?? "", "hex": look.accent?.hex ?? "",
+                    "canDelete": id != nil, "hasSpace": !spaces.isEmpty,
                     "downloads": ["path": Self.pretty(folder.path), "folderName": folder.lastPathComponent, "ask": location.askWhereToSave],
                     "languages": languages.isEmpty ? "Chromium’s default languages" : languages]
         }
@@ -68,7 +71,8 @@ extension SettingsPageBridge {
             return ["id": sp.id.uuidString, "name": sp.labeled, "profile": profile]
         }
         return ["list": [entry(nil, "Default")] + store.profiles.map { entry($0.id, $0.name) },
-                "spaces": spaces, "canRebuildFromArc": ArcProfileRebuilder.isAvailable]
+                "spaces": spaces, "canRebuildFromArc": ArcProfileRebuilder.isAvailable,
+                "accents": ProfileAccent.allCases.map { ["id": $0.rawValue, "name": $0.name, "hex": $0.hex] }]
     }
 
     /// What Chromium holds for the profile now, else what its Preferences file saved.
@@ -226,10 +230,23 @@ extension SettingsPageBridge {
             let name = (args["name"]?.string ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
             guard let id = uuid("id"), store.profiles.contains(where: { $0.id == id }), !name.isEmpty else { return .some(nil) }
             store.renameProfile(id, to: name)
+        case "editProfile":
+            // Edit…: the name (not Default's), the badge's emoji and accent (13 Nov 2026).
+            let id = uuid("id")
+            guard id == nil || store.profile(id) != nil else { return .some(nil) }
+            if let id, let name = args["name"]?.string?.trimmingCharacters(in: .whitespacesAndNewlines) {
+                guard !name.isEmpty else { return .some("Give the Profile a name.") }
+                store.renameProfile(id, to: name)
+            }
+            store.setProfileLook(id, ProfileLook(icon: args["icon"]?.string, color: args["color"]?.string))
+            CraLog.note("settings page edited profile \(store.profileName(id)): icon=\(store.profileLook(id).icon ?? "-") color=\(store.profileLook(id).color ?? "-")")
         case "deleteProfile":
+            // The page has asked first, naming the spaces that go to Default (13 Nov 2026).
             guard let id = uuid("id"), store.profiles.contains(where: { $0.id == id }) else { return .some(nil) }
-            guard store.spaces(usingProfile: id).isEmpty else { return .some("Only Profiles not assigned to any Spaces can be deleted.") }
-            store.deleteProfile(id)
+            let moved = store.spaces(usingProfile: id).count
+            guard moved == 0 || args["reassign"]?.bool == true else { return .some("Only Profiles not assigned to any Spaces can be deleted.") }
+            store.deleteProfile(id, reassigning: true)
+            CraLog.note("settings page deleted a profile: \(moved) space\(moved == 1 ? "" : "s") moved to Default")
         case "newProfileDialog":
             // Create a new Profile: Cra's dialog, the same one Spaces ▸ Change Profile opens, in the space's colours.
             guard let controller = window ?? app.mainWindows.first, let w = controller.window else { return .some(nil) }
