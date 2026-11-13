@@ -163,15 +163,13 @@ final class CommandBarView: NSView {
         innerLine.strokeColor = (dark ? NSColor(srgbRed: 0x4E / 255, green: 0x4D / 255, blue: 0x4F / 255, alpha: 1)
                                       : NSColor.white.withAlphaComponent(0.5)).cgColor
         divider.layer?.backgroundColor = (dark ? NSColor.white : NSColor.black).withAlphaComponent(0.1).cgColor
-        // The card's bar is Little Arc's own: opaque, a light hairline round it, a ✕ tile (Arc 1.172.1, #337).
-        material.isHidden = card != nil
+        // ⌥⌘N's card is the bar with a ✕ tile (Arc 1.172.1, #337), frosted in the light or dark of the
+        // space it opens into like the ⌘T bar (13 Nov 2026; Little Arc's own was dark whatever the space).
+        material.isHidden = false
         closeTile.isHidden = card == nil
         if card != nil {
-            tint.layer?.backgroundColor = LittlePalette.cardBar.cgColor
-            border.strokeColor = LittlePalette.cardBarBorder.cgColor
-            divider.layer?.backgroundColor = LittlePalette.cardDivider.cgColor
-            closeTile.layer?.backgroundColor = LittlePalette.cardClose.cgColor
-            closeTile.contentTintColor = LittlePalette.cardCloseGlyph
+            closeTile.layer?.backgroundColor = (dark ? NSColor.white.withAlphaComponent(0.08) : NSColor.black.withAlphaComponent(0.06)).cgColor
+            closeTile.contentTintColor = dark ? LittlePalette.cardCloseGlyph : NSColor(srgbRed: 0x6E / 255, green: 0x70 / 255, blue: 0x72 / 255, alpha: 1)
         }
         let scope = c.scope
         // The site's colour: picked in Settings, Arc's, or its icon's (SiteSearchColors).

@@ -22,11 +22,13 @@ public struct CommandBarTones: Equatable, Sendable {
                   badge: slots["backgroundExtra"]?.rgb ?? (dark ? .black : .white))
     }
 
-    /// The bar's own appearance: "dark" in a dark space, nil (macOS') in a light one. Arc's bar
-    /// follows macOS whatever the space (#187), so a dark space put a bright white bar on its dark
-    /// window on a light Mac, and so did an Incognito window, whose theme is dark (12 Nov 2026). The
-    /// user's call for the fork: a dark space's bar is dark; a light space's still follows macOS.
-    public static func appearance(spaceIsDark: Bool) -> String? { spaceIsDark ? "dark" : nil }
+    /// The bar's own appearance: the space's, "dark" in a dark space and "light" in a light one.
+    /// Arc's bar follows macOS whatever the space (#187), so a dark space put a bright white bar on
+    /// its dark window on a light Mac, and so did an Incognito window, whose theme is dark (12 Nov
+    /// 2026: a dark space's bar made dark); a light space's still followed macOS, a dark bar over a
+    /// light space on a dark Mac (13 Nov 2026, the owner's call: it follows the space too). The
+    /// Little Window's bar and ⌥⌘N's card take the same, from the space they open into.
+    public static func appearance(spaceIsDark: Bool) -> String? { spaceIsDark ? "dark" : "light" }
 
     public init(theme: SpaceTheme, dark: Bool) {
         self.init(shadedDark: theme.shadedDark, shaded: theme.shaded, midTone: theme.midTone, tintedLight: theme.tintedLight, dark: dark)

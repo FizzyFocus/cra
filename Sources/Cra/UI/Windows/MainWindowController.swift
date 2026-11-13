@@ -559,9 +559,9 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
             // alert and popover it presents, and those follow macOS as Arc's do, whatever the
             // space colour (#171).
             shell.appearance = NSAppearance(named: palette.isDark ? .darkAqua : .aqua)
-            // The command bar is dark in a dark space (an Incognito window's too) and follows macOS
-            // in a light one (CommandBarTones.appearance); its selected row and info badge take the
-            // space's palette, also when the space changes under an open bar.
+            // The command bar is the space's light or dark (an Incognito window's dark;
+            // CommandBarTones.appearance); its selected row and info badge take the space's palette,
+            // also when the space changes under an open bar.
             commandPanel.appearance = CommandBarTones.appearance(spaceIsDark: palette.isDark)
                 .flatMap { NSAppearance(named: $0 == "dark" ? .darkAqua : .aqua) }
             commandBar.theme = space.theme.shown

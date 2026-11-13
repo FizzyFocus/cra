@@ -127,19 +127,9 @@ enum LittlePalette {
     static let tooltipBorder = Color(red: 34 / 255, green: 37 / 255, blue: 93 / 255)
     static let tooltipCap = Color(red: 211 / 255, green: 212 / 255, blue: 253 / 255)
     static let tooltipCapGlyph = Color(red: 40 / 255, green: 46 / 255, blue: 252 / 255)
-    /// Arc's toast in a Little Arc ("Copied Current URL", 1.171, 3 Nov 2026, sRGB): deeper than the
-    /// default dark theme's in a browser window, the same in every space.
-    static let toast: ShinyToast.Colors = (NSColor(srgbRed: 41 / 255, green: 18 / 255, blue: 77 / 255, alpha: 1),
-                                           NSColor(srgbRed: 33 / 255, green: 16 / 255, blue: 61 / 255, alpha: 1),
-                                           NSColor(srgbRed: 33 / 255, green: 14 / 255, blue: 66 / 255, alpha: 1), .white)
-    /// ⌥⌘N's card (Arc 1.172.1, 10 Nov 2026, 2x captures attached to #337): the bar #14141C to #17141B
-    /// with a #4B4A50 hairline round it, the divider #2C2B32, the ✕ a #28262D tile with a #9C9A9E glyph.
-    /// Below a bar that shrank to its rows the window shows dark navy at the top left (about #0D0B1B)
-    /// running to plum at the bottom right (about #1C0A20), with grain that isn't drawn here.
-    static let cardBar = NSColor(srgbRed: 0x15 / 255, green: 0x14 / 255, blue: 0x1C / 255, alpha: 1)
-    static let cardBarBorder = NSColor(srgbRed: 0x4B / 255, green: 0x4A / 255, blue: 0x50 / 255, alpha: 1)
-    static let cardDivider = NSColor(srgbRed: 0x2C / 255, green: 0x2B / 255, blue: 0x32 / 255, alpha: 1)
-    static let cardClose = NSColor(srgbRed: 0x28 / 255, green: 0x26 / 255, blue: 0x2D / 255, alpha: 1)
+    /// ⌥⌘N's card (Arc 1.172.1, 10 Nov 2026, 2x captures attached to #337): the ✕'s #9C9A9E glyph on a
+    /// dark bar, and the dark navy (about #0D0B1B) to plum (about #1C0A20) below the bar, until the
+    /// space's colours are on (LittleChrome; the card takes the space's light or dark, 13 Nov 2026).
     static let cardCloseGlyph = NSColor(srgbRed: 0x9C / 255, green: 0x9A / 255, blue: 0x9E / 255, alpha: 1)
     static let cardTopLeft = NSColor(srgbRed: 0x0D / 255, green: 0x0B / 255, blue: 0x1B / 255, alpha: 1)
     static let cardBottomRight = NSColor(srgbRed: 0x1C / 255, green: 0x0A / 255, blue: 0x20 / 255, alpha: 1)
@@ -538,7 +528,6 @@ final class LittleWindowController: NSWindowController, NSWindowDelegate, @preco
         guard isCard, let window else { return }
         isCard = false
         commandHost.card = nil
-        commandPanel.appearance = nil
         shell.isCard = false
         shell.hidesBar = false
         for type in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] { window.standardWindowButton(type)?.isHidden = false }
@@ -964,15 +953,17 @@ final class LittleWindowController: NSWindowController, NSWindowDelegate, @preco
         let prefill = hasPage ? currentURL : nil
         // Suggestions come from the normal profile even when an incognito window was in front.
         app.useNormalWindow()
-        commandBar.theme = store.focusedSpace.theme.shown
+        // The bar in the light or dark of the space the window opens into (CommandBarTones.appearance).
+        let space = store.space(state.targetSpaceID) ?? store.focusedSpace
+        commandBar.theme = space.theme.shown
         commandBar.focusedSpaceID = store.focusedSpaceID
         commandBar.spaceShown = isPeek ? nil : state.targetSpaceID
         commandBar.open(mode: hasPage ? .editURL : .newTab, prefill: prefill)
         commandBar.attached = false
         commandBar.panelWidth = isCard ? window.frame.width - 2 * LittleMetrics.edgeInset
             : min(LittleMetrics.commandBarWidth, window.frame.width - 40)
-        // Little Arc's palette is dark whatever macOS uses, the card's bar with it.
-        commandPanel.appearance = isCard ? NSAppearance(named: .darkAqua) : nil
+        commandPanel.appearance = CommandBarTones.appearance(spaceIsDark: space.theme.palette.isDark)
+            .flatMap { NSAppearance(named: $0 == "dark" ? .darkAqua : .aqua) }
         positionCommandPanel()
         if commandPanel.parent == nil { window.addChildWindow(commandPanel, ordered: .above) }
         commandBarOpenedAt = Date()
@@ -1273,10 +1264,12 @@ final class LittleWindowController: NSWindowController, NSWindowDelegate, @preco
     /// The bar's colours on the window: its appearance (the traffic lights, its menus) and what
     /// shows round the page. Not a Peek's, nor ⌥⌘N's card's, which keep their own.
     private func applyChrome(_ c: LittleChrome) {
-        guard let window, !shell.isPeek, !isCard else { return }
+        guard let window, !shell.isPeek else { return }
         window.appearance = c.appearance
         window.backgroundColor = c.base
         shell.layer?.backgroundColor = c.base.cgColor
+        // ⌥⌘N's card shows the space's background below its bar, as the sidebar draws it.
+        shell.setCardColors(SpaceBackground.stops(c.palette).map(\.color))
     }
 
     /// Arc's Little Arc shows the page's profile in its address pill once there is more than one
@@ -1448,10 +1441,16 @@ final class LittleWindowController: NSWindowController, NSWindowDelegate, @preco
     }
 
     /// The toast sits 8 pt under the window's top, over the toolbar (Arc's Little Arc).
+    /// The toast in the colours of the space the window opens into, as a browser window's are in its
+    /// space's (13 Nov 2026: Little Arc's deep purple whatever the space); a Peek's, its tab's space's.
+    private var toastColors: ShinyToast.Colors {
+        ShinyToast.colors((store.space(state.targetSpaceID) ?? store.focusedSpace).theme)
+    }
+
     func showToast(_ text: String, action: ShinyToast.Action? = nil) {
         guard let window, let content = window.contentView else { return }
         slowResponseShown = false
-        toast.show(text, action: action, page: content.convert(content.bounds, to: nil), in: window, colors: LittlePalette.toast)
+        toast.show(text, action: action, page: content.convert(content.bounds, to: nil), in: window, colors: toastColors)
     }
 
     /// ⌘W / Close Window: the same path as the close button. (performClose is
@@ -1620,7 +1619,7 @@ final class LittleWindowController: NSWindowController, NSWindowDelegate, @preco
                            CraLog.note("Little Window: page \(host) stopped from the notice")
                            browser?.stopLoading()
                        },
-                       page: content.convert(content.bounds, to: nil), in: window, colors: LittlePalette.toast,
+                       page: content.convert(content.bounds, to: nil), in: window, colors: toastColors,
                        onClose: { [weak self] in
                            self?.slowResponse.close()
                            self?.slowResponseShown = false
@@ -1952,6 +1951,17 @@ final class LittleShellView: NSView {
         }
     }
     private let cardBackground = CAGradientLayer()
+
+    /// The card's background: the space's (LittleChrome), top to bottom.
+    func setCardColors(_ colors: [NSColor]) {
+        guard colors.count > 0 else { return }
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        cardBackground.colors = (colors.count == 1 ? colors + colors : colors).map(\.cgColor)
+        cardBackground.startPoint = CGPoint(x: 0.5, y: 1)
+        cardBackground.endPoint = CGPoint(x: 0.5, y: 0)
+        CATransaction.commit()
+    }
     private var trackingArea: NSTrackingArea?
 
     override init(frame: NSRect) {
@@ -2498,7 +2508,8 @@ final class LittleSpacesPopup: NSView, NSTextFieldDelegate {
         background = PaletteBackgroundView(palette: chrome.palette)
         super.init(frame: .zero)
         wantsLayer = true
-        layer?.backgroundColor = chrome.base.cgColor
+        // Opaque under the space's background (which can be see-through): the page doesn't show through.
+        layer?.backgroundColor = (chrome.base.usingColorSpace(.sRGB) ?? chrome.base).withAlphaComponent(1).cgColor
         layer?.cornerRadius = LittleMoveMenu.cornerRadius
         layer?.cornerCurve = .continuous
         layer?.masksToBounds = true
@@ -2571,7 +2582,11 @@ final class LittleSpacesPopup: NSView, NSTextFieldDelegate {
             tile.wantsLayer = true
             tile.layer?.cornerRadius = LittleMoveMenu.tileRadius
             tile.layer?.cornerCurve = .continuous
-            tile.layer?.backgroundColor = NSColor(hex: s.theme.shown.accent ?? s.theme.shown.colors.first ?? "#888888").cgColor
+            let tileHex = s.theme.shown.accent ?? s.theme.shown.colors.first ?? "#888888"
+            tile.layer?.backgroundColor = NSColor(hex: tileHex).cgColor
+            // Its glyph dark on a light tile and white on a dark one (13 Nov 2026: white on a light
+            // space's pastel all but vanished); a space with no icon gets the dock's dot.
+            let ink = (HexColor.luminance(tileHex) ?? 0) > 0.55 ? NSColor.black.withAlphaComponent(0.7) : NSColor.white
             // Arc 1.172.1: a 12 pt emoji, centred (a 🍎 12.5 pt wide in the 26 pt tile).
             let emoji = NSTextField.sidebarLabel(size: 12)
             emoji.stringValue = s.emoji
@@ -2582,8 +2597,14 @@ final class LittleSpacesPopup: NSView, NSTextFieldDelegate {
                 let glyph = NSImageView(frame: NSRect(x: 0, y: 0, width: ts, height: ts))
                 glyph.image = SidebarSymbols.image(name, size: 11, weight: .medium)
                 glyph.imageScaling = .scaleNone
-                glyph.contentTintColor = .white
+                glyph.contentTintColor = ink
                 tile.addSubview(glyph)
+            } else if s.emoji.isEmpty, case .dot(let d) = SpaceDock.mark(for: .none, isOpen: true, squeezed: false) {
+                let dot = NSView(frame: NSRect(x: (ts - d) / 2, y: (ts - d) / 2, width: d, height: d))
+                dot.wantsLayer = true
+                dot.layer?.cornerRadius = d / 2
+                dot.layer?.backgroundColor = ink.withAlphaComponent(0.6).cgColor
+                tile.addSubview(dot)
             }
             row.addSubview(tile)
             let title = NSTextField.sidebarLabel(size: LittleMoveMenu.titleSize, weight: .semibold)

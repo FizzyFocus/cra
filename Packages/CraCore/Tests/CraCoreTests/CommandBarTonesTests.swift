@@ -17,11 +17,11 @@ struct CommandBarTonesTests {
     static let arcDefault = CommandBarTones(shadedDark: rgb(0x212AFB), shaded: rgb(0x3139FB), midTone: rgb(0x8489FB), tintedLight: rgb(0xECEDFE), dark: true)
 
     /// A dark space's (and so an Incognito window's) bar was a white card on its dark window on a
-    /// light Mac (12 Nov 2026); a light space's still follows macOS (#187).
-    @Test func aDarkSpacesBarIsDarkAndALightOnesFollowsMacOS() {
+    /// light Mac (12 Nov 2026); a light space's was dark on a dark Mac (13 Nov 2026). It is the space's.
+    @Test func theBarTakesTheSpacesLightOrDark() {
         #expect(CommandBarTones.appearance(spaceIsDark: SpaceTheme.incognito.isDark) == "dark")
         #expect(CommandBarTones.appearance(spaceIsDark: true) == "dark")
-        #expect(CommandBarTones.appearance(spaceIsDark: false) == nil)
+        #expect(CommandBarTones.appearance(spaceIsDark: false) == "light")
     }
 
     @Test func theSelectedRowIsTheSpacesFocusColour() {

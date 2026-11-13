@@ -1,7 +1,7 @@
-# The command bar is dark in a dark space and follows macOS in a light one (12 Nov 2026,
-# CraCore CommandBarTones.appearance): on a light Mac a dark space's ⌘T bar was a bright white card
-# on its dark window, as an Incognito window's was (new-window-inherits checks that one). Arc's bar
-# follows macOS whatever the space (#187); the fork keeps that for light spaces only.
+# The command bar is the space's light or dark (CraCore CommandBarTones.appearance): on a light Mac
+# a dark space's ⌘T bar was a bright white card on its dark window, as an Incognito window's was
+# (12 Nov 2026; new-window-inherits checks that one), and on a dark Mac a light space's was dark
+# (13 Nov 2026). Arc's bar follows macOS whatever the space (#187).
 # systemAppearance flips the app's appearance without touching the Mac's own setting.
 budget rss=700 stalls50=20
 pace 0.5
@@ -20,12 +20,12 @@ cra://commandbar
 cra://debug?commandBarState=dark-space
 expect-log command bar dark-space: open=1 .* dark=1
 cra://debug?closeCommandBar=1
-# A light space's bar still follows macOS: dark on a dark Mac.
+# A light space's bar is light on a dark Mac too (13 Nov 2026, the owner's call; it followed macOS).
 cra://action/space1
 cra://debug?systemAppearance=dark
 wait 1
 cra://commandbar
 cra://debug?commandBarState=light-space-dark-mac
-expect-log command bar light-space-dark-mac: open=1 .* dark=1
+expect-log command bar light-space-dark-mac: open=1 .* dark=0
 cra://debug?closeCommandBar=1
 cra://debug?systemAppearance=light
