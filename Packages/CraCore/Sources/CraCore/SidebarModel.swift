@@ -150,7 +150,7 @@ public struct SplitData: Codable, Equatable {
     }
 }
 
-public enum SplitOrientation: String, Codable {
+public enum SplitOrientation: String, Codable, Sendable {
     /// Panes side by side (Arc's default).
     case horizontal
     /// Panes stacked top to bottom.

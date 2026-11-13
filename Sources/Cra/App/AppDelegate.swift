@@ -2281,6 +2281,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                                   sectionEnd: dict["endOf"] != nil)
                 return
             }
+            // dropSplit=<text>[&link=1][&name=<link text>]&x=<0…1>&y=<0…1>: the tab whose URL holds the
+            // text (or a page's link to it) let go over the panes, at that fraction from their top left (#419).
+            if let text = dict["dropSplit"] {
+                main.splitDrop.test(text, link: dict["link"] != nil, name: dict["name"], bookmark: dict["bookmark"] != nil,
+                                    x: Double(dict["x"] ?? "") ?? 0.5, y: Double(dict["y"] ?? "") ?? 0.5)
+                return
+            }
             if dict["windows"] != nil {
                 for w in NSApp.windows {
                     let line = "Cra windows: \(w.windowController.map { String(describing: type(of: $0)) } ?? "-") '\(w.title)' frame=\(NSStringFromRect(w.frame)) parent=\(w.parent.map { NSStringFromRect($0.frame) } ?? "-") visible=\(w.isVisible) key=\(w.isKeyWindow) mask=\(w.styleMask.rawValue) class=\(NSStringFromClass(type(of: w))) children=\(w.childWindows?.count ?? 0) contentView=\(w.contentView.map { NSStringFromClass(type(of: $0)) } ?? "-")"

@@ -1694,6 +1694,9 @@ final class TabRowView: SidebarRowView, ArcTooltipTarget, NSTextFieldDelegate {
     /// Arc switches tabs on the press (SidebarRowPress.selectsOnPress): a plain single press on the
     /// row, not on a pinned tab's icon away from home (that one goes back or separates on release).
     override func pressDown(_ event: NSEvent, at point: NSPoint) -> Bool {
+        // Only a press that switches leaves a tab to show again during a split drag (PageSplitDrop):
+        // one that doesn't (a pick, ⌘) must not leave an earlier press's tab behind (Pane).
+        list?.ui.tabBeforePress = nil
         guard let m = model, let list, !m.editing,
               SidebarRowPress.selectsOnPress(pressRow, clickCount: event.clickCount,
                                              modified: !event.modifierFlags.intersection([.command, .shift, .control, .option]).isEmpty),
@@ -1703,6 +1706,7 @@ final class TabRowView: SidebarRowView, ArcTooltipTarget, NSTextFieldDelegate {
               !SidebarRowPress.keepsPicksOnPress(picked: list.ui.multiSelection.contains(m.id),
                                                  pickCount: list.ui.multiSelection.count) else { return false }
         list.ui.iconWentBack = nil
+        list.ui.tabBeforePress = list.store.selectedTabID(window: list.ui.windowID)
         list.clickTab(m.id, event: event)
         return true
     }
