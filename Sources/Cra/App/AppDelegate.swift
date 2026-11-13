@@ -1281,6 +1281,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             if let label = dict["zapList"] { BoostEditorController.shared.debugZapList(label); return }
             // zapListShown=1|0: the count beside Zap pressed, its list open or closed.
             if let v = dict["zapListShown"] { BoostEditorController.shared.debugShowZapList(v == "1"); return }
+            // zapListClick=<title>: a click posted on the zap list's button of that title (Restore, Restore All).
+            if let t = dict["zapListClick"] { CraLog.note("zap list click: \(BoostEditorController.shared.debugClickZapList(t))"); return }
             if let i = dict["zapHover"].flatMap(Int.init) { BoostEditorController.shared.debugZapHover(i); return }
             if let i = dict["zapRestore"].flatMap(Int.init) { BoostEditorController.shared.debugZapRestore(i); return }
             // boostMenu=<name>|new|toggle: the editor's name menu: another of the site's boosts, New Boost for

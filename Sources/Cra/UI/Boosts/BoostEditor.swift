@@ -146,6 +146,17 @@ final class BoostEditorController {
 
     func debugShowZapList(_ on: Bool) { model?.showingZaps = on }
 
+    /// The zap list's button `title` ("Restore", "Restore All") clicked where it is.
+    func debugClickZapList(_ title: String) -> String {
+        func find(_ v: NSView) -> ZapListAnchorView? {
+            if let a = v as? ZapListAnchorView { return a }
+            for s in v.subviews { if let a = find(s) { return a } }
+            return nil
+        }
+        guard let root = panel?.contentView, let anchor = find(root) else { return "no zap count" }
+        return anchor.debugClick(title) ?? "clicked \(title)"
+    }
+
     /// Its name menu's rows: another of the site's boosts by name, New Boost for the site, Turn Off/On.
     func debugMenu(_ row: String) {
         guard let model else { return }
@@ -221,6 +232,8 @@ final class BoostEditorModel {
     var zapFacts: [String: ZapFacts] = [:]
     /// The zap list is open (the count beside Zap).
     var showingZaps = false
+    /// Where the list's Restore All and first Restore are, in its window (scenario hook clicks).
+    @ObservationIgnored var zapButtonFrames: [String: CGRect] = [:]
     /// The zap whose ghost shows on the page.
     var ghosted: String?
 
@@ -408,7 +421,8 @@ private struct BoostEditorView: View {
             .padding(.top, 18)
             HStack(spacing: 10) {
                 square("lightbulb", on: model.boost.invert, help: "Invert lightness") { model.change { $0.invert.toggle() } }
-                square("slider.horizontal.3", on: showColors, help: "Advanced color controls") { showColors.toggle() }
+                square("slider.horizontal.3", on: showColors, help: "Advanced color controls",
+                       active: model.boost.contrast != 50 || model.boost.brightness != 50 || model.boost.saturation != 50) { showColors.toggle() }
                     .popover(isPresented: $showColors, arrowEdge: .leading) { advanced }
                 square("nosign", on: false, help: "Reset to original colors") {
                     model.change { $0.hue = 0; $0.strength = 0; $0.invert = false; $0.contrast = 50; $0.brightness = 50; $0.saturation = 50 }
@@ -416,21 +430,29 @@ private struct BoostEditorView: View {
                 .opacity(model.boost.colorsUntouched ? 0.45 : 1)
             }
             fonts
+            // Size and Case say what they are set to, and stand out while it isn't the site's own (13 Nov 2026).
             HStack(spacing: 9) {
                 Menu {
                     ForEach([0.8, 0.9, 1, 1.1, 1.25, 1.5], id: \.self) { s in
-                        Button(s == 1 ? "Original" : "\(Int(s * 100)) %") { model.change { $0.textScale = s } }
+                        Toggle(s == 1 ? "Original" : "\(Int((s * 100).rounded())) %",
+                               isOn: Binding(get: { model.boost.textScale == s }, set: { _ in model.change { $0.textScale = s } }))
                     }
-                } label: { wide("Size", trailing: nil) }
+                } label: { wide(Boost.sizeTitle(model.boost.textScale), trailing: nil, active: model.boost.textScale != 1) }
                 .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).help("Change text size")
                 Menu {
-                    ForEach(Boost.TextCase.allCases, id: \.self) { c in Button(c.title) { model.change { $0.textCase = c } } }
-                } label: { wide("Case", trailing: nil) }
+                    ForEach(Boost.TextCase.allCases, id: \.self) { c in
+                        Toggle(c.title, isOn: Binding(get: { model.boost.textCase == c }, set: { _ in model.change { $0.textCase = c } }))
+                    }
+                } label: { wide(model.boost.textCase.buttonTitle, trailing: nil, active: model.boost.textCase != .none) }
                 .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).help("Change text case")
             }
             .frame(width: 147)
             zapRow
-            Button { model.setCode(true) } label: { wide("Code", trailing: "curlybraces") }.buttonStyle(.plain)
+            Button { model.setCode(true) } label: {
+                wide("Code", trailing: "curlybraces", active: !model.boost.css.isEmpty || !model.boost.js.isEmpty)
+            }
+            .buttonStyle(.plain)
+            .help(model.boost.css.isEmpty && model.boost.js.isEmpty ? "Your own CSS and JavaScript" : "This boost has its own CSS or JavaScript")
             Spacer(minLength: 0)
         }
         .frame(width: 183)
@@ -461,7 +483,11 @@ private struct BoostEditorView: View {
                     Text("Aa").font(.custom(Boost.fonts[i] == "-apple-system" ? "Helvetica Neue" : Boost.fonts[i], size: 13))
                         .foregroundStyle(model.boost.font == i ? Color.accentColor : BoostStyle.secondary)
                         .frame(width: 26, height: 26)
+                        // The font in use on a tinted tile of its own (13 Nov 2026).
+                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(Color.accentColor.opacity(model.boost.font == i ? 0.14 : 0)))
                 }
+                .accessibilityAddTraits(model.boost.font == i ? .isSelected : [])
                 .buttonStyle(.plain)
             }
         }
@@ -470,26 +496,41 @@ private struct BoostEditorView: View {
         .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.white).shadow(color: .black.opacity(0.08), radius: 4, y: 1))
     }
 
-    private func square(_ symbol: String, on: Bool, help: String, size: CGFloat = 42, _ action: @escaping () -> Void) -> some View {
+    /// `on`: a mode that is on (Zap, the colour controls open). `active`: a setting away from the site's
+    /// own (13 Nov 2026), in the accent, tinted and ringed.
+    private func square(_ symbol: String, on: Bool, help: String, size: CGFloat = 42, active: Bool = false,
+                        _ action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: symbol).font(.system(size: 15))
-                .foregroundStyle(on ? .white : BoostStyle.ink)
+                .foregroundStyle(on ? .white : active ? Color.accentColor : BoostStyle.ink)
                 .frame(width: size, height: 38)
-                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(on ? BoostStyle.ink : BoostStyle.button))
+                .background(controlFill(on: on, active: active))
         }
         .buttonStyle(.plain).help(help).accessibilityLabel(help)
     }
 
-    private func wide(_ title: String, trailing: String?, on: Bool = false, width: CGFloat = 147) -> some View {
+    private func wide(_ title: String, trailing: String?, on: Bool = false, active: Bool = false, width: CGFloat = 147) -> some View {
         HStack {
             Text(title).font(.system(size: 14, weight: .semibold))
             if let trailing { Spacer(); Image(systemName: trailing).font(.system(size: 13, weight: .semibold)) }
         }
-        .foregroundStyle(on ? .white : BoostStyle.ink)
+        .foregroundStyle(on ? .white : active ? Color.accentColor : BoostStyle.ink)
         .padding(.horizontal, 12)
         .frame(maxWidth: trailing == nil ? .infinity : width, minHeight: 38)
         .frame(width: trailing == nil ? nil : width)
-        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(on ? BoostStyle.ink : BoostStyle.button))
+        .background(controlFill(on: on, active: active))
+        .accessibilityValue(active ? "changed" : "")
+    }
+
+    @ViewBuilder private func controlFill(on: Bool, active: Bool) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 8, style: .continuous)
+        if on {
+            shape.fill(BoostStyle.ink)
+        } else {
+            shape.fill(BoostStyle.button)
+                .overlay(shape.fill(Color.accentColor.opacity(active ? 0.12 : 0)))
+                .overlay(shape.strokeBorder(Color.accentColor.opacity(active ? 0.7 : 0), lineWidth: 1.5))
+        }
     }
 
     /// Zap, and once the boost has zaps, how many beside it (13 Nov 2026): that count opens the
@@ -511,9 +552,9 @@ private struct BoostEditorView: View {
                 .buttonStyle(.plain)
                 .help("\(zapped.count) zapped \(zapped.count == 1 ? "element" : "elements")")
                 .accessibilityLabel("\(zapped.count) zapped")
-                .popover(isPresented: Binding(get: { model.showingZaps }, set: { model.showingZaps = $0 }), arrowEdge: .leading) {
-                    ZapList(model: model)
-                }
+                // A panel like the editor's, not SwiftUI's popover: a click on Restore lands on the first
+                // press and the list stays until a click outside it (13 Nov 2026: Restore closed it unpressed).
+                .background(ZapListAnchor(model: model, shown: model.showingZaps, count: zapped.count))
             }
         }
         .frame(width: 147)
@@ -657,6 +698,109 @@ private final class FirstClickHostingView<Content: View>: NSHostingView<Content>
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }
 
+/// The zap list beside the count that opens it, in a panel of its own like the editor's: its content
+/// takes the first click (a SwiftUI popover off the editor's panel, which never becomes key, closed
+/// on the click meant for Restore and restored nothing), and it closes on a click outside it, the
+/// count pressed again, or Escape (13 Nov 2026).
+private struct ZapListAnchor: NSViewRepresentable {
+    let model: BoostEditorModel
+    let shown: Bool
+    let count: Int
+
+    func makeNSView(context: Context) -> ZapListAnchorView { ZapListAnchorView() }
+
+    func updateNSView(_ view: ZapListAnchorView, context: Context) {
+        view.model = model
+        view.set(shown: shown)
+        view.fit()
+    }
+}
+
+final class ZapListAnchorView: NSView {
+    var model: BoostEditorModel?
+    /// The list's own panel, a child of the editor's: like the editor, it never takes key and its
+    /// content takes the first click.
+    private var panel: NSPanel?
+    private var host: NSView?
+    private var outsideClicks: Any?
+
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+    func set(shown: Bool) {
+        if shown, panel == nil, let model, let parent = window {
+            // Light, as the editor beside it is.
+            let content = ZapList(model: model)
+                .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(BoostStyle.panel))
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .environment(\.colorScheme, .light)
+            let host = FirstClickHostingView(rootView: content)
+            let p = NSPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+            p.isFloatingPanel = true
+            p.level = .floating
+            p.backgroundColor = .clear
+            p.isOpaque = false
+            p.hasShadow = true
+            p.becomesKeyOnlyIfNeeded = true
+            p.contentView = host
+            self.host = host
+            panel = p
+            place()
+            parent.addChildWindow(p, ordered: .above)
+            p.orderFront(nil)
+            // A press anywhere but in the list (or on the count, which toggles it) closes it; so does Escape.
+            outsideClicks = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .keyDown]) { [weak self] e in
+                guard let self, let p = self.panel else { return e }
+                if e.type == .keyDown {
+                    if e.keyCode == 53 { self.model?.showingZaps = false; return nil }
+                    return e
+                }
+                let onCount = e.window === self.window && self.bounds.contains(self.convert(e.locationInWindow, from: nil))
+                if e.window !== p && !onCount { self.model?.showingZaps = false }
+                return e
+            }
+        } else if !shown, let p = panel {
+            panel = nil
+            host = nil
+            if let m = outsideClicks { NSEvent.removeMonitor(m); outsideClicks = nil }
+            p.parent?.removeChildWindow(p)
+            p.orderOut(nil)
+            model?.ghost(nil)
+        }
+    }
+
+    /// Left of the count, 8 pt clear, centred on it and kept on its screen; its size the list's.
+    private func place() {
+        guard let panel, let host, let w = window else { return }
+        let size = host.fittingSize
+        let anchor = w.convertToScreen(convert(bounds, to: nil))
+        var frame = NSRect(x: anchor.minX - 8 - size.width, y: anchor.midY - size.height / 2, width: size.width, height: size.height)
+        if let screen = w.screen?.visibleFrame {
+            frame.origin.y = min(max(frame.minY, screen.minY + 6), screen.maxY - 6 - size.height)
+            frame.origin.x = max(frame.minX, screen.minX + 6)
+        }
+        if panel.frame != frame { panel.setFrame(frame, display: true) }
+    }
+
+    /// The list grows and shrinks with its zaps.
+    func fit() { place() }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if window == nil { set(shown: false) }
+    }
+
+    /// Scenario hook: the list's button titled `title`, pressed with a click posted where it is, as the
+    /// pointer would press it. Nil once posted, else why not.
+    func debugClick(_ title: String) -> String? {
+        guard let host, let w = panel else { return "no list" }
+        guard let f = model?.zapButtonFrames[title] else { return "no button \(title)" }
+        // SwiftUI's global space runs from the hosting view's top; the window's from its bottom.
+        let inView = NSPoint(x: f.midX, y: host.isFlipped ? f.midY : host.bounds.height - f.midY)
+        TestGesture.click(at: host.convert(inView, to: nil), in: w)
+        return nil
+    }
+}
+
 extension Notification.Name {
     static let craShowBoostsLibrary = Notification.Name("craShowBoostsLibrary")
 }
@@ -678,6 +822,7 @@ private struct ZapList: View {
                     .buttonStyle(.plain)
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(Color.accentColor)
+                    .background(ZapButtonFrame(model: model, title: "Restore All"))
             }
             .padding(.horizontal, 14)
             .padding(.top, 12)
@@ -685,7 +830,7 @@ private struct ZapList: View {
             Divider()
             ScrollView {
                 VStack(spacing: 2) {
-                    ForEach(zapped, id: \.self) { s in ZapRow(selector: s, facts: model.zapFacts[s], model: model) }
+                    ForEach(zapped, id: \.self) { s in ZapRow(selector: s, facts: model.zapFacts[s], model: model, first: s == zapped.first) }
                 }
                 .padding(6)
             }
@@ -703,6 +848,7 @@ private struct ZapRow: View {
     let selector: String
     let facts: ZapFacts?
     let model: BoostEditorModel
+    var first = false
     @State private var hovering = false
 
     var body: some View {
@@ -724,6 +870,7 @@ private struct ZapRow: View {
                 .padding(.horizontal, 9)
                 .padding(.vertical, 4)
                 .background(Capsule().fill(Color.primary.opacity(hovering ? 0.1 : 0.06)))
+                .background(first ? ZapButtonFrame(model: model, title: "Restore") : nil)
                 .help("Show it on the page again")
         }
         .padding(.horizontal, 8)
@@ -734,6 +881,22 @@ private struct ZapRow: View {
             hovering = inside
             // Its ghost on the page while the pointer is on the row; off it, gone.
             if inside { model.ghost(onPage ? selector : nil) } else if model.ghosted == selector { model.ghost(nil) }
+        }
+    }
+}
+
+
+/// Where a zap-list button is drawn, in its window's coordinates from the top, for the scenario hook
+/// that clicks it (ZapListAnchorView.debugClick).
+private struct ZapButtonFrame: View {
+    let model: BoostEditorModel
+    let title: String
+
+    var body: some View {
+        GeometryReader { g in
+            Color.clear
+                .onAppear { model.zapButtonFrames[title] = g.frame(in: .global) }
+                .onChange(of: g.frame(in: .global)) { _, f in model.zapButtonFrames[title] = f }
         }
     }
 }

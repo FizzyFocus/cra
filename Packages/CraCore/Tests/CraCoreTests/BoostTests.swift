@@ -79,6 +79,13 @@ struct BoostTests {
         #expect(start.contains("a{}") && start.contains("b{}") && start.range(of: "a{}")!.lowerBound < start.range(of: "b{}")!.lowerBound)
     }
 
+    /// Size and Case say what they are set to (13 Nov 2026).
+    @Test func sizeAndCaseNameTheirSetting() {
+        #expect(Boost.sizeTitle(1) == "Size" && Boost.sizeTitle(1.1) == "110%" && Boost.sizeTitle(1.25) == "125%" && Boost.sizeTitle(0.9) == "90%")
+        #expect(Boost.TextCase.none.buttonTitle == "Case" && Boost.TextCase.upper.buttonTitle == "CASE"
+                && Boost.TextCase.lower.buttonTitle == "case" && Boost.TextCase.capitalize.buttonTitle == "Case")
+    }
+
     @Test func aTintNeedsStrength() {
         var b = Boost(host: "example.com")
         b.hue = 0.5

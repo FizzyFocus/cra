@@ -30,6 +30,14 @@ public struct Boost: Codable, Equatable, Identifiable, Sendable {
 
     public enum TextCase: String, Codable, CaseIterable, Sendable {
         case none, upper, lower, capitalize
+        /// What the editor's Case button says (13 Nov 2026): the case it sets, written in it.
+        public var buttonTitle: String {
+            switch self {
+            case .none, .capitalize: "Case"
+            case .upper: "CASE"
+            case .lower: "case"
+            }
+        }
         public var title: String {
             switch self {
             case .none: "As Is"
@@ -68,6 +76,9 @@ public struct Boost: Codable, Equatable, Identifiable, Sendable {
         while used.contains("My Boost \(n)") { n += 1 }
         return "My Boost \(n)"
     }
+
+    /// What the editor's Size button says: the size once it isn't the site's own ("110%").
+    public static func sizeTitle(_ scale: Double) -> String { scale == 1 ? "Size" : "\(Int((scale * 100).rounded()))%" }
 
     /// The host a boost is keyed by: lowercased, "www." dropped.
     public static func siteHost(_ host: String) -> String {

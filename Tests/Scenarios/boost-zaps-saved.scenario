@@ -44,14 +44,21 @@ cra://debug?zapHover=-1
 wait 0.4
 cra://debug?cdp=Runtime.evaluate&params={"expression":"['unghost',getComputedStyle(document.querySelector('aside.promo')).display,[...document.querySelectorAll('div')].some(d=>d.textContent==='↺ Restore')].join('-')"}
 expect-log Cra cdp Runtime.evaluate .*"value":"unghost-none-false"
-cra://debug?zapRestore=0
+# Restore and Restore All, clicked in the list as the pointer would (13 Nov 2026: a click on them closed
+# the list and restored nothing).
+cra://debug?zapListShown=1
+wait 0.8
+cra://debug?zapListClick=Restore
+expect-log zap list click: clicked Restore$
 wait 0.8
 expect-log zap restored 1, 1 left
 cra://debug?cdp=Runtime.evaluate&params={"expression":"['restored',getComputedStyle(document.querySelectorAll('span')[1]).display,getComputedStyle(document.querySelector('aside.promo')).display].join('-')"}
 expect-log Cra cdp Runtime.evaluate .*"value":"restored-inline-none"
-# Show All Zapped Elements: the rest back on the page at once, and after a reload.
-cra://debug?boostEditor=showAll
+# Restore All: the rest back on the page at once, and after a reload.
+cra://debug?zapListClick=Restore All
+expect-log zap list click: clicked Restore All$
 wait 0.8
+expect-log zap restored 1, 0 left
 cra://debug?cdp=Runtime.evaluate&params={"expression":"['shown',getComputedStyle(document.querySelectorAll('span')[1]).display,getComputedStyle(document.querySelector('aside.promo')).display].join('-')"}
 expect-log Cra cdp Runtime.evaluate .*"value":"shown-inline-block"
 cra://debug?boostEditor=close
