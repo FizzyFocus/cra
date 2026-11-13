@@ -15,11 +15,14 @@
 #                               builds for the other CPU (arm64 or x86_64) into
 #                               build/<arch>/Pane.app, with that CPU's CEF in
 #                               vendor/cef-<arch> and SwiftPM's files in build/swiftpm-<arch>
-#   CRA_ENGINE=chromium scripts/build.sh
-#                               builds Cra on Chrome's own framework instead of CEF (docs/chromium-engine.md)
-#                               into build/engine/Cra.app, from CRA_ENGINE_OUT (default
-#                               ~/chromium.noindex/src/out/Cra_<cpu>, scripts/build-chromium.sh); a test app
-#                               of its own (dk.kildahl.cra.engine, executable CraEngine) until the switch
+# Pane runs on Chrome's own framework with Cra's layer (docs/chromium-engine.md), the engine
+# scripts/fetch-engine.sh downloads into vendor/engine (vendor/engine-<arch> for the other CPU).
+#   CRA_ENGINE_OUT=~/chromium.noindex/src/out/Cra_arm64 scripts/build.sh
+#                               takes the engine from a local scripts/build-chromium.sh build instead
+#   CRA_ENGINE=cef scripts/build.sh
+#                               builds on CEF (vendor/cef, scripts/fetch-cef.sh), as before the switch
+#   CRA_ENGINE_TEST=1           a test app of its own (uz.pane.browser.engine, executable CraEngine,
+#                               build/engine/Pane.app) that never meets an installed Pane
 # Dev builds are version 0.0.0-dev and stay unregistered with LaunchServices, so
 # opening Pane (or a pane:// link) always picks the installed release.
 set -euo pipefail
@@ -48,16 +51,28 @@ else
   SWIFT_ARGS=(-c "$CONFIG" --arch "$ARCH" --scratch-path "$ROOT/build/swiftpm-$ARCH")
   export CRA_CEF_DIR="$ROOT/$CEF_DIR"  # read by Package.swift
 fi
-ENGINE="${CRA_ENGINE:-cef}"
+ENGINE="${CRA_ENGINE:-chromium}"
 EXE=Pane
+# The Keychain item the framework reads, as its fetch script found it (scripts/cef-keychain-item.py).
+KEYCHAIN_ITEM_FILE="$CEF_DIR/.cra-keychain-item"
 if [ "$ENGINE" = chromium ]; then
   ENGINE_CPU=$([ "$ARCH" = x86_64 ] && echo x64 || echo arm64)
-  ENGINE_OUT="${CRA_ENGINE_OUT:-$HOME/chromium.noindex/src/out/Cra_$ENGINE_CPU}"
-  export CRA_ENGINE=chromium CRA_ENGINE_FRAMEWORKS="$ENGINE_OUT/Chromium.app/Contents/Frameworks"  # read by Package.swift
-  [ -d "$CRA_ENGINE_FRAMEWORKS/Chromium Framework.framework" ] || { echo "No Chrome framework in $ENGINE_OUT" >&2; exit 1; }
-  FINAL_APP="$ROOT/build/engine$([ "$ARCH" = "$(uname -m)" ] || echo "-$ARCH")/Pane.app"
+  if [ -n "${CRA_ENGINE_OUT:-}" ]; then
+    FRAMEWORKS="$CRA_ENGINE_OUT/Cra.app/Contents/Frameworks"
+  else
+    ENGINE_DIR="vendor/engine$([ "$ARCH" = "$(uname -m)" ] || echo "-$ARCH")"
+    ENGINE_DIR="$ENGINE_DIR" ENGINE_CPU="$ENGINE_CPU" scripts/fetch-engine.sh
+    FRAMEWORKS="$ROOT/$ENGINE_DIR"
+    KEYCHAIN_ITEM_FILE="$ENGINE_DIR/.cra-keychain-item"
+  fi
+  export CRA_ENGINE=chromium CRA_ENGINE_FRAMEWORKS="$FRAMEWORKS"  # read by Package.swift
+  [ -d "$CRA_ENGINE_FRAMEWORKS/Cra Framework.framework" ] || { echo "No engine in $FRAMEWORKS" >&2; exit 1; }
+  # Its own SwiftPM folder: Package.swift differs between the engines.
   SWIFT_ARGS=(-c "$CONFIG" --arch "$ARCH" --scratch-path "$ROOT/build/swiftpm-engine-$ARCH")
-  EXE=CraEngine
+  if [ "${CRA_ENGINE_TEST:-}" = 1 ]; then
+    FINAL_APP="$ROOT/build/engine$([ "$ARCH" = "$(uname -m)" ] || echo "-$ARCH")/Pane.app"
+    EXE=CraEngine
+  fi
 else
   CEF_DIR="$CEF_DIR" CEF_ARCH="$CEF_PLATFORM" scripts/fetch-cef.sh
 fi
@@ -84,11 +99,11 @@ sed -e "s/__VERSION__/$VERSION/" -e "s/__BUILD__/$BUILD_NUMBER/" resources/Info.
 # release build never replaces Pane with a Cra release (resources/Info.plist, lint pane-bundle).
 # Google API key for Safe Browsing (docs/release.md); CraCEF hands it to Chromium.
 [ -n "${CRA_GOOGLE_API_KEY:-}" ] && /usr/libexec/PlistBuddy -c "Add :CraGoogleAPIKey string $CRA_GOOGLE_API_KEY" "$APP/Contents/Info.plist"
-# The Keychain item the framework reads (scripts/fetch-cef.sh found it; SafeStorage.swift uses it).
-if [ -s "$CEF_DIR/.cra-keychain-item" ]; then
-  /usr/libexec/PlistBuddy -c "Add :CraKeychainService string '$(cat "$CEF_DIR/.cra-keychain-item")'" "$APP/Contents/Info.plist"
+# The Keychain item the framework reads (its fetch script found it; SafeStorage.swift uses it).
+if [ -s "$KEYCHAIN_ITEM_FILE" ]; then
+  /usr/libexec/PlistBuddy -c "Add :CraKeychainService string '$(cat "$KEYCHAIN_ITEM_FILE")'" "$APP/Contents/Info.plist"
 fi
-if [ "$ENGINE" = chromium ]; then
+if [ "$EXE" = CraEngine ]; then
   /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier uz.pane.browser.engine" -c "Set :CFBundleExecutable $EXE" "$APP/Contents/Info.plist"
 fi
 echo -n "APPL????" > "$APP/Contents/PkgInfo"
@@ -105,7 +120,7 @@ cp resources/Cra.sdef "$APP/Contents/Resources/Cra.sdef"
 cp -R resources/live-folder-plugins "$APP/Contents/Resources/live-folder-plugins"
 
 if [ "$ENGINE" = chromium ]; then
-  FW_NAME="Chromium Framework"
+  FW_NAME="Cra Framework"
   ditto "$CRA_ENGINE_FRAMEWORKS/$FW_NAME.framework" "$APP/Contents/Frameworks/$FW_NAME.framework"
 else
   FW_NAME="Chromium Embedded Framework"
@@ -197,7 +212,12 @@ FW="$APP/Contents/Frameworks/$FW_NAME.framework"
 find "$FW/Libraries" -name '*.dylib' -print0 2>/dev/null | while IFS= read -r -d '' lib; do sign "$lib"; done
 if [ "$ENGINE" = chromium ]; then
   # Chrome's helpers and tools inside the framework, before the framework itself.
-  for h in "$FW"/Versions/Current/Helpers/*; do sign "$h" "$ROOT/resources/CraHelper.entitlements"; done
+  for h in "$FW"/Versions/Current/Helpers/*; do
+    case "$h" in
+      *.app) sign "$h" "$ROOT/resources/CraHelper.entitlements" ;;  # pages, GPU, utilities: JIT and devices
+      *) sign "$h" ;;                                               # crashpad handler, app-mode loader
+    esac
+  done
 fi
 sign "$FW"
 SPARKLE="$APP/Contents/Frameworks/Sparkle.framework"
