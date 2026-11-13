@@ -63,6 +63,22 @@ struct BoostTests {
         #expect(BoostScript.runtime.contains("DOMContentLoaded"))
     }
 
+    /// Several boosts for one site (13 Nov 2026): each new one is named apart, and all of them that are
+    /// on apply, in the order they were made.
+    @Test func aSiteHasSeveralBoosts() {
+        #expect(Boost.nextName(taken: []) == "My Boost")
+        #expect(Boost.nextName(taken: ["My Boost"]) == "My Boost 2")
+        #expect(Boost.nextName(taken: ["My Boost", "My Boost 2", "Reading"]) == "My Boost 3")
+        #expect(Boost.nextName(taken: ["My Boost 2"]) == "My Boost")
+        var a = Boost(host: "example.com"), b = Boost(host: "example.com", name: "My Boost 2")
+        a.css = "a{}"; b.css = "b{}"
+        var off = Boost(host: "example.com", name: "Off")
+        off.enabled = false
+        #expect(Boost.applying(to: "https://example.com/x", from: [a, off, b]).map(\.name) == ["My Boost", "My Boost 2"])
+        let start = BoostScript.documentStart([a, off, b])
+        #expect(start.contains("a{}") && start.contains("b{}") && start.range(of: "a{}")!.lowerBound < start.range(of: "b{}")!.lowerBound)
+    }
+
     @Test func aTintNeedsStrength() {
         var b = Boost(host: "example.com")
         b.hue = 0.5

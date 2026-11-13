@@ -533,6 +533,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
 
     func refresh() {
         guard !isTornDown, !isPutAway else { return }
+        closeBoostEditorOffItsPage()
         let space = focusedSpace
         let palette = space.theme.palette
         // Its extensions belong to the space's profile, and the popovers to the space they opened in.
@@ -972,6 +973,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
     // MARK: BrowserManagerDelegate
 
     func browserManagerDidUpdate(_ tabID: UUID) {
+        if tabID == selectedTabID { closeBoostEditorOffItsPage() }
         syncSidebarUI()
         let colors = browsers.runtimes.compactMapValues { $0.backgroundColor.isEmpty ? nil : $0.backgroundColor }
         if colors != shell.pageColors { shell.pageColors = colors }
@@ -3780,6 +3782,19 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
 
     // MARK: Boosts
 
+    /// The Boost editor goes with its page: another tab shown, or that tab gone to another site.
+    private func closeBoostEditorOffItsPage() {
+        guard let page = boostEditorPage else { return }
+        guard BoostEditorController.shared.isOpen, BoostEditorController.shared.window === window else { boostEditorPage = nil; return }
+        let url = selectedTabID.flatMap { id in browsers.runtime(for: id).map(\.browser.currentURL).flatMap { $0.isEmpty ? nil : $0 } ?? store.item(id)?.tab?.url }
+        let host = url.flatMap { URL(string: $0)?.host }.map(Boost.siteHost)
+        let sameSite = host.map { $0 == page.host || $0.hasSuffix("." + page.host) } ?? false
+        guard selectedTabID != page.tab || !sameSite else { return }
+        boostEditorPage = nil
+        BoostEditorController.shared.close()
+        CraLog.note("boost editor closed: \(selectedTabID != page.tab ? "another tab" : "another site")")
+    }
+
     /// Library ▸ Boosts (a click, or Edit Boost): the boost's site, in the tab on it already or a
     /// new one, with the boost in the editor beside it to change its look, code and zaps (13 Nov
     /// 2026; a click used to open only the site).
@@ -3794,13 +3809,23 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
         CraLog.note("boost editor opened from the Library: \(boost.zapped.count) zapped")
     }
 
-    /// Arc's New Boost: the open site's boost (made if it has none) in the editor beside the page;
-    /// or `given`, from Library ▸ Boosts.
-    func openBoostEditor(_ given: Boost? = nil) {
-        guard let window, let url = selectedTabID.flatMap({ store.item($0)?.tab?.url }),
-              let boost = given.flatMap({ BoostStore.shared.boost($0.id) }) ?? BoostStore.shared.boostForSite(of: url) else {
+    /// The page the Boost editor is open beside: its tab and site. Another tab, or that tab on
+    /// another site, closes the editor (13 Nov 2026).
+    private var boostEditorPage: (tab: UUID, host: String)?
+
+    /// The site's boost to edit (the Site Control Center's Boost: the one opened last, made if it has
+    /// none); with `new`, another boost for it (New Boost); or `given`, from Library ▸ Boosts.
+    func openBoostEditor(_ given: Boost? = nil, new: Bool = false) {
+        let pick: (String) -> Boost? = { url in
+            given.flatMap { BoostStore.shared.boost($0.id) } ?? (new ? BoostStore.shared.newBoost(forSite: url) : BoostStore.shared.boostForSite(of: url))
+        }
+        guard let window, let tab = selectedTabID, let url = store.item(tab)?.tab?.url, let boost = pick(url) else {
             showToast("Boosts Work on Websites"); return
         }
+        BoostStore.shared.noteOpened(boost)
+        boostEditorPage = (tab, boost.host)
+        let count = BoostStore.shared.boosts(forHost: boost.host).count
+        CraLog.note("boost editor opens \(boost.name)\(count > 1 ? " (\(count) boosts for \(boost.host))" : "")")
         BoostEditorController.shared.open(boost, over: window, page: .init(
             zap: { [weak self] on in self?.setZapping(on) },
             pick: { [weak self] on in self?.setPicking(on) },

@@ -1,0 +1,56 @@
+# Several boosts for one site (13 Nov 2026, the owner's calls). New Boost on a site that has one makes
+# another ("My Boost 2") instead of opening that one; every boost of the site that is on applies, in the
+# order they were made, each turned off and on by itself; the editor's name menu switches between them
+# and makes another. The editor closes when its page goes: to another site, or another tab shown.
+budget rss=800 stalls50=20
+seed settings.json {"hasSeenImportPrompt": true, "toolbarDefaultMigrated": true}
+seed boosts.json [{"id":"0E5B6E0A-5C3B-4F8D-9C55-4A7C5F2B9E21","host":"127.0.0.1","name":"My Boost","enabled":true,"hue":0,"strength":0,"invert":false,"contrast":50,"brightness":50,"saturation":50,"textScale":1,"textCase":"none","zapped":[],"css":"body { background: rgb(1, 2, 3) !important; }","js":""}]
+cra://open?url=${ORIGIN}/zap-deep.html
+expect-log loaded 127\.0\.0\.1 \(HTTP 200\)
+wait 1
+cra://action/newBoost
+wait 1
+expect-log boost editor opens My Boost 2 \(2 boosts for 127\.0\.0\.1\)
+# The second boost zaps the promo; the first one's colour stays on.
+cra://debug?boostZap=1
+wait 0.4
+cra://debug?cdp=Runtime.evaluate&params={"expression":"(document.querySelector('aside.promo').click(),'clicked')"}
+wait 0.8
+cra://debug?boostZap=0
+wait 0.5
+cra://debug?boostsFor=127.0.0.1
+expect-log boosts for 127\.0\.0\.1: My Boost\(on, 0 zapped\) \| My Boost 2\(on, 1 zapped\)$
+cra://action/reload
+wait 2
+cra://debug?cdp=Runtime.evaluate&params={"expression":"['both',getComputedStyle(document.body).backgroundColor,getComputedStyle(document.querySelector('aside.promo')).display].join('-')"}
+expect-log Cra cdp Runtime.evaluate .*"value":"both-rgb\(1, 2, 3\)-none"
+# Turn Off This Boost: the zap goes, the first boost's colour stays.
+cra://debug?boostMenu=toggle
+wait 0.8
+cra://debug?cdp=Runtime.evaluate&params={"expression":"['off',getComputedStyle(document.body).backgroundColor,getComputedStyle(document.querySelector('aside.promo')).display].join('-')"}
+expect-log Cra cdp Runtime.evaluate .*"value":"off-rgb\(1, 2, 3\)-block"
+cra://debug?boostMenu=toggle
+wait 0.5
+# The name menu: the first boost, then a third.
+cra://debug?boostMenu=My Boost
+expect-log boost editor switched to My Boost
+cra://debug?boostEditor=switched
+expect-log boost editor switched: open My Boost zapped=0
+cra://debug?boostMenu=new
+expect-log boost editor made My Boost 3 for 127\.0\.0\.1
+cra://debug?boostsFor=127.0.0.1
+expect-log boosts for 127\.0\.0\.1: My Boost\(on, 0 zapped\) \| My Boost 2\(on, 1 zapped\) \| My Boost 3\(on, 0 zapped\)$
+# The page goes to another site: the editor closes.
+cra://debug?cdp=Runtime.evaluate&params={"expression":"(location.href='about:blank','away')"}
+wait 1.5
+expect-log boost editor closed: another site
+cra://debug?boostEditor=away
+expect-log boost editor away: closed
+# Back on the site, the Site Control Center's Boost opens the boost opened last; another tab closes it.
+cra://debug?cdp=Runtime.evaluate&params={"expression":"(history.back(),'back')"}
+wait 2
+cra://debug?editBoost=127.0.0.1
+expect-log boost editor opens My Boost 3 \(3 boosts for 127\.0\.0\.1\)
+cra://open?url=${PAGE}?n=other
+wait 1.5
+expect-log boost editor closed: another tab

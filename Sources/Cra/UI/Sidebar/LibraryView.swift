@@ -539,7 +539,8 @@ private final class LibraryListView: NSView, NSTextFieldDelegate, NSTableViewDat
         case .boosts:
             let all = BoostStore.shared.boosts
             let shown = needle.isEmpty ? all : all.filter { $0.name.lowercased().contains(needle) || $0.host.contains(needle) }
-            out = shown.sorted { $0.host < $1.host }.map { .boost($0) }
+            // By site, a site's boosts in the order they apply.
+            out = shown.enumerated().sorted { ($0.element.host, $0.offset) < ($1.element.host, $1.offset) }.map { .boost($0.element) }
             // Arc's empty Boosts page.
             empty.show(symbol: "paintbrush.pointed", title: all.isEmpty ? "Nothing Boosted Yet!" : "No matches",
                        detail: all.isEmpty ? "Type “New Boost” in the command bar on any site to make your own." : nil)
@@ -1017,6 +1018,8 @@ extension LibraryListView: NSMenuDelegate {
             let cell = table.view(atColumn: 0, row: row, makeIfNecessary: false) as? BoostRowCell
             let actions = actions
             MenuItems.add(menu, "Edit Boost") { actions.editBoost(b.id) }
+            // Several boosts for one site (13 Nov 2026): another one for it, in the editor.
+            MenuItems.add(menu, "New Boost for \(b.host)") { actions.editBoost(BoostStore.shared.newBoost(host: b.host).id) }
             menu.addItem(.separator())
             MenuItems.add(menu, "Rename") { cell?.beginRename() }
             MenuItems.add(menu, "Delete") { BoostStore.shared.delete(b.id) }

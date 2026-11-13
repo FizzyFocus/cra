@@ -12,15 +12,38 @@ final class BoostStore {
     private init() { boosts = file.load(or: { [] }) }
 
     func boost(_ id: UUID) -> Boost? { boosts.first { $0.id == id } }
-    func boost(forHost host: String) -> Boost? { boosts.first { $0.host == Boost.siteHost(host) } }
 
-    /// The site's boost, made when it has none (Arc's New Boost opens the one a site has).
+    /// A site's boosts, oldest first: all of those on apply together, in that order (13 Nov 2026).
+    func boosts(forHost host: String) -> [Boost] { boosts.filter { $0.host == Boost.siteHost(host) } }
+
+    /// The site's boost to edit: the one opened last, else its newest.
+    func boost(forHost host: String) -> Boost? {
+        let mine = boosts(forHost: host)
+        return mine.first { $0.id == lastOpened[Boost.siteHost(host)] } ?? mine.last
+    }
+
+    /// The boost the editor opened last on each site (this run).
+    @ObservationIgnored private var lastOpened: [String: UUID] = [:]
+    func noteOpened(_ b: Boost) { lastOpened[b.host] = b.id }
+
+    /// The site's boost to edit, made when it has none (the Site Control Center's Boost).
     func boostForSite(of url: String) -> Boost? {
         guard let host = URL(string: url)?.host, url.hasPrefix("http") else { return nil }
-        if let b = boost(forHost: host) { return b }
-        let b = Boost(host: host)
+        return boost(forHost: host) ?? newBoost(host: host)
+    }
+
+    /// New Boost: another boost for the site, beside the ones it has ("My Boost 2").
+    func newBoost(forSite url: String) -> Boost? {
+        guard let host = URL(string: url)?.host, url.hasPrefix("http") else { return nil }
+        return newBoost(host: host)
+    }
+
+    @discardableResult
+    func newBoost(host: String) -> Boost {
+        let b = Boost(host: host, name: Boost.nextName(taken: boosts(forHost: host).map(\.name)))
         boosts.append(b)
         file.save(boosts)
+        BoostStore.changed?(b.host)
         return b
     }
 

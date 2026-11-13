@@ -59,6 +59,16 @@ public struct Boost: Codable, Equatable, Identifiable, Sendable {
         "Snell Roundhand", "Copperplate", "Chalkboard SE", "Rockwell", "Marker Felt",
     ]
 
+    /// A site can have several boosts, all on together in the order they were made (13 Nov 2026,
+    /// the owner's call). Another one's name: "My Boost", else the first "My Boost N" not taken.
+    public static func nextName(taken: [String]) -> String {
+        let used = Set(taken)
+        guard used.contains("My Boost") else { return "My Boost" }
+        var n = 2
+        while used.contains("My Boost \(n)") { n += 1 }
+        return "My Boost \(n)"
+    }
+
     /// The host a boost is keyed by: lowercased, "www." dropped.
     public static func siteHost(_ host: String) -> String {
         let h = host.lowercased()

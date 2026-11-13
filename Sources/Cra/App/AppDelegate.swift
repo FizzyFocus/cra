@@ -1271,6 +1271,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             if let v = dict["zapListShown"] { BoostEditorController.shared.debugShowZapList(v == "1"); return }
             if let i = dict["zapHover"].flatMap(Int.init) { BoostEditorController.shared.debugZapHover(i); return }
             if let i = dict["zapRestore"].flatMap(Int.init) { BoostEditorController.shared.debugZapRestore(i); return }
+            // boostMenu=<name>|new|toggle: the editor's name menu: another of the site's boosts, New Boost for
+            // the site, Turn Off/On; boostsFor=<host>: that site's boosts, in the order they apply (13 Nov 2026).
+            if let row = dict["boostMenu"] { BoostEditorController.shared.debugMenu(row); return }
+            if let host = dict["boostsFor"] {
+                let list = BoostStore.shared.boosts(forHost: host).map { "\($0.name)(\($0.enabled ? "on" : "off"), \($0.zapped.count) zapped)" }
+                CraLog.note("boosts for \(host): \(list.joined(separator: " | "))")
+                return
+            }
             if let e = dict["boostEditor"] {
                 switch e {
                 case "close": BoostEditorController.shared.close()
@@ -2624,7 +2632,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         case "newSpace": main.showSpaceEditor(space: nil)
         case "newProfile": if !main.isIncognito, let w = main.window { main.showNewProfileDialog(over: w) }
         case "share": main.shareSelectedPage()
-        case "newBoost": main.openBoostEditor()
+        case "newBoost": main.openBoostEditor(new: true)
         case "newEasel":
             guard !main.isIncognito else { break }
             let easel = Easel()

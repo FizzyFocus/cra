@@ -34,6 +34,20 @@ final class BoostEditorController {
         m.page = page
         m.devToolsOpen = page.devToolsOpen()
         m.onClose = { [weak self] in self?.close() }
+        // Another of the site's boosts, or a new one for it, in the editor in its place (13 Nov 2026).
+        m.onSwitch = { [weak self, weak window] id in
+            guard let self, let window, let b = BoostStore.shared.boost(id) else { return }
+            BoostStore.shared.noteOpened(b)
+            self.open(b, over: window, page: page)
+            CraLog.note("boost editor switched to \(b.name)")
+        }
+        m.onNewBoost = { [weak self, weak window, weak m] in
+            guard let self, let window, let host = m?.boost.host else { return }
+            let b = BoostStore.shared.newBoost(host: host)
+            BoostStore.shared.noteOpened(b)
+            self.open(b, over: window, page: page)
+            CraLog.note("boost editor made \(b.name) for \(host)")
+        }
         m.onWidth = { [weak self] w in self?.resize(width: w) }
         let p = NSPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         p.isFloatingPanel = true
@@ -103,6 +117,8 @@ final class BoostEditorController {
     }
 
     var isOpen: Bool { panel != nil }
+    /// The browser window it is open over.
+    var window: NSWindow? { panel?.parent }
     /// The boost open in the editor.
     var editingBoostID: UUID? { model?.boost.id }
 
@@ -129,6 +145,17 @@ final class BoostEditorController {
     }
 
     func debugShowZapList(_ on: Bool) { model?.showingZaps = on }
+
+    /// Its name menu's rows: another of the site's boosts by name, New Boost for the site, Turn Off/On.
+    func debugMenu(_ row: String) {
+        guard let model else { return }
+        switch row {
+        case "new": model.onNewBoost()
+        case "toggle": model.change { $0.enabled.toggle() }
+        default:
+            if let b = BoostStore.shared.boosts(forHost: model.boost.host).first(where: { $0.name == row }) { model.onSwitch(b.id) }
+        }
+    }
 
     func debugZapRestore(_ index: Int) {
         guard let model, model.boost.zapped.indices.contains(index) else { return }
@@ -219,6 +246,8 @@ final class BoostEditorModel {
         CraLog.note("zap restored \(selectors.count), \(boost.zapped.count) left")
     }
     @ObservationIgnored var onClose: () -> Void = {}
+    @ObservationIgnored var onSwitch: (UUID) -> Void = { _ in }
+    @ObservationIgnored var onNewBoost: () -> Void = {}
     @ObservationIgnored var onWidth: (CGFloat) -> Void = { _ in }
 
     init(boost: Boost) { self.boost = boost }
@@ -335,6 +364,19 @@ private struct BoostEditorView: View {
             .buttonStyle(.plain).help("Done")
             Spacer(minLength: 0)
             Menu {
+                // The site's boosts, all on together (13 Nov 2026): the one shown ticked, another a pick away.
+                let site = BoostStore.shared.boosts(forHost: model.boost.host)
+                if site.count > 1 {
+                    Section("Boosts for \(model.boost.host)") {
+                        ForEach(site) { b in
+                            Toggle(b.enabled ? b.name : "\(b.name) (Off)",
+                                   isOn: Binding(get: { b.id == model.boost.id }, set: { _ in if b.id != model.boost.id { model.onSwitch(b.id) } }))
+                        }
+                    }
+                }
+                Button(model.boost.enabled ? "Turn Off This Boost" : "Turn On This Boost") { model.change { $0.enabled.toggle() } }
+                Button("New Boost for \(model.boost.host)") { model.onNewBoost() }
+                Divider()
                 Button("Rename this Boost…") { rename() }
                 Button("Shuffle") { model.shuffle() }
                 Button("Reset all Edits") { model.resetAll() }
