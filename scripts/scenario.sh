@@ -81,7 +81,9 @@ fi
 NAME="${1:?usage: scripts/scenario.sh <name>|all}"
 FILE="Tests/Scenarios/$NAME.scenario"
 [ -f "$FILE" ] || { echo "No scenario $FILE"; exit 2; }
-[ -x "$APP/Contents/MacOS/Pane" ] || { echo "No Pane at $APP (scripts/build.sh; budgets are a release build's)"; exit 2; }
+# The app's executable: Pane, or CraEngine for a test build on Chrome's own framework (CRA_ENGINE_TEST=1).
+EXE="$APP/Contents/MacOS/$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$APP/Contents/Info.plist" 2>/dev/null || echo Pane)"
+[ -x "$EXE" ] || { echo "No Pane at $APP (scripts/build.sh; budgets are a release build's)"; exit 2; }
 if grep -q '^requires screen' "$FILE" && [ "${CRA_SCENARIO_SCREEN:-}" != "1" ]; then
   echo "$NAME: skipped (takes over the screen; CRA_SCENARIO_SCREEN=1 runs it)"; exit 0
 fi
@@ -253,7 +255,7 @@ while read -r _ f; do mkdir -p "$DATA/Extensions" && cp -R "$(expand "$f")" "$DA
 # CRA_PERF=1: the recorder runs (it is off by default since 11 Nov 2026); stalls and memory come from it.
 CRA_DATA_DIR="$DATA" CRA_COMMAND_FILE="$CMD" CRA_HITCH_LOG="$HITCH" CRA_TEST_BACKGROUND=1 CRA_WEBKIT_HOSTS=localhost \
   CRA_ARC_DIR="$FIXTURES/Arc" CRA_FLAGS="${CRA_FLAGS:-}" CRA_PERF=1 \
-  "${app_env[@]}" "$APP/Contents/MacOS/Pane" ${app_args[@]+"${app_args[@]}"} >"$OUT/stdout.log" 2>&1 &
+  "${app_env[@]}" "$EXE" ${app_args[@]+"${app_args[@]}"} >"$OUT/stdout.log" 2>&1 &
 PID=$!
 PIDS+=("$PID")
 

@@ -15,6 +15,11 @@
 #                               builds for the other CPU (arm64 or x86_64) into
 #                               build/<arch>/Pane.app, with that CPU's CEF in
 #                               vendor/cef-<arch> and SwiftPM's files in build/swiftpm-<arch>
+#   CRA_ENGINE=chromium scripts/build.sh
+#                               builds Cra on Chrome's own framework instead of CEF (docs/chromium-engine.md)
+#                               into build/engine/Cra.app, from CRA_ENGINE_OUT (default
+#                               ~/chromium.noindex/src/out/Cra_arm64, scripts/build-chromium.sh); a test app
+#                               of its own (dk.kildahl.cra.engine, executable CraEngine) until the switch
 # Dev builds are version 0.0.0-dev and stay unregistered with LaunchServices, so
 # opening Pane (or a pane:// link) always picks the installed release.
 set -euo pipefail
@@ -43,8 +48,18 @@ else
   SWIFT_ARGS=(-c "$CONFIG" --arch "$ARCH" --scratch-path "$ROOT/build/swiftpm-$ARCH")
   export CRA_CEF_DIR="$ROOT/$CEF_DIR"  # read by Package.swift
 fi
-
-CEF_DIR="$CEF_DIR" CEF_ARCH="$CEF_PLATFORM" scripts/fetch-cef.sh
+ENGINE="${CRA_ENGINE:-cef}"
+EXE=Pane
+if [ "$ENGINE" = chromium ]; then
+  ENGINE_OUT="${CRA_ENGINE_OUT:-$HOME/chromium.noindex/src/out/Cra_arm64}"
+  export CRA_ENGINE=chromium CRA_ENGINE_FRAMEWORKS="$ENGINE_OUT/Chromium.app/Contents/Frameworks"  # read by Package.swift
+  [ -d "$CRA_ENGINE_FRAMEWORKS/Chromium Framework.framework" ] || { echo "No Chrome framework in $ENGINE_OUT" >&2; exit 1; }
+  FINAL_APP="$ROOT/build/engine/Pane.app"
+  SWIFT_ARGS=(-c "$CONFIG" --arch "$ARCH" --scratch-path "$ROOT/build/swiftpm-engine-$ARCH")
+  EXE=CraEngine
+else
+  CEF_DIR="$CEF_DIR" CEF_ARCH="$CEF_PLATFORM" scripts/fetch-cef.sh
+fi
 scripts/fetch-sparkle.sh
 
 swift build "${SWIFT_ARGS[@]}"
@@ -56,8 +71,8 @@ STAGE="$(mktemp -d /tmp/cra-stage.XXXXXX)"
 APP="$STAGE/Pane.app"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/Frameworks"
 
-# The SwiftPM product keeps Cra's name; the bundle's executable is Pane (Info.plist).
-cp "$BIN/Cra" "$APP/Contents/MacOS/Pane"
+# The SwiftPM product keeps Cra's name; the bundle's executable is Pane (Info.plist), or EXE below.
+cp "$BIN/Cra" "$APP/Contents/MacOS/$EXE"
 cp "$BIN/CraPluginHost" "$APP/Contents/MacOS/CraPluginHost"
 sed -e "s/__VERSION__/$VERSION/" -e "s/__BUILD__/$BUILD_NUMBER/" resources/Info.plist > "$APP/Contents/Info.plist"
 # CRA_BUNDLE_ID builds under another identifier: a test build signed with one's own team and
@@ -72,6 +87,9 @@ sed -e "s/__VERSION__/$VERSION/" -e "s/__BUILD__/$BUILD_NUMBER/" resources/Info.
 if [ -s "$CEF_DIR/.cra-keychain-item" ]; then
   /usr/libexec/PlistBuddy -c "Add :CraKeychainService string '$(cat "$CEF_DIR/.cra-keychain-item")'" "$APP/Contents/Info.plist"
 fi
+if [ "$ENGINE" = chromium ]; then
+  /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier uz.pane.browser.engine" -c "Set :CFBundleExecutable $EXE" "$APP/Contents/Info.plist"
+fi
 echo -n "APPL????" > "$APP/Contents/PkgInfo"
 [ -f resources/AppIcon.icns ] && cp resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 # The AppleScript dictionary (Arc's, same terms and codes: Info.plist OSAScriptingDefinition).
@@ -85,15 +103,21 @@ cp resources/Cra.sdef "$APP/Contents/Resources/Cra.sdef"
 [ -d resources/fonts ] && cp -R resources/fonts "$APP/Contents/Resources/fonts"
 cp -R resources/live-folder-plugins "$APP/Contents/Resources/live-folder-plugins"
 
-FRAMEWORK_SRC="$ROOT/$CEF_DIR/Release/Chromium Embedded Framework.framework"
-cp -R "$FRAMEWORK_SRC" "$APP/Contents/Frameworks/"
+if [ "$ENGINE" = chromium ]; then
+  FW_NAME="Chromium Framework"
+  ditto "$CRA_ENGINE_FRAMEWORKS/$FW_NAME.framework" "$APP/Contents/Frameworks/$FW_NAME.framework"
+else
+  FW_NAME="Chromium Embedded Framework"
+  cp -R "$ROOT/$CEF_DIR/Release/$FW_NAME.framework" "$APP/Contents/Frameworks/"
+fi
 # Sparkle's XPC services are only for sandboxed apps; Cra uses Autoupdate and Updater.app.
 ditto "$ROOT/vendor/sparkle/Sparkle.framework" "$APP/Contents/Frameworks/Sparkle.framework"
 rm -rf "$APP/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices" "$APP/Contents/Frameworks/Sparkle.framework/XPCServices"
 
 # CEF needs one helper app per process type (see cef_variables.cmake,
 # CEF_HELPER_APP_SUFFIXES). Format: "<name suffix>|<plist suffix>".
-for entry in "|" " (Alerts)|.alerts" " (GPU)|.gpu" " (Plugin)|.plugin" " (Renderer)|.renderer"; do
+# Chrome's framework has its own helpers inside it (Versions/<version>/Helpers).
+[ "$ENGINE" = chromium ] || for entry in "|" " (Alerts)|.alerts" " (GPU)|.gpu" " (Plugin)|.plugin" " (Renderer)|.renderer"; do
   NAME_SUFFIX="${entry%%|*}"
   PLIST_SUFFIX="${entry#*|}"
   HELPER="$APP/Contents/Frameworks/Pane Helper${NAME_SUFFIX}.app"
@@ -120,19 +144,22 @@ cp "$BIN/libCraDockTile.dylib" "$DOCK_TILE/Contents/MacOS/CraDockTile"
 sed -e "s/__VERSION__/$VERSION/" -e "s/__BUILD__/$BUILD_NUMBER/" resources/DockTile-Info.plist > "$DOCK_TILE/Contents/Info.plist"
 
 # Every executable must run on the CPU this build is for (Sparkle ships universal).
-for exe in "$APP/Contents/MacOS/Pane" "$APP/Contents/MacOS/CraPluginHost" "$APP"/Contents/Frameworks/*.app/Contents/MacOS/* \
+for exe in "$APP/Contents/MacOS/$EXE" "$APP/Contents/MacOS/CraPluginHost" "$APP"/Contents/Frameworks/*.app/Contents/MacOS/* \
            "$DOCK_TILE/Contents/MacOS/CraDockTile" \
-           "$APP/Contents/Frameworks/Chromium Embedded Framework.framework/Chromium Embedded Framework" \
+           "$APP/Contents/Frameworks/$FW_NAME.framework/$FW_NAME" \
            "$APP/Contents/Frameworks/Sparkle.framework/Versions/B/Sparkle"; do
+  [ -e "$exe" ] || continue
   lipo "$exe" -verify_arch "$ARCH" || { echo "$exe has no $ARCH code: $(lipo -archs "$exe")" >&2; exit 1; }
 done
 
 # Helpers link the framework at launch (Sources/CraHelper/main.cc says why: ~12 MB less in each
 # page, GPU and utility process). The path has to resolve inside the bundle or no page starts.
+if [ "$ENGINE" = cef ]; then
 HELPER_EXE="$APP/Contents/Frameworks/Pane Helper.app/Contents/MacOS/Pane Helper"
 FW_LINK="$(otool -L "$HELPER_EXE" | grep -o '@executable_path/.*Chromium Embedded Framework' || true)"
 [ -n "$FW_LINK" ] && [ -f "$(dirname "$HELPER_EXE")/${FW_LINK#@executable_path/}" ] ||
   { echo "Pane Helper doesn't link the framework at launch (${FW_LINK:-no load command})" >&2; exit 1; }
+fi
 
 # Code signing, innermost first. Set CRA_SIGN_IDENTITY to a "Developer ID Application: …"
 # identity for a distributable build with the hardened runtime, timestamps and the CEF
@@ -165,15 +192,19 @@ sign() {  # sign <path> [entitlements]
     codesign "${args[@]}" "$target"
   fi
 }
-FW="$APP/Contents/Frameworks/Chromium Embedded Framework.framework"
+FW="$APP/Contents/Frameworks/$FW_NAME.framework"
 find "$FW/Libraries" -name '*.dylib' -print0 2>/dev/null | while IFS= read -r -d '' lib; do sign "$lib"; done
+if [ "$ENGINE" = chromium ]; then
+  # Chrome's helpers and tools inside the framework, before the framework itself.
+  for h in "$FW"/Versions/Current/Helpers/*; do sign "$h" "$ROOT/resources/CraHelper.entitlements"; done
+fi
 sign "$FW"
 SPARKLE="$APP/Contents/Frameworks/Sparkle.framework"
 sign "$SPARKLE/Versions/B/Autoupdate"
 sign "$SPARKLE/Versions/B/Updater.app"
 sign "$SPARKLE"
 sign "$APP/Contents/MacOS/CraPluginHost"
-for h in "$APP"/Contents/Frameworks/*.app; do sign "$h" "$ROOT/resources/CraHelper.entitlements"; done
+for h in "$APP"/Contents/Frameworks/*.app; do if [ -e "$h" ]; then sign "$h" "$ROOT/resources/CraHelper.entitlements"; fi; done
 sign "$DOCK_TILE"
 # Passkeys need entitlements only a provisioning profile can grant: the Touch ID
 # keychain group ("<app id>.webauthn", scripts/cef-patches) and, once Apple approves
