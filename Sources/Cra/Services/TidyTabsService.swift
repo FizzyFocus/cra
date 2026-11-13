@@ -92,9 +92,10 @@ final class TidyTabsService {
         NSWorkspace.shared.open(Self.systemSettingsURL)
     }
 
-    /// Whether the divider may show Tidy for this space now.
-    func offers(_ sid: UUID, store: SidebarStore) -> Bool {
-        modelAvailable && store.settings.tidyTabs && store.canTidy(sid)
+    /// When the divider shows Tidy for this space (TidyTabs.visibility): hidden without the model or
+    /// with Max ▸ Tidy Tabs off.
+    func visibility(_ sid: UUID, store: SidebarStore) -> TidyTabs.Visibility {
+        modelAvailable && store.settings.tidyTabs ? store.tidyVisibility(sid) : .hidden
     }
 
     /// The Tidy button: ask the model about the space's loose Today tabs and apply its answer.
@@ -119,12 +120,12 @@ final class TidyTabsService {
             let rest = SidebarTidyMetrics.minimumRun - Date().timeIntervalSince(started)
             if rest > 0 { try? await Task.sleep(for: .seconds(rest)) }
             store.setTidying(sid, false)
-            guard let proposals else {
-                store.markTidied(sid)
-                return
-            }
+            guard let proposals else { return }
             // The list slides the tabs under their new headers (SpaceListView.placeViews).
-            store.applyTidy(TidyTabs.plan(proposals, tabCount: tabs.count, existingGroups: groups), tabIDs: ids, in: sid)
+            // One ⌘Z puts every tab back where it was before the tidy (SidebarUndo).
+            store.undoable("Tidy Tabs") {
+                store.applyTidy(TidyTabs.plan(proposals, tabCount: tabs.count, existingGroups: groups), tabIDs: ids, in: sid)
+            }
         }
     }
 

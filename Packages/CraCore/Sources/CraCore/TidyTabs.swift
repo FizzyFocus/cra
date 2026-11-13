@@ -5,9 +5,9 @@ import Foundation
 /// named group headers (Arc's `SidebarItemData.tabGroup`): the model only proposes names and members;
 /// everything here decides what the sidebar does with that answer. Arc 1.171, 4 Nov 2026.
 public enum TidyTabs {
-    /// Arc 1.171 (canAutoOrganizeTodayTabs, offline copy, 4 Nov 2026): Tidy shows once Today holds six
-    /// tabs, grouped ones included (five loose tabs: only Clear; two loose and six grouped: Tidy).
-    public static let minimumTabs = 6
+    /// Tidy is on the divider, without a hover, once Today holds more than this many tabs, grouped
+    /// ones included (12 Nov 2026, the owner's call; Arc 1.171 offered it from six, on hover only).
+    public static let shownAbove = 10
     /// A model answer can't hold a sidebar's worth of tabs: the on-device model reads ~4K tokens.
     public static let maximumTabs = 60
     static let maximumTitleLength = 80
@@ -45,13 +45,31 @@ public enum TidyTabs {
         public var isEmpty: Bool { newGroups.isEmpty && joins.isEmpty }
     }
 
-    /// Whether the divider offers Tidy: Today holds enough tabs, one of them loose, and a loose tab
-    /// came in since the last run (`tidied`: Today's tabs then). Arc hid the button after a run, even
-    /// one that grouped nothing, and a second click on that spot did nothing.
-    public static func offers<ID: Hashable>(todayTabs: Int, looseTabs: [ID], tidied: Set<ID>?) -> Bool {
-        guard todayTabs >= minimumTabs, !looseTabs.isEmpty else { return false }
-        guard let tidied else { return true }
-        return looseTabs.contains { !tidied.contains($0) }
+    /// When the divider shows Tidy.
+    public enum Visibility: Equatable, Sendable {
+        /// Nothing loose to sort: no Tidy.
+        case hidden
+        /// Shown only while Shift is held.
+        case withShift
+        /// Shown all the time, hover or not.
+        case shown
+    }
+
+    /// The divider shows Tidy whenever Today holds more than `shownAbove` tabs, and with fewer while
+    /// Shift is held; either way only with a loose tab left to sort (Tidy sorts loose tabs only). It
+    /// no longer hides after a run until a new tab comes, as Arc's did (12 Nov 2026).
+    public static func visibility(todayTabs: Int, looseTabs: Int) -> Visibility {
+        guard looseTabs > 0 else { return .hidden }
+        return todayTabs > shownAbove ? .shown : .withShift
+    }
+
+    /// Whether Tidy is on the divider now.
+    public static func shows(_ v: Visibility, shiftHeld: Bool) -> Bool {
+        switch v {
+        case .hidden: false
+        case .withShift: shiftHeld
+        case .shown: true
+        }
     }
 
     public static let instructions = """
@@ -124,5 +142,53 @@ public enum TidyTabs {
     static func clip(_ s: String, _ n: Int) -> String {
         let one = s.split(whereSeparator: \.isNewline).joined(separator: " ")
         return one.count <= n ? one : String(one.prefix(n - 1)) + "…"
+    }
+}
+
+/// Sections: the named headers over tabs in Today (Arc's tab groups, which Tidy Tabs makes; 12 Nov 2026,
+/// the owner's calls). A header collapses and expands its section like a folder, is dragged or moved
+/// up and down among Today's items, and the user makes one by hand from picked tabs or a single tab.
+public enum TabGroups {
+    /// What the sidebar calls them.
+    public static let noun = "Section"
+    /// The name a section made by hand starts with, selected in its header for typing over.
+    public static let newName = "New Section"
+
+    /// Where a section made by hand from `picked` goes in Today (`today`: Today's children). The
+    /// picks are tabs (or splits) listed top to bottom; `topLevel` is each one's item in Today, the
+    /// pick itself when it is loose, the section holding it otherwise. The new section goes where the
+    /// first pick is: in its place when it is loose, right after its section when it is in one (that
+    /// section keeps the rest of its tabs). Nil when no pick is in Today.
+    public static func newSectionIndex<ID: Equatable>(picked: [ID], today: [ID], topLevel: (ID) -> ID?) -> Int? {
+        for p in picked {
+            guard let top = topLevel(p), let i = today.firstIndex(of: top) else { continue }
+            return top == p ? i : i + 1
+        }
+        return nil
+    }
+
+    /// The rows a group lists under its header, top to bottom: all of them open; collapsed, only the
+    /// child holding the open tab (a tab, or the split it is a pane of), as a closed folder keeps
+    /// its open tab in sight (FolderPeek).
+    public static func listed<ID: Hashable>(children: [ID], collapsed: Bool, holdsOpenTab: (ID) -> Bool) -> [ID] {
+        collapsed ? children.filter(holdsOpenTab) : children
+    }
+
+    public enum Direction: Sendable { case up, down }
+
+    /// Today's children after moving `group` past the next group above or below it, loose tabs
+    /// between staying where they are; nil when there is no group that way (Move Up on the top one).
+    public static func moving<ID: Equatable>(_ group: ID, _ direction: Direction, in today: [ID], isGroup: (ID) -> Bool) -> [ID]? {
+        guard let at = today.firstIndex(of: group) else { return nil }
+        let groups = today.indices.filter { isGroup(today[$0]) }
+        guard let g = groups.firstIndex(of: at) else { return nil }
+        let other: Int
+        switch direction {
+        case .up: guard g > 0 else { return nil }; other = groups[g - 1]
+        case .down: guard g + 1 < groups.count else { return nil }; other = groups[g + 1]
+        }
+        var out = today
+        out.swapAt(at, other)
+        return out
     }
 }

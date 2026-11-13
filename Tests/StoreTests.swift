@@ -1624,7 +1624,8 @@ enum StoreTests {
         let names = ["Mars", "Baguette", "Saturn", "Croissant", "Python", "Mail"]
         let tabs = names.map { store.createTab(url: "https://example.org/\($0)", in: sid, select: false) }
         let byName = Dictionary(uniqueKeysWithValues: zip(names, tabs.map(\.id)))
-        expect(store.tabGroups(in: sid).isEmpty && store.canTidy(sid), "six loose Today tabs offer Tidy")
+        expect(store.tabGroups(in: sid).isEmpty && store.tidyVisibility(sid) == .withShift,
+               "six loose Today tabs: Tidy with Shift (more than ten show it outright, 12 Nov 2026)")
         let before = store.item(today)!.children
         // The model sees the loose tabs in sidebar order (new tabs at the top: Mail first).
         let loose = store.looseTodayTabs(sid).map(\.id)
@@ -1632,29 +1633,61 @@ enum StoreTests {
         let plan = TidyTabs.plan([.init(name: "Planets", tabs: [at("Mars"), at("Saturn")]),
                                   .init(name: "Bread", tabs: [at("Baguette"), at("Croissant")])],
                                  tabCount: loose.count, existingGroups: [])
-        store.applyTidy(plan, tabIDs: loose, in: sid)
+        store.undoable("Tidy Tabs") { store.applyTidy(plan, tabIDs: loose, in: sid) }
         var groups = store.tabGroups(in: sid)
         expect(groups.map(\.title) == ["Bread", "Planets"], "groups follow their first tab's place")
         expect(store.item(today)!.children == [byName["Mail"]!, byName["Python"]!] + groups.map(\.id),
                "tabs left loose stay above the groups")
         expect(groups[1].children == [byName["Saturn"]!, byName["Mars"]!], "a group keeps its tabs in sidebar order")
-        expect(groups.allSatisfy { store.isExpanded($0.id) } && store.tabs(under: today).count == 6, "groups are always open")
-        expect(!store.canTidy(sid), "after a run Tidy waits for a new tab")
+        expect(groups.allSatisfy { store.isExpanded($0.id) } && store.tabs(under: today).count == 6, "groups start open")
+        expect(store.tidyVisibility(sid) == .withShift, "loose tabs left after a run: Tidy stays on offer, no waiting for a new tab")
         expect(store.integrityProblems().isEmpty, "the tidied sidebar is sound")
 
-        expect(store.undoTidy() && store.tabGroups(in: sid).isEmpty && store.item(today)!.children == before,
-               "⌘Z puts every tab back and the groups go")
-        expect(!store.undoTidy() && store.canTidy(sid), "once; then Tidy is offered again")
+        expect(store.undoName == "Tidy Tabs" && store.undo() == .done("Tidy Tabs") && store.tabGroups(in: sid).isEmpty
+               && store.item(today)!.children == before, "⌘Z puts every tab back and the groups go")
+        expect(store.redoName == "Tidy Tabs" && store.redo() == .done("Tidy Tabs") && store.tabGroups(in: sid).count == 2,
+               "⇧⌘Z sorts them again")
+        expect(store.undo() == .done("Tidy Tabs") && store.tabGroups(in: sid).isEmpty && store.tidyVisibility(sid) == .withShift,
+               "and ⌘Z once more; Tidy still on offer")
+        expect(store.integrityProblems().isEmpty, "undo and redo leave the sidebar sound")
 
         store.applyTidy(plan, tabIDs: loose, in: sid)
         let fresh = store.createTab(url: "https://example.org/Jupiter", in: sid, select: false)
-        expect(store.canTidy(sid), "a new loose tab brings Tidy back")
+        let more = (0..<4).map { store.createTab(url: "https://example.org/more\($0)", in: sid, select: false) }
+        expect(store.tidyVisibility(sid) == .shown, "eleven Today tabs, grouped ones counted: Tidy without Shift")
+        for t in more { store.archiveTab(t.id, reason: .manual) }
         let loose2 = store.looseTodayTabs(sid).map(\.id)
         let existing = store.tabGroups(in: sid).map { $0.title ?? "" }
         let join = TidyTabs.plan([.init(name: "planets", tabs: [loose2.firstIndex(of: fresh.id)!])], tabCount: loose2.count, existingGroups: existing)
         store.applyTidy(join, tabIDs: loose2, in: sid)
         groups = store.tabGroups(in: sid)
         expect(groups[1].children.last == fresh.id, "a second run adds a tab to the group the model named")
+
+        // A header collapses its group: no rows but the open tab's, read back after a relaunch.
+        let planets = groups[1].id
+        store.setExpanded(planets, false)
+        expect(!store.isExpanded(planets) && store.listedChildren(ofGroup: planets, window: nil).isEmpty
+               && store.item(planets)!.children.count == 3, "collapsed: its tabs are kept, none listed")
+        store.selectTab(byName["Mars"]!)
+        expect(store.listedChildren(ofGroup: planets, window: nil).map(\.id) == [byName["Mars"]!]
+               && store.shownTabs(under: today).contains(byName["Mars"]!) && !store.shownTabs(under: today).contains(byName["Saturn"]!),
+               "the open tab stays in sight, as in a closed folder")
+        store.saveAll()
+        expect(!AppComposition(clock: ManualScheduler()).store.isExpanded(planets), "collapsed after a relaunch")
+        store.setExpanded(planets, true)
+        expect(store.isExpanded(planets) && store.prefs.collapsedTabGroups == nil, "expanded again, nothing kept in windows.json")
+
+        // Move Up / Move Down: past the next group, loose tabs staying put.
+        func loosePlaces() -> [Int: UUID] {
+            Dictionary(uniqueKeysWithValues: store.item(today)!.children.enumerated().filter { store.item($0.element)?.isTabGroup != true }.map { ($0.offset, $0.element) })
+        }
+        let looseBefore = loosePlaces()
+        expect(!store.canMoveTabGroup(groups[0].id, .up) && store.canMoveTabGroup(groups[0].id, .down), "the top group only goes down")
+        expect(store.moveTabGroup(groups[0].id, .down) && store.tabGroups(in: sid).map(\.id) == [groups[1].id, groups[0].id],
+               "Move Down swaps it with the group below")
+        expect(loosePlaces() == looseBefore, "loose tabs keep their places")
+        expect(store.moveTabGroup(groups[0].id, .up) && store.tabGroups(in: sid).map(\.id) == [groups[0].id, groups[1].id], "and Move Up back")
+        expect(!store.moveTabGroup(groups[0].id, .up), "nothing above the top group")
 
         // Moves: groups stay at the top of Today and hold tabs.
         let pinned = store.focusedSpace.pinnedContainerID
@@ -1667,9 +1700,11 @@ enum StoreTests {
         expect(store.item(groups[0].id)!.children.first == byName["Mail"], "a tab dropped on a group joins it")
         store.moveItem(byName["Mail"]!, to: today, index: 0)
 
-        // The header's actions; after one, ⌘Z no longer undoes the tidy.
-        store.removeGroupHeader(groups[0].id)
-        expect(!store.undoTidy(), "a header action since the tidy takes ⌘Z's undo off")
+        // The header's actions, each its own ⌘Z step.
+        store.undoable("Remove Section") { store.removeGroupHeader(groups[0].id) }
+        expect(store.undo() == .done("Remove Section") && store.item(groups[0].id)?.isTabGroup == true
+               && store.item(groups[0].id)!.children.count == 2, "⌘Z brings the section back with its tabs")
+        store.undoable("Remove Section") { store.removeGroupHeader(groups[0].id) }
 
         expect(store.item(groups[0].id) == nil && store.item(today)!.children.prefix(4) == [byName["Mail"]!, byName["Python"]!, byName["Croissant"]!, byName["Baguette"]!],
                "Remove header leaves the tabs loose where the group was")
@@ -1681,9 +1716,47 @@ enum StoreTests {
         store.applyTidy(TidyTabs.plan([.init(name: "Bread", tabs: [0, 1])], tabCount: 2, existingGroups: []),
                         tabIDs: [byName["Baguette"]!, byName["Croissant"]!], in: sid)
         let bread = store.tabGroups(in: sid)[0]
-        store.archiveTab(byName["Baguette"]!, reason: .manual)
+        store.undoable("Close Tab") { store.archiveTab(byName["Baguette"]!, reason: .manual) }
         expect(store.item(bread.id)?.children == [byName["Croissant"]!], "closing one tab keeps the group")
-        expect(!store.undoTidy(), "a close since the tidy owns ⌘Z")
+        expect(store.undo() == .done("Close Tab") && store.item(bread.id)?.children == [byName["Baguette"]!, byName["Croissant"]!]
+               && !store.archive.contains { $0.id == byName["Baguette"]! }, "⌘Z brings the closed tab back into its section")
+        expect(store.redo() == .done("Close Tab") && store.item(byName["Baguette"]!) == nil, "⇧⌘Z closes it again")
+        // ⌘Z with nothing to undo reopens the tab closed last as an undo of its close: ⇧⌘Z closes it again.
+        let reopened = byName["Baguette"]!
+        expect(store.reopenAsUndo({ _ = store.reopenLastArchived() }) && store.item(reopened) != nil && store.redoName == "Close Tab",
+               "the reopen puts its close on the redo list")
+        expect(store.redo() == .done("Close Tab") && store.item(reopened) == nil && store.archive.first?.id == reopened,
+               "⇧⌘Z closes it again, back into the archive")
+        expect(store.undo() == .done("Close Tab") && store.item(reopened) != nil, "and ⌘Z brings it back once more")
+        store.undoable("Close Tab") { store.archiveTab(reopened, reason: .manual) }
+
+        // A section made by hand: the picked tabs under a header where the first of them was.
+        let loose3 = store.looseTodayTabs(sid).map(\.id)
+        let firstAt = store.item(today)!.children.firstIndex(of: loose3[0])
+        let section = store.createSection("Mine", with: Array(loose3.prefix(2)), in: sid)
+        expect(section?.isTabGroup == true && section?.children == Array(loose3.prefix(2))
+               && store.item(today)!.children.firstIndex(of: section!.id) == firstAt, "New Section takes the picks, in their place")
+        // A move made since that ⌘Z's step can't go back over: it is refused, the sidebar left alone.
+        let pinnedNow = store.focusedSpace.pinnedContainerID
+        let probe = store.createTab(url: "https://example.org/probe", in: sid, select: false)
+        store.undoable("Move Tab") { store.moveItem(probe.id, to: pinnedNow, index: 0) }
+        store.moveItem(probe.id, to: today, index: 0)
+        expect(store.undo() == .refused("Move Tab") && store.item(probe.id)?.parentID == today, "no undo over a change made since")
+        // One list, in the order things happened (12 Nov 2026): a tab opened, then another closed straight
+        // from the store (a row's ✕): ⌘Z reopens the closed one first, then closes the opened one.
+        let opened = store.createTab(url: "https://example.org/opened", in: sid, select: false)
+        let shut = store.createTab(url: "https://example.org/shut", in: sid, select: false)
+        store.archiveTab(shut.id, reason: .manual)
+        expect(store.undoName == "Close Tab" && store.undo() == .done("Close Tab") && store.item(shut.id) != nil,
+               "the close, the latest, is undone first")
+        expect(store.undo() == .done("New Tab") && store.item(shut.id) == nil, "then the newer of the two tabs opened")
+        expect(store.undo() == .done("New Tab") && store.item(opened.id) == nil, "then the one opened before it")
+        expect(store.redo() == .done("New Tab") && store.item(opened.id) != nil, "⇧⌘Z opens it again")
+        expect(store.redo() == .done("New Tab") && store.redo() == .done("Close Tab") && store.item(shut.id) == nil,
+               "and goes on in the same order")
+        store.archiveTab(opened.id, reason: .auto)
+        expect(store.undoName == "Close Tab", "Pane's own archiving isn't a step")
+        expect(store.integrityProblems().isEmpty, "and the sidebar stays sound")
         store.saveAll()
         let restored = AppComposition(clock: ManualScheduler()).store
         expect(restored.item(bread.id)?.isTabGroup == true && restored.item(bread.id)?.title == "Bread", "a group reads back after a relaunch")

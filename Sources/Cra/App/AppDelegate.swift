@@ -39,6 +39,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         guard !bootstrapped else { return }
         bootstrapped = true
         NSApp.setActivationPolicy(.regular)
+        // The sidebar's menus record what they change as ⌘Z steps (SidebarUndo).
+        SidebarMenus.record = { [store] name, body in store.undoable(name, body) }
         // Before any window docks: window managers see one Cra window, not its page and panels (#391).
         DockedWindowAccessibility.install()
         SystemAppearance.shared.start()
@@ -1115,7 +1117,89 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             if let n = dict["askFindQuote"].flatMap(Int.init) { main.askOnPage.debugFindQuote(n); return }
             // tidy: the divider's Tidy on the window's space, without hovering it; undoTidy: ⌘Z's.
             if dict["tidy"] != nil { TidyTabsService.shared.tidy(store.focusedSpace(window: main.windowID).id, store: store); return }
-            if dict["undoTidy"] != nil { _ = store.undoTidy(); return }
+            // undo / redo: ⌘Z and ⇧⌘Z's sidebar step (undoTidy is the same ⌘Z); undoState=<label>: what each would do.
+            if dict["undoTidy"] != nil || dict["undo"] != nil { sidebarUndo(redo: false); return }
+            if dict["redo"] != nil { sidebarUndo(redo: true); return }
+            if let label = dict["undoState"] { CraLog.note("undo state \(label): undo=\(store.undoName ?? "-") redo=\(store.redoName ?? "-")"); return }
+            // makeTabGroup=<name>[&tabs=<n>]: the space's first n loose Today tabs (2 by default) made a
+            // Tidy group, as a model answer would; tabGroups=<label>: each group (collapsed or not, rows it
+            // lists) and when the divider shows Tidy; groupAction=collapse|expand|up|down|archive&group=<name>:
+            // the header's click or menu on that group (TabGroups, 12 Nov 2026).
+            if let name = dict["makeTabGroup"] {
+                let sid = store.focusedSpace(window: main.windowID).id
+                let loose = store.looseTodayTabs(sid).map(\.id)
+                let n = min(loose.count, dict["tabs"].flatMap(Int.init) ?? 2)
+                let plan = TidyTabs.plan([.init(name: name, tabs: Array(0..<n))], tabCount: loose.count,
+                                         existingGroups: store.tabGroups(in: sid).map { $0.title ?? "" })
+                store.applyTidy(plan, tabIDs: loose, in: sid)
+                return
+            }
+            // newSection=<name>[&tabs=<n>]: New Section with the space's first n loose Today tabs (2), as
+            // its menu does, one ⌘Z step.
+            if let name = dict["newSection"] {
+                let sid = store.focusedSpace(window: main.windowID).id
+                let picks = Array(store.looseTodayTabs(sid).map(\.id).prefix(dict["tabs"].flatMap(Int.init) ?? 2))
+                store.undoable("New Section") { _ = store.createSection(name, with: picks, in: sid) }
+                return
+            }
+            // todayRows=<label>: the window's space's Today as it is in the store, top level in order: a tab by
+            // its fixture page (n=…) or host, a Section as §Name[its tabs], a folder as ▸Name[…] (SidebarUndo checks).
+            // dragRow=<n>&onto=<m>[&at=<0…1>]: a row dragged onto another and let go (SpaceListView.debugDrag);
+            // rowMenu=<n>[&run=<title>][&label=]: a row's right-click menu, a row of it run (debugRowMenu).
+            if let n = dict["dragRow"].flatMap(Int.init), let m = dict["onto"].flatMap(Int.init) {
+                let at = dict["at"].flatMap(Double.init).map { CGFloat($0) } ?? 0.5
+                CraLog.note("drag row \(n) onto \(m): \(SpaceListView.debugDrag(ui: main.sidebarUI, space: store.focusedSpace(window: main.windowID).id, from: n, onto: m, at: at))")
+                return
+            }
+            if let n = dict["rowMenu"].flatMap(Int.init) {
+                let out = SpaceListView.debugRowMenu(ui: main.sidebarUI, space: store.focusedSpace(window: main.windowID).id, row: n, run: dict["run"])
+                CraLog.note("row menu \(dict["label"] ?? "\(n)"): \(out)")
+                return
+            }
+            if let label = dict["listFold"] {
+                CraLog.note("list fold \(label): \(SpaceListView.debugFolds(ui: main.sidebarUI, space: store.focusedSpace(window: main.windowID).id))")
+                return
+            }
+            if let label = dict["listRows"] {
+                CraLog.note("list rows \(label): \(SpaceListView.debugRows(ui: main.sidebarUI, space: store.focusedSpace(window: main.windowID).id))")
+                return
+            }
+            if let label = dict["todayRows"] {
+                let sid = store.focusedSpace(window: main.windowID).id
+                func name(_ it: SidebarItem) -> String {
+                    if let t = it.tab {
+                        let u = URLComponents(string: t.url)
+                        return u?.queryItems?.first { $0.name == "n" }.map { "n=\($0.value ?? "")" } ?? u?.host ?? t.url
+                    }
+                    let kids = store.children(of: it.id).map(name).joined(separator: ",")
+                    if it.isTabGroup { return "§\(it.title ?? "?")[\(kids)]" }
+                    if it.isSplit { return "split[\(kids)]" }
+                    return "▸\(it.title ?? "?")[\(kids)]"
+                }
+                let today = store.space(sid).map { store.children(of: $0.todayContainerID).map(name) } ?? []
+                CraLog.note("today rows \(label): \(today.joined(separator: " | "))")
+                return
+            }
+            if let label = dict["tabGroups"] {
+                let sid = store.focusedSpace(window: main.windowID).id
+                let groups = store.tabGroups(in: sid).map { g in
+                    "\(g.title ?? "?")(\(store.isExpanded(g.id) ? "open" : "collapsed") rows=\(store.listedChildren(ofGroup: g.id, window: main.windowID).count)/\(g.children.count))"
+                }
+                CraLog.note("tab groups \(label): \(groups.joined(separator: " ")) tidy=\(TidyTabsService.shared.visibility(sid, store: store))")
+                return
+            }
+            if let action = dict["groupAction"], let name = dict["group"],
+               let g = store.tabGroups(in: store.focusedSpace(window: main.windowID).id).first(where: { $0.title == name }) {
+                switch action {
+                case "collapse": store.setExpanded(g.id, false)
+                case "expand": store.setExpanded(g.id, true)
+                case "up": store.moveTabGroup(g.id, .up)
+                case "down": store.moveTabGroup(g.id, .down)
+                case "archive": for t in store.tabs(under: g.id) { main.closeTab(t.id) }
+                default: break
+                }
+                return
+            }
             // applescript=<source>: an AppleScript run inside Cra (raw «class …» codes address its own
             // dictionary), its result or error logged; no other app, so no Automation prompt.
             // Off the main thread, as a script from another app would be: commands that wait for a
@@ -1594,6 +1678,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             // previewSlow=<speed>: the preview's own animations at that speed (0.1: ten times slower), for stills.
             if let v = dict["previewSlow"].flatMap(Float.init) { MediaPreviewController.debugSpeed = v; return }
             // clickView=<view spec>: a plain click in the middle of that view, through its own mouse handling.
+            // postClick=<spec>: a click posted into the app's event queue at the view's middle, as a real one
+            // arrives (event monitors see it; clickView= calls the view directly).
+            if let spec = dict["postClick"] {
+                let windows = [main.window] + (main.window?.childWindows ?? [])
+                guard let view = windows.lazy.compactMap({ ViewSnapshot.find(spec, in: $0) }).first, let w = view.window else {
+                    CraLog.note("post click \(spec): no view")
+                    return
+                }
+                let r = view.convert(view.bounds, to: nil)
+                for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
+                    if let e = NSEvent.mouseEvent(with: type, location: NSPoint(x: r.midX, y: r.midY), modifierFlags: [],
+                                                  timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: w.windowNumber,
+                                                  context: nil, eventNumber: 0, clickCount: 1, pressure: 1) {
+                        NSApp.postEvent(e, atStart: false)
+                    }
+                }
+                CraLog.note("post click \(spec)")
+                return
+            }
             if let spec = dict["clickView"] {
                 let windows = [main.window] + (main.window?.childWindows ?? [])
                 guard let view = windows.lazy.compactMap({ ViewSnapshot.find(spec, in: $0) }).first, let w = view.window else {
@@ -2036,6 +2139,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
         if item.action == #selector(pasteAsPlainText(_:)) { return pageTakingPasteAndMatchStyle != nil }
+        // Edit ▸ Undo / Redo name the sidebar's step while no text is being typed in ("Undo Close Tab").
+        if item.action == #selector(editUndo(_:)) || item.action == #selector(editRedo(_:)) {
+            let redo = item.action == #selector(editRedo(_:))
+            let name = textResponderHasKey() ? nil : (redo ? store.redoName : store.undoName)
+            let title = (redo ? "Redo" : "Undo") + (name.map { " " + $0 } ?? "")
+            if item.title != title { item.title = title }
+            return true
+        }
         if let id = item.representedObject as? String, let title = flippingTitle(id), item.title != title { item.title = title }
         switch item.representedObject as? String {
         case "collapsePinned": return !main.isStandalone
@@ -2299,17 +2410,54 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         return false
     }
 
-    /// Arc: ⌘Z brings back the tab you closed last (closing registers an undo, GitHub #21), or undoes
-    /// the last Tidy, unless the keyboard is in something with text to undo: a text field, or an editable
-    /// element in a page (Chromium's page view reports its ui::TextInputType, 0 = none).
+    /// ⌘Z and ⇧⌘Z: the sidebar's undo and redo (SidebarUndo, 12 Nov 2026), unless the keyboard is in
+    /// something with text to undo: a text field, or an editable element in a page (Chromium's page view
+    /// reports its ui::TextInputType, 0 = none).
     private func undoClosedTab(_ event: NSEvent) -> Bool {
-        guard Shortcut("z", .command).matches(event), !textFieldHasKey(event) else { return false }
-        // The last thing to undo may be a tidy (Arc's "Undo Tidy Tabs"); a tab closed since comes first.
-        if !store.undoTidy() { perform("reopenClosedTab") }
+        let undo = Shortcut("z", .command).matches(event), redo = Shortcut("z", [.command, .shift]).matches(event)
+        guard undo || redo, !textFieldHasKey(event) else { return false }
+        sidebarUndo(redo: redo)
         return true
     }
 
+    /// One step of the sidebar's undo or redo, with Arc's toast ("Undid Close Tab"). With nothing to
+    /// undo, ⌘Z still brings back the tab closed last, as it did before the undo stack (GitHub #21).
+    func sidebarUndo(redo: Bool) {
+        switch redo ? store.redo() : store.undo() {
+        case .done(let name): main.showToast("\(redo ? "Redid" : "Undid") \(name)")
+        case .refused(let name): main.showToast("Can’t \(redo ? "Redo" : "Undo") \(name)")
+        case .nothing:
+            // Nothing to undo: ⌘Z brings back the tab closed last, as an undo of its close (⇧⌘Z closes it again).
+            if !redo, store.reopenAsUndo({ perform("reopenClosedTab") }) { main.showToast("Undid Close Tab") }
+        }
+    }
+
+    /// Edit ▸ Undo and Redo: the text being typed in first (a field, a page's input), else the sidebar.
+    @objc func editUndo(_ sender: Any?) { editStep(redo: false, sender) }
+    @objc func editRedo(_ sender: Any?) { editStep(redo: true, sender) }
+
+    private func editStep(redo: Bool, _ sender: Any?) {
+        if textResponderHasKey(), NSApp.sendAction(Selector((redo ? "redo:" : "undo:")), to: nil, from: sender) { return }
+        sidebarUndo(redo: redo)
+    }
+
+    /// The key window's first responder takes text (textFieldHasKey without an event).
+    private func textResponderHasKey() -> Bool {
+        let responder = NSApp.keyWindow?.firstResponder
+        if responder is NSText { return true }
+        if let view = responder as? NSView, NSStringFromClass(type(of: view)) == "RenderWidgetHostViewCocoa",
+           view.responds(to: NSSelectorFromString("textInputType")),
+           (view.value(forKey: "textInputType") as? Int ?? 0) != 0 { return true }
+        return false
+    }
+
+    /// A command (its keys, a menu, the command bar): what it does to the sidebar is one step ⌘Z
+    /// takes back under the command's name (SidebarUndo).
     func perform(_ id: String) {
+        store.undoable(bindings.action(id)?.name ?? id) { performCommand(id) }
+    }
+
+    private func performCommand(_ id: String) {
         // A Use Both press the page left alone comes back by OnKeyEvent or, redispatched by Chromium,
         // through the menu bar: either way it ends here, so the page didn't keep it (#374).
         useBoth.pageLeft(id)
@@ -2619,8 +2767,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         menubar.addItem(submenu: file, title: "File")
 
         let edit = NSMenu(title: "Edit")
-        edit.addItem(std("Undo", Selector(("undo:")), "z"))
-        edit.addItem(std("Redo", Selector(("redo:")), "z", [.command, .shift]))
+        // Text first, then the sidebar (editStep); the titles name the sidebar's step (validateMenuItem).
+        let undoItem = NSMenuItem(title: "Undo", action: #selector(editUndo(_:)), keyEquivalent: "z")
+        undoItem.target = self
+        edit.addItem(undoItem)
+        let redoItem = NSMenuItem(title: "Redo", action: #selector(editRedo(_:)), keyEquivalent: "z")
+        redoItem.keyEquivalentModifierMask = [.command, .shift]
+        redoItem.target = self
+        edit.addItem(redoItem)
         edit.addItem(.separator())
         edit.addItem(std("Cut", #selector(NSText.cut(_:)), "x"))
         edit.addItem(std("Copy", #selector(NSText.copy(_:)), "c"))

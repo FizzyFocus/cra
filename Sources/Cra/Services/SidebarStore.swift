@@ -579,10 +579,22 @@ final class SidebarStore {
 
     // MARK: Tabs
 
+    /// A new tab is one step ⌘Z takes back (12 Nov 2026): ⌘T's, + New Tab's, a link opened in a new tab.
+    /// Undone, the tab goes and the window shows the tab it showed before; ⇧⌘Z opens it again.
     @discardableResult
     func createTab(url: String, title: String = "", in spaceID: UUID? = nil, pinned: Bool = false,
                    select: Bool = true, parent: UUID? = nil, index: Int? = nil, window: UUID? = nil,
                    referrer: UUID? = nil) -> SidebarItem {
+        var made: SidebarItem?
+        undoable("New Tab") {
+            made = makeTab(url: url, title: title, in: spaceID, pinned: pinned, select: select, parent: parent,
+                           index: index, window: window, referrer: referrer)
+        }
+        return made!
+    }
+
+    private func makeTab(url: String, title: String, in spaceID: UUID?, pinned: Bool, select: Bool, parent: UUID?,
+                         index: Int?, window: UUID?, referrer: UUID?) -> SidebarItem {
         let sid = spaceID ?? focusedSpaceID(window: window)
         let space = spaces[sid] ?? focusedSpace(window: window)
         let requestedParent = parent ?? (pinned ? space.pinnedContainerID : space.todayContainerID)
@@ -901,7 +913,7 @@ final class SidebarStore {
         items[p] = parent
     }
 
-    private func isDescendant(_ candidate: UUID, of ancestor: UUID) -> Bool {
+    func isDescendant(_ candidate: UUID, of ancestor: UUID) -> Bool {
         var cur = items[candidate]?.parentID
         var hops = 0
         while let c = cur, hops < 64 {
@@ -1615,9 +1627,20 @@ final class SidebarStore {
     // the item's signal, not on `prefs`, which changes on every tab switch and window move;
     // `notifyItemReaders` signals the items whose state actually changed.
 
-    /// A tab group is always open: it has a header, not a folder's disclosure (Arc's TabGroupHeaderCellView).
+    /// A tab group is open unless its header collapsed it (TabGroups, 12 Nov 2026); a folder when expanded.
     func isExpanded(_ id: UUID) -> Bool {
-        items[id]?.isTabGroup == true || _prefs.expandedFolders.contains(id)
+        if items[id]?.isTabGroup == true { return !(_prefs.collapsedTabGroups?.contains(id) ?? false) }
+        return _prefs.expandedFolders.contains(id)
+    }
+
+    /// What a tab group lists under its header (TabGroups.listed): its children, or collapsed only
+    /// the one holding the open tab of `window`.
+    func listedChildren(ofGroup id: UUID, window: UUID?) -> [SidebarItem] {
+        let kids = children(of: id)
+        let ids = TabGroups.listed(children: kids.map(\.id), collapsed: !isExpanded(id)) { c in
+            isSelected(c, window: window) || (items[c]?.isSplit == true && (items[c]?.children ?? []).contains { isSelected($0, window: window) })
+        }
+        return kids.filter { ids.contains($0.id) }
     }
 
     /// The tabs a closed folder lists under itself (FolderPeek), in sidebar order.
@@ -1633,11 +1656,17 @@ final class SidebarStore {
     /// peeked ones, one pane per split (its focused one). Arc hands a close over to the row
     /// above or below among these, never to a tab hidden in a closed folder (#105).
     func shownTabs(under id: UUID) -> [UUID] {
-        children(of: id).flatMap { c -> [UUID] in
+        shownTabs(of: children(of: id))
+    }
+
+    private func shownTabs(of kids: [SidebarItem]) -> [UUID] {
+        kids.flatMap { c -> [UUID] in
             if c.isTab { return [c.id] }
             if let s = c.split { return [s.focusTabID.flatMap { c.children.contains($0) ? $0 : nil } ?? c.children.first].compactMap { $0 } }
             guard c.isFolder else { return [] }
-            return c.isTabGroup || _prefs.expandedFolders.contains(c.id) ? shownTabs(under: c.id) : peekedTabs(in: c.id).map(\.id)
+            // A collapsed group shows only what holds the open tab (TabGroups.listed).
+            if c.isTabGroup { return shownTabs(of: listedChildren(ofGroup: c.id, window: nil)) }
+            return _prefs.expandedFolders.contains(c.id) ? shownTabs(under: c.id) : peekedTabs(in: c.id).map(\.id)
         }
     }
 
@@ -1672,6 +1701,7 @@ final class SidebarStore {
     private func notifyItemReaders(of old: WindowPrefs) {
         for id in old.expandedFolders.symmetricDifference(prefs.expandedFolders) { items.notify(id) }
         for id in old.collapsedPinnedSpaces.symmetricDifference(prefs.collapsedPinnedSpaces) { items.notify(id) }
+        for id in (old.collapsedTabGroups ?? []).symmetricDifference(prefs.collapsedTabGroups ?? []) { items.notify(id) }
         for id in old.favoritesEmptyStateDismissed.symmetricDifference(prefs.favoritesEmptyStateDismissed) { items.notify(id) }
         for id in Set(old.peekedFolders.keys).union(prefs.peekedFolders.keys) where old.peekedFolders[id] != prefs.peekedFolders[id] {
             items.notify(id)
@@ -1690,6 +1720,15 @@ final class SidebarStore {
         }
     }
     func setExpanded(_ id: UUID, _ expanded: Bool) {
+        // A tab group's header collapses it (TabGroups); no FolderPeek of its own.
+        if items[id]?.isTabGroup == true {
+            var p = prefs
+            var collapsed = p.collapsedTabGroups ?? []
+            if expanded { collapsed.remove(id) } else { collapsed.insert(id) }
+            p.collapsedTabGroups = collapsed.isEmpty ? nil : collapsed
+            if p != prefs { prefs = p }
+            return
+        }
         var p = prefs
         if expanded { p.expandedFolders.insert(id) } else { p.expandedFolders.remove(id) }
         // Open, it shows everything; closed again, only the open tab stays in sight (Arc).
@@ -1990,10 +2029,18 @@ final class SidebarStore {
 
     // MARK: Archive
 
+    /// A tab closed into the archive. Closed by the user (`.manual`) it is one step ⌘Z takes back,
+    /// whatever closed it (a row's ✕, a menu, ⌘W, a middle click, a swipe back), unless it is part of a
+    /// larger step already, so every close goes on the one undo list in the order it happened (12 Nov
+    /// 2026: a row's ✕ archived straight from the store and missed it, and ⌘Z went back past it).
+    /// Archived by Pane itself (Archive after, Clear Today inside its own step, a space deleted) it isn't.
     func archiveTab(_ id: UUID, reason: ArchiveReason) {
+        guard reason == .manual else { archiveTabNow(id, reason: reason); return }
+        undoable("Close Tab") { archiveTabNow(id, reason: reason) }
+    }
+
+    private func archiveTabNow(_ id: UUID, reason: ArchiveReason) {
         guard let it = items[id], it.isTab else { return }
-        // ⌘Z now brings this tab back, not the tidy before it (Arc's undo stack).
-        lastTidy = nil
         let sid = spaceID(ofItem: id)
         // Each window and space that has it open, every space sharing it for a favorite.
         let shownIn = spaceIDs(ofItem: id)
@@ -2098,11 +2145,6 @@ final class SidebarStore {
 
     /// Spaces whose Today tabs the model is sorting: the divider draws its squiggle meanwhile.
     private(set) var tidyingSpaces: Set<UUID> = []
-    /// Per space, Today's tabs when Tidy last ran: Tidy waits for a new loose tab (TidyTabs.offers).
-    /// Not saved, like Arc's.
-    private(set) var tidiedTabs: [UUID: Set<UUID>] = [:]
-    /// What ⌘Z puts back: the last tidy, until a tab closes or a group's header is used.
-    @ObservationIgnored private var lastTidy: (spaceID: UUID, todayBefore: [UUID], moved: [UUID])?
 
     /// Today's top-level tabs, outside any group: what Tidy sorts.
     func looseTodayTabs(_ sid: UUID) -> [SidebarItem] {
@@ -2115,11 +2157,180 @@ final class SidebarStore {
         return children(of: space.todayContainerID).filter(\.isTabGroup)
     }
 
-    /// Whether the divider offers Tidy now (the Apple Intelligence check is the caller's).
-    func canTidy(_ sid: UUID) -> Bool {
-        guard let space = spaces[sid], !isIncognito(space: sid) else { return false }
-        return TidyTabs.offers(todayTabs: tabs(under: space.todayContainerID).count,
-                               looseTabs: looseTodayTabs(sid).map(\.id), tidied: tidiedTabs[sid])
+    /// When the divider shows Tidy for the space: always, only with Shift, or not (TidyTabs.visibility;
+    /// the Apple Intelligence check is the caller's).
+    func tidyVisibility(_ sid: UUID) -> TidyTabs.Visibility {
+        guard let space = spaces[sid], !isIncognito(space: sid) else { return .hidden }
+        return TidyTabs.visibility(todayTabs: tabs(under: space.todayContainerID).count, looseTabs: looseTodayTabs(sid).count)
+    }
+
+    /// Move Up / Move Down in a group header's menu: the group past the next group that way, loose
+    /// tabs keeping their places (TabGroups.moving). False when there is none that way.
+    @discardableResult
+    func moveTabGroup(_ id: UUID, _ direction: TabGroups.Direction) -> Bool {
+        guard let g = items[id], g.isTabGroup, let p = g.parentID, var parent = items[p],
+              let order = TabGroups.moving(id, direction, in: parent.children, isGroup: { self.items[$0]?.isTabGroup == true }) else { return false }
+        parent.children = order
+        items[p] = parent
+        touch()
+        return true
+    }
+
+    /// Whether Move Up / Move Down has a group to move past.
+    func canMoveTabGroup(_ id: UUID, _ direction: TabGroups.Direction) -> Bool {
+        guard let p = items[id]?.parentID, let parent = items[p] else { return false }
+        return TabGroups.moving(id, direction, in: parent.children, isGroup: { self.items[$0]?.isTabGroup == true }) != nil
+    }
+
+    /// A section made by hand (12 Nov 2026): the picked Today tabs (or splits) under a new header named
+    /// `name`, in their sidebar order, the header where the first of them is (TabGroups.newSectionIndex).
+    /// Tabs elsewhere (pinned, favorites, folders) don't join. Nil when none can.
+    @discardableResult
+    func createSection(_ name: String, with picked: [UUID], in sid: UUID) -> SidebarItem? {
+        guard let space = spaces[sid] else { return nil }
+        let today = space.todayContainerID
+        let top = { (id: UUID) in self.todayTopLevel(of: id, today: today) }
+        let order = shownTabs(under: today)
+        let rows = picked.compactMap { id -> UUID? in
+            guard let it = items[id], it.isTab || it.isSplit else { return nil }
+            // A pane picks its split.
+            if let s = splitContaining(id), s.parentID.map({ $0 == today || items[$0]?.isTabGroup == true }) == true { return s.id }
+            return id
+        }
+        /// A row's place in the sidebar: a tab's own, a split's by the pane it shows.
+        func rank(_ id: UUID) -> Int {
+            if let i = order.firstIndex(of: id) { return i }
+            let panes = items[id]?.children ?? []
+            return order.firstIndex { panes.contains($0) } ?? .max
+        }
+        var seen = Set<UUID>()
+        let members = rows.filter { top($0) != nil && seen.insert($0).inserted }.sorted { rank($0) < rank($1) }
+        guard !members.isEmpty, let index = TabGroups.newSectionIndex(picked: members, today: items[today]?.children ?? [], topLevel: top) else { return nil }
+        var g = SidebarItem.tabGroup(name, parent: today)
+        g.createdAt = clock.now
+        items[g.id] = g
+        var t = items[today]!
+        t.children.insert(g.id, at: min(index, t.children.count))
+        items[today] = t
+        moveItems(members, to: g.id, index: nil)
+        touch()
+        return items[g.id]
+    }
+
+    /// The item in Today that `id` hangs from: itself when loose there, its section when in one; nil
+    /// anywhere else (pinned, favorites, a folder). A split's pane counts as its split.
+    func todayTopLevel(of id: UUID, today: UUID) -> UUID? {
+        let id = splitContaining(id)?.id ?? id
+        guard let p = items[id]?.parentID else { return nil }
+        if p == today { return id }
+        if items[p]?.isTabGroup == true, items[p]?.parentID == today { return p }
+        return nil
+    }
+
+    /// The picks New Section would take: the Today tabs among `ids`, loose or in a section.
+    func sectionCandidates(_ ids: [UUID], in sid: UUID) -> [UUID] {
+        guard let today = spaces[sid]?.todayContainerID else { return [] }
+        return ids.filter { items[$0]?.isTab == true && todayTopLevel(of: $0, today: today) != nil }
+    }
+
+    /// Whether New Section can take `ids`: one of them is a Today tab, loose or in a section.
+    func canMakeSection(with ids: [UUID], in sid: UUID) -> Bool { !sectionCandidates(ids, in: sid).isEmpty }
+
+    // MARK: Undo (⌘Z, ⇧⌘Z)
+
+    /// The sidebar's undo and redo (SidebarUndo, 12 Nov 2026): the user's own changes, newest last.
+    @ObservationIgnored private var undoStack: [SidebarChange] = []
+    @ObservationIgnored private var redoStack: [SidebarChange] = []
+    @ObservationIgnored private var recording = 0
+
+    /// What ⌘Z and ⇧⌘Z would take back or do again ("Close Tab"), nil when nothing.
+    var undoName: String? { undoStack.last?.name }
+    var redoName: String? { redoStack.last?.name }
+
+    private func undoState() -> SidebarState {
+        SidebarState(items: items.all, archive: archive,
+                     selections: Dictionary(prefs.windows.map { ($0.id, $0.selectedTabPerSpace) }, uniquingKeysWith: { a, _ in a }))
+    }
+
+    /// Runs `body`, the user's own change to the sidebar, as one step ⌘Z takes back as `name`
+    /// ("Close Tab"). Inside another one it is part of that one. A body that changes no item and no
+    /// archive entry leaves nothing to undo. Changes made outside one (a page's title, a tab a link
+    /// opened, automatic archiving, sync) aren't undone, and an undo doesn't go back over them.
+    func undoable(_ name: String, _ body: () -> Void) {
+        guard recording == 0 else { body(); return }
+        recording += 1
+        let before = undoState()
+        body()
+        recording -= 1
+        guard let change = SidebarUndo.change(name, before: before, after: undoState()) else { return }
+        undoStack.append(change)
+        if undoStack.count > SidebarUndo.depth { undoStack.removeFirst(undoStack.count - SidebarUndo.depth) }
+        redoStack.removeAll()
+    }
+
+    /// ⌘Z with nothing left to undo: `body` brings back the tab closed last (GitHub #21), as an undo of
+    /// its close. Its inverse ("Close Tab") goes on the redo list, so ⇧⌘Z closes it again and the two keys
+    /// go back and forth (12 Nov 2026: recorded as a step of its own, it emptied the redo list instead).
+    @discardableResult
+    func reopenAsUndo(_ body: () -> Void) -> Bool {
+        guard recording == 0 else { body(); return false }
+        recording += 1
+        let before = undoState()
+        body()
+        recording -= 1
+        guard let change = SidebarUndo.change("Reopen Closed Tab", before: before, after: undoState()) else { return false }
+        redoStack.append(change.inverted(name: "Close Tab"))
+        CraLog.note("sidebar undid an earlier Close Tab (reopened the tab closed last)")
+        return true
+    }
+
+    enum UndoOutcome: Equatable {
+        case done(String)
+        case nothing
+        /// Something it touched changed since: dropped, the sidebar left as it is.
+        case refused(String)
+    }
+
+    @discardableResult func undo() -> UndoOutcome { step(undo: true) }
+    @discardableResult func redo() -> UndoOutcome { step(undo: false) }
+
+    private func step(undo: Bool) -> UndoOutcome {
+        guard let change = undo ? undoStack.popLast() : redoStack.popLast() else { return .nothing }
+        guard let result = SidebarUndo.apply(change, undo: undo, to: undoState()) else {
+            CraLog.note("sidebar \(undo ? "undo" : "redo") refused: \(change.name) (changed since)")
+            return .refused(change.name)
+        }
+        let problems = integrityProblems().count
+        let oldItems = result.items.keys.map { ($0, items[$0]) }
+        let oldArchive = archive
+        let oldSelections = prefs.windows.map { ($0.id, $0.selectedTabPerSpace) }
+        for (id, it) in result.items { items[id] = it }
+        archive = result.archive
+        for w in prefs.windows {
+            let sel = result.selections[w.id] ?? [:]
+            if sel != w.selectedTabPerSpace { updateWindow(w.id) { $0.selectedTabPerSpace = sel } }
+        }
+        // The sidebar must stay sound: anything else puts it back and drops the step.
+        if integrityProblems().count > problems {
+            for (id, it) in oldItems { items[id] = it }
+            archive = oldArchive
+            for (w, sel) in oldSelections { updateWindow(w) { $0.selectedTabPerSpace = sel } }
+            CraLog.fault("sidebar \(undo ? "undo" : "redo") of \(change.name) would tear the sidebar: refused")
+            return .refused(change.name)
+        }
+        if undo { redoStack.append(change) } else { undoStack.append(change) }
+        CraLog.note("sidebar \(undo ? "undid" : "redid") \(change.name)")
+        touch()
+        return .done(change.name)
+    }
+
+    /// A group that went no longer needs its collapsed state kept.
+    private func forgetCollapsed(_ id: UUID) {
+        guard prefs.collapsedTabGroups?.contains(id) == true else { return }
+        var p = prefs
+        p.collapsedTabGroups?.remove(id)
+        if p.collapsedTabGroups?.isEmpty == true { p.collapsedTabGroups = nil }
+        prefs = p
     }
 
     func setTidying(_ sid: UUID, _ on: Bool) {
@@ -2132,7 +2343,6 @@ final class SidebarStore {
     func applyTidy(_ plan: TidyTabs.Plan, tabIDs: [UUID], in sid: UUID) {
         guard let space = spaces[sid] else { return }
         let today = space.todayContainerID
-        let before = items[today]?.children ?? []
         let groups = tabGroups(in: sid)
         let loose = Set(looseTodayTabs(sid).map(\.id))
         func ids(_ indices: [Int]) -> [UUID] {
@@ -2163,40 +2373,14 @@ final class SidebarStore {
             t.children = TidyTabs.order(today: rest, isGroup: { self.items[$0]?.isTabGroup == true }, grouped: [], newGroups: newGroups)
             items[today] = t
         }
-        lastTidy = moved.isEmpty ? nil : (sid, before, moved)
-        tidiedTabs[sid] = Set(tabs(under: today).map(\.id))
         touch()
-    }
-
-    /// A run that ended without a plan (the model failed or had nothing to say) still hides Tidy.
-    func markTidied(_ sid: UUID) {
-        guard let space = spaces[sid] else { return }
-        tidiedTabs[sid] = Set(tabs(under: space.todayContainerID).map(\.id))
-    }
-
-    /// ⌘Z after a tidy: the tabs it moved go back where they were, its new groups go with them.
-    func undoTidy() -> Bool {
-        guard let u = lastTidy, let space = spaces[u.spaceID] else { return false }
-        lastTidy = nil
-        let today = space.todayContainerID
-        for id in u.moved where items[id] != nil && items[id]?.parentID != today {
-            moveItem(id, to: today, index: nil)
-        }
-        if var t = items[today] {
-            let old = u.todayBefore.filter(t.children.contains)
-            t.children = t.children.filter { !old.contains($0) } + old
-            items[today] = t
-        }
-        tidiedTabs[u.spaceID] = nil
-        touch()
-        return true
     }
 
     /// Arc's "Remove header": the tabs stay where they are, loose.
     func removeGroupHeader(_ id: UUID) {
         guard let g = items[id], g.isTabGroup, let p = g.parentID, let at = items[p]?.children.firstIndex(of: id) else { return }
-        lastTidy = nil
         moveItems(g.children, to: p, index: at)
+        forgetCollapsed(id)
         touch()
     }
 
@@ -2205,9 +2389,9 @@ final class SidebarStore {
     @discardableResult
     func folderFromGroup(_ id: UUID) -> SidebarItem? {
         guard let g = items[id], g.isTabGroup, let sid = spaceID(ofItem: id), let space = spaces[sid] else { return nil }
-        lastTidy = nil
         let f = createFolder(named: g.title ?? "Folder", in: space.pinnedContainerID, index: 0)
         moveItems(g.children, to: f.id, index: nil)
+        forgetCollapsed(id)
         touch()
         return items[f.id]
     }
@@ -2220,7 +2404,7 @@ final class SidebarStore {
             guard !empty.isEmpty else { continue }
             t.children.removeAll { empty.contains($0) }
             items[t.id] = t
-            for g in empty { items[g] = nil }
+            for g in empty { items[g] = nil; forgetCollapsed(g) }
         }
     }
 

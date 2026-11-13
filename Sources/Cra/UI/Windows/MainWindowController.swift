@@ -2413,7 +2413,12 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
 
     /// Today tabs are archived. Pinned tabs and favorites stay; they unload
     /// and return to their pinned page (Arc's close-on-pinned behaviour).
+    /// A tab's ✕, a middle click, ⌘W: one step ⌘Z takes back (SidebarUndo).
     func closeTab(_ id: UUID) {
+        store.undoable("Close Tab") { closeTabNow(id) }
+    }
+
+    private func closeTabNow(_ id: UUID) {
         guard let item = store.item(id), item.isTab else { return }
         if store.isPinned(id) {
             // A pinned split closes as one: every pane unloads and goes back to its page.

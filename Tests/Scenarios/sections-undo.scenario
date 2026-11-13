@@ -1,0 +1,122 @@
+# Sections and the sidebar's undo (12 Nov 2026, the owner's calls). New Section puts picked Today
+# tabs under a header of their own, a bounded group: tabs after it stay ungrouped, a hairline (┄) ending
+# the section where they follow it. ⌘Z takes back what the user did to the sidebar, one step at a time,
+# and ⇧⌘Z does it again (SidebarUndo): checked here on what the list draws (listRows) and the store
+# holds (todayRows), through the drag and menu paths a person uses (dragRow=, rowMenu=). A move within
+# one list used to say "Undid Move Tab" and move nothing. The sidebar stays sound throughout (checkStore).
+budget rss=800 stalls50=40
+seed settings.json {"hasSeenImportPrompt": true, "toolbarDefaultMigrated": true}
+
+cra://open?url=${PAGE}?n=1
+expect-log loaded 127\.0\.0\.1 \(HTTP 200\)
+cra://open?url=${PAGE}?n=2
+cra://open?url=${PAGE}?n=3
+cra://open?url=${PAGE}?n=4
+cra://open?url=${PAGE}?n=5
+wait 2
+
+# New Section with 2 Tabs: a bounded group, the loose tabs after it set off by its end line.
+cra://debug?newSection=Mine&tabs=2
+wait 0.5
+cra://debug?listRows=made
+expect-log list rows made: §Mine \| n=5 \| n=4 \| ┄ \| n=3 \| n=2 \| n=1$
+cra://debug?undoState=made
+expect-log undo state made: undo=New Section redo=-
+cra://debug?undo=1
+expect-log sidebar undid New Section
+wait 0.5
+cra://debug?listRows=undone
+expect-log list rows undone: n=5 \| n=4 \| n=3 \| n=2 \| n=1$
+cra://debug?redo=1
+expect-log sidebar redid New Section
+wait 0.5
+cra://debug?listRows=redone
+expect-log list rows redone: §Mine \| n=5 \| n=4 \| ┄ \| n=3 \| n=2 \| n=1$
+
+# A tab dragged within Today (rows: 0 §Mine, 1 n=5, 2 n=4, 3 n=3, 4 n=2, 5 n=1), then ⌘Z and ⇧⌘Z.
+cra://debug?dragRow=5&onto=3&at=0.1
+wait 0.5
+cra://debug?todayRows=dragged
+expect-log today rows dragged: §Mine\[n=5,n=4\] \| n=1 \| n=3 \| n=2$
+cra://debug?undo=1
+wait 0.5
+cra://debug?listRows=dragUndone
+expect-log list rows dragUndone: §Mine \| n=5 \| n=4 \| ┄ \| n=3 \| n=2 \| n=1$
+cra://debug?redo=1
+wait 0.5
+cra://debug?todayRows=dragRedone
+expect-log today rows dragRedone: §Mine\[n=5,n=4\] \| n=1 \| n=3 \| n=2$
+cra://debug?undo=1
+wait 0.5
+
+# The section dragged to the end: only it and its own tabs move; the loose tabs stay loose. Then ⌘Z.
+cra://debug?dragRow=0&onto=5&at=0.9
+wait 0.5
+cra://debug?todayRows=sectionMoved
+expect-log today rows sectionMoved: n=3 \| n=2 \| n=1 \| §Mine\[n=5,n=4\]$
+cra://debug?undo=1
+wait 0.5
+cra://debug?todayRows=sectionBack
+expect-log today rows sectionBack: §Mine\[n=5,n=4\] \| n=3 \| n=2 \| n=1$
+
+# A loose tab dragged into the section, under its last tab; ⌘Z takes it back out.
+cra://debug?dragRow=3&onto=2&at=0.9
+wait 0.5
+cra://debug?todayRows=joined
+expect-log today rows joined: §Mine\[n=5,n=4,n=3\] \| n=2 \| n=1$
+cra://debug?undo=1
+wait 0.5
+cra://debug?todayRows=left
+expect-log today rows left: §Mine\[n=5,n=4\] \| n=3 \| n=2 \| n=1$
+
+# Collapse and expand fold the section's rows on its own ease-out, drawn to the end.
+cra://debug?rowMenu=0&run=Collapse Section
+expect-log section folds closed \([0-9]+ rows\) over 0\.18 s
+wait 0.6
+cra://debug?rowMenu=0&run=Expand Section
+expect-log section folds open \([0-9]+ rows\) over 0\.18 s
+wait 0.6
+
+# Rename Section…: a click anywhere else ends it, the name kept.
+cra://debug?rowMenu=0&run=Rename Section
+wait 0.5
+cra://debug?postClick=TabRowView,3
+expect-log section rename ended: Mine
+
+# ⌘W (its command), then ⌘Z and ⇧⌘Z as keys (⇧⌘Z arrives as "Z"), back and forth, the second redo after
+# the page has loaded again (12 Nov 2026: "Can't Redo").
+cra://action/closeTab
+wait 0.8
+cra://debug?undoState=closed
+expect-log undo state closed: undo=Close Tab redo=-
+cra://debug?listRows=keyClosed
+cra://debug?key=z,6,1048576
+wait 0.8
+cra://debug?key=Z,6,1179648
+wait 0.8
+cra://debug?key=z,6,1048576
+wait 2.5
+cra://debug?key=Z,6,1179648
+wait 0.8
+cra://debug?listRows=keyRedone
+cra://debug?key=z,6,1048576
+wait 0.8
+cra://debug?todayRows=keyBack
+expect-log today rows keyBack: §Mine\[n=5,n=4\] \| n=3 \| n=2 \| n=1$
+reject-log sidebar (undo|redo) refused
+
+# A tab opened is a step: ⌘Z closes it and shows the tab before, ⇧⌘Z opens it again.
+cra://open?url=${PAGE}?n=9
+wait 1.5
+cra://debug?undoState=opened
+expect-log undo state opened: undo=New Tab redo=-
+cra://debug?key=z,6,1048576
+wait 0.8
+cra://debug?todayRows=openUndone
+expect-log today rows openUndone: §Mine\[n=5,n=4\] \| n=3 \| n=2 \| n=1$
+cra://debug?key=Z,6,1179648
+wait 0.8
+cra://debug?todayRows=openRedone
+expect-log today rows openRedone: n=9 \| §Mine\[n=5,n=4\] \| n=3 \| n=2 \| n=1$
+cra://debug?checkStore=1
+reject-log sidebar (undo|redo) of .* would tear the sidebar

@@ -1653,7 +1653,7 @@ final class TabRowView: SidebarRowView, ArcTooltipTarget, NSTextFieldDelegate {
 
     private func commitRename() {
         guard let m = model, let list, list.ui.renamingID == m.id, let f = renameField else { return }
-        list.store.rename(m.id, to: f.stringValue)
+        list.store.undoable("Rename Tab") { list.store.rename(m.id, to: f.stringValue) }
         list.ui.renamingID = nil
     }
 
@@ -1893,7 +1893,8 @@ final class FolderRowView: SidebarRowView, NSTextFieldDelegate {
 
     private func commitRename() {
         guard let m = model, let list, list.ui.renamingID == m.id, let f = renameField else { return }
-        list.store.rename(m.id, to: f.stringValue.isEmpty ? "Folder" : f.stringValue)
+        let name = f.stringValue.isEmpty ? "Folder" : f.stringValue
+        list.store.undoable("Rename Folder") { list.store.rename(m.id, to: name) }
         list.ui.renamingID = nil
     }
 
@@ -2175,7 +2176,7 @@ final class SplitRowView: SidebarRowView, NSTextFieldDelegate, ArcTooltipTarget 
     /// An empty name gives the split its panes back.
     private func commitRename() {
         guard let m = model, let list, list.ui.renamingID == m.id, let f = renameField else { return }
-        list.store.rename(m.id, to: f.stringValue)
+        list.store.undoable("Rename Split View") { list.store.rename(m.id, to: f.stringValue) }
         list.ui.renamingID = nil
     }
 
@@ -2595,14 +2596,23 @@ struct ClipboardPaste: Equatable {
     }
 }
 
-/// Tidy on the divider: off, offered (shown on hover), or sorting (shown, squiggling).
+/// Tidy on the divider (TidyTabs.Visibility, 12 Nov 2026): off, shown (more than 10 Today tabs),
+/// shown while Shift is held, or sorting (shown, squiggling). It no longer waits for a hover.
 enum DividerTidy: Equatable {
-    case none, offered, running
+    case none, shown, withShift, running
+
+    init(_ v: TidyTabs.Visibility) {
+        switch v {
+        case .hidden: self = .none
+        case .withShift: self = .withShift
+        case .shown: self = .shown
+        }
+    }
 }
 
-/// The line between pinned and Today; "Clear" shows on hover, and "Tidy" before it once Tidy Tabs
-/// can sort Today (Arc 1.171: UnpinnedSectionHeaderCellView with SidebarTidyButton, a
-/// SquiggleDivider while it works).
+/// The line between pinned and Today; "Clear" shows on hover, and "Tidy" before it whenever Today
+/// holds more than 10 tabs, or with fewer while the row is hovered with Shift held (DividerTidy; Arc
+/// 1.171: UnpinnedSectionHeaderCellView with SidebarTidyButton, a SquiggleDivider while it works).
 final class DividerRowView: SidebarRowView {
     private let line = NSView()
     private var clear: ClearButton?
@@ -2610,6 +2620,8 @@ final class DividerRowView: SidebarRowView {
     private let squiggle = SquiggleLayer()
     private var hasToday = false
     private var tidy = DividerTidy.none
+    /// Watches Shift while Tidy shows only with it (DividerTidy.withShift).
+    private var shiftMonitor: Any?
 
     override init(key: SpaceListView.RowKey, list: SpaceListView, colors: SidebarColors) {
         super.init(key: key, list: list, colors: colors)
@@ -2632,15 +2644,64 @@ final class DividerRowView: SidebarRowView {
             squiggle.setRunning(tidy == .running, animated: window != nil)
             tidyButton?.setSweeping(tidy == .running)
         }
+        watchShift()
         refresh()
     }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        watchShift()
+        refresh()
+    }
+
+    /// Shift brings Tidy out with fewer than 11 Today tabs while the pointer is on this row (where Clear
+    /// shows). Every Shift press and release is watched while Tidy waits for one, and each looks at
+    /// where the pointer really is, so pressing Shift with the pointer already resting on the row (or in
+    /// the gap just above it) shows Tidy at once, and releasing it hides it. Shift typed in a page or
+    /// held elsewhere doesn't (12 Nov 2026).
+    private func watchShift() {
+        let wanted = tidy == .withShift && hasToday && window != nil
+        if wanted, shiftMonitor == nil {
+            shiftMonitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
+                self?.refresh()
+                return event
+            }
+        } else if !wanted, let m = shiftMonitor {
+            NSEvent.removeMonitor(m)
+            shiftMonitor = nil
+        }
+    }
+
+    /// Tidy on the divider now: shown, sorting, or Shift held with Tidy waiting for it.
+    private var tidyShown: Bool {
+        guard hasToday else { return false }
+        switch tidy {
+        case .none: return false
+        case .shown, .running: return true
+        case .withShift: return (isHovered || pointerInside) && NSEvent.modifierFlags.contains(.shift)
+        }
+    }
+
+    /// The pointer on the row, its full width and the gap above it, where it really is now.
+    private var pointerInside: Bool {
+        guard let w = window, w.isVisible, !isHiddenOrHasHiddenAncestor else { return false }
+        let p = convert(w.mouseLocationOutsideOfEventStream, from: nil)
+        return Self.hoverZone(bounds).contains(p) && visibleRect.insetBy(dx: 0, dy: -Self.hoverSlack).contains(p)
+    }
+
+    /// The gap above the row counts as on it: the list's hover test uses the same zone.
+    static let hoverSlack: CGFloat = CraMetrics.rowSpacing / 2 + 1
+    static func hoverZone(_ r: NSRect) -> NSRect { NSRect(x: r.minX, y: r.minY - hoverSlack, width: r.width, height: r.height + hoverSlack) }
 
     override func setColors(_ c: SidebarColors) {
         super.setColors(c)
         refresh()
     }
 
-    override func hoverChanged() { refresh() }
+    override func hoverChanged() {
+        watchShift()
+        refresh()
+    }
 
     private func refresh() {
         line.layer?.backgroundColor = colors.separator.cgColor
@@ -2651,7 +2712,7 @@ final class DividerRowView: SidebarRowView {
         if show, clear == nil, let list {
             let b = ClearButton(colors: colors) { [weak list] in
                 guard let list else { return }
-                list.store.clearToday(list.spaceID)
+                list.store.undoable("Clear Today") { list.store.clearToday(list.spaceID) }
             }
             b.alphaValue = 0
             addSubview(b)
@@ -2661,7 +2722,7 @@ final class DividerRowView: SidebarRowView {
             clear = nil
             fadeOut(b)
         }
-        let showTidy = show && tidy != .none
+        let showTidy = tidyShown
         if showTidy, tidyButton == nil, let list {
             let b = TidyButton(colors: colors) { [weak list] in
                 guard let list else { return }
@@ -2678,6 +2739,8 @@ final class DividerRowView: SidebarRowView {
         }
         clear?.colors = colors
         tidyButton?.colors = colors
+        // The hairline parts Tidy from "Clear": none while Clear isn't there.
+        tidyButton?.showsBar = clear != nil
         needsLayout = true
     }
 
@@ -2692,18 +2755,20 @@ final class DividerRowView: SidebarRowView {
         super.layout()
         // Arc 1.171 at 1x (GitHub #139): the line runs 18 pt in from both edges; "Clear" ends 20 pt in.
         var right = bounds.width - 18
+        // "Clear"'s place, held while Tidy shows without it, so Tidy doesn't move when it comes.
+        let cs = clear?.fittingSize ?? ClearButton.restingSize
+        let clearX = bounds.width - 20 - cs.width
         if let clear {
-            let s = clear.fittingSize
-            clear.frame = NSRect(x: bounds.width - 20 - s.width, y: (bounds.height - s.height) / 2, width: s.width, height: s.height)
+            clear.frame = NSRect(x: clearX, y: (bounds.height - cs.height) / 2, width: cs.width, height: cs.height)
             right = clear.frame.minX - 8
-            if let tidy = tidyButton {
-                // Arc 1.171, 2x capture of a 347 pt sidebar: the hairline 11 pt before "Clear", the
-                // line 9.5 pt before the broom.
-                let t = tidy.fittingSize
-                tidy.frame = NSRect(x: clear.frame.minX - TidyButton.trailingGap - t.width, y: (bounds.height - t.height) / 2,
-                                    width: t.width, height: t.height)
-                right = tidy.frame.minX + TidyButton.broomInkInset - 9.5
-            }
+        }
+        if let tidy = tidyButton {
+            // Arc 1.171, 2x capture of a 347 pt sidebar: the hairline 11 pt before "Clear", the
+            // line 9.5 pt before the broom.
+            let t = tidy.fittingSize
+            tidy.frame = NSRect(x: clearX - TidyButton.trailingGap - t.width, y: (bounds.height - t.height) / 2,
+                                width: t.width, height: t.height)
+            right = tidy.frame.minX + TidyButton.broomInkInset - 9.5
         }
         let y = (bounds.height - 1) / 2
         line.frame = NSRect(x: 18, y: y, width: max(0, right - 18), height: 1)
@@ -2711,6 +2776,13 @@ final class DividerRowView: SidebarRowView {
     }
 
     private final class ClearButton: NSView {
+        /// Its size, for the place Tidy keeps for it while it isn't shown.
+        static let restingSize: NSSize = {
+            let l = NSTextField.sidebarLabel(size: 11, weight: .semibold)
+            l.stringValue = "Clear"
+            l.sizeToFit()
+            return l.frame.size
+        }()
         private let label = NSTextField.sidebarLabel(size: 11, weight: .semibold)
         private let action: () -> Void
         var colors: SidebarColors { didSet { label.textColor = colors.textSecondary } }
@@ -2870,6 +2942,8 @@ final class TidyButton: NSView {
     private var hovering = false { didSet { tint() } }
     private var sweeping = false
     var colors: SidebarColors { didSet { if colors != oldValue { tint() } } }
+    /// The hairline before "Clear"; hidden while Clear isn't on the divider.
+    var showsBar = true { didSet { bar.isHidden = !showsBar } }
 
     init(colors: SidebarColors, action: @escaping () -> Void) {
         self.colors = colors
@@ -3020,86 +3094,287 @@ enum BroomGlyph {
     }()
 }
 
-// MARK: - Tab group header
+// MARK: - Section header (a tab group)
 
 struct GroupHeaderRowModel: Equatable {
     var id: UUID
     var title: String
+    /// Collapsed under its header (TabGroups): only its open tab stays in sight.
+    var collapsed = false
+    /// Its tabs, shown beside a collapsed header.
+    var tabCount = 0
+    /// Its name is being typed (Rename Section…, a double-click, a new section).
+    var editing = false
 }
 
-/// Arc's TabGroupHeaderCellView: a group's name over its tabs in Today (13 pt semibold in the space
-/// header's tone, at the tabs' icon inset, a tab row's height). Hovered, it offers "Create Folder"
-/// and "Close tab group"; its menu has "Remove header". Arc 1.171, offline copy, 4 Nov 2026.
-final class GroupHeaderRowView: SidebarRowView {
+/// Arc's TabGroupHeaderCellView, which Pane calls a Section: a name over its tabs in Today (13 pt
+/// semibold in the space header's tone, at the tabs' icon inset, a tab row's height). Arc 1.171,
+/// offline copy, 4 Nov 2026.
+///
+/// Pane (12 Nov 2026, the owner's calls): a click collapses or expands the section, its tabs folding
+/// under the header as a folder's do (SpaceListView.placeViews), the chevron at the row's end turning
+/// on the space header's spring; the chevron shows on hover and always while collapsed, with the tab
+/// count. A double-click on the name renames it in place; the header drags among Today's items. Its
+/// menu has the rest (SidebarMenus.tabGroup); no hover buttons.
+final class GroupHeaderRowView: SidebarRowView, NSTextFieldDelegate {
     private(set) var model: GroupHeaderRowModel?
     private let titleLabel = NSTextField.sidebarLabel(size: 13, weight: .semibold)
-    private var buttons: [SidebarGlyphButton] = []
+    private let countLabel = NSTextField.sidebarLabel(size: 11, weight: .medium)
+    /// Holds the chevron at a fixed 16 pt frame, so it turns about its own centre.
+    private let chevronBox = NSView()
+    private let chevron = NSImageView()
+    private var renameField: NSTextField?
+    /// While the name is typed: a click anywhere else (the sidebar, another row, the page) ends it, kept.
+    private var clickOutside: Any?
 
     override init(key: SpaceListView.RowKey, list: SpaceListView, colors: SidebarColors) {
         super.init(key: key, list: list, colors: colors)
-        addSubview(titleLabel)
+        chevron.image = SidebarSymbols.image("chevron.down", size: 10, weight: .bold)
+        chevron.imageScaling = .scaleNone
+        chevron.frame = NSRect(x: 0, y: 0, width: 16, height: 16)
+        chevronBox.addSubview(chevron)
+        // The count's own box is wide enough for its last digit (it was cut off by its text field's padding).
+        countLabel.alignment = .right
+        for v in [titleLabel, countLabel, chevronBox] as [NSView] { addSubview(v) }
         setAccessibilityElement(true)
-        setAccessibilityRole(.staticText)
+        setAccessibilityRole(.button)
     }
 
     required init?(coder: NSCoder) { fatalError() }
 
     func apply(_ m: GroupHeaderRowModel) {
         guard m != model else { return }
+        let turned = model.map { $0.id == m.id && $0.collapsed != m.collapsed } ?? false
         model = m
         titleLabel.stringValue = m.title
         titleLabel.textColor = colors.sectionTitle
+        countLabel.stringValue = m.collapsed && m.tabCount > 0 ? "\(m.tabCount)" : ""
+        countLabel.textColor = colors.textTertiary
+        chevron.contentTintColor = colors.textSecondary
         setAccessibilityLabel(m.title)
+        setAccessibilityValue(m.collapsed ? "collapsed" : "expanded")
+        if turned { turnChevron() } else if chevronTurn == nil { chevron.frameCenterRotation = m.collapsed ? 90 : 0 }
+        if m.editing != (renameField != nil) { m.editing ? beginRename(m.title) : endRename() }
+        refreshChevron()
         needsLayout = true
     }
 
     override func setColors(_ c: SidebarColors) {
         guard c != colors else { return }
         super.setColors(c)
-        for b in buttons { b.colors = c }
         if let m = model { model = nil; apply(m) }
     }
 
     override func hoverChanged() {
         super.hoverChanged()
-        if isHovered, buttons.isEmpty, let m = model, let list {
-            let id = m.id
-            let folder = SidebarGlyphButton(symbol: "folder.badge.plus", size: 26, iconSize: 13, weight: .regular,
-                                            help: "Create Folder", colors: colors) { [weak list] in
-                guard let list, let f = list.store.folderFromGroup(id) else { return }
-                list.store.setExpanded(f.id, true)
-            }
-            let close = SidebarGlyphButton(symbol: "xmark", size: 26, iconSize: 13, help: "", colors: colors) { [weak list] in
-                guard let list else { return }
-                list.closeTabs(list.store.tabs(under: id).map(\.id))
-            }
-            close.setCloseMark(minus: false, help: "Close tab group")
-            buttons = [folder, close]
-            buttons.forEach(addSubview)
-            needsLayout = true
-        } else if !isHovered {
-            buttons.forEach { $0.removeFromSuperview() }
-            buttons = []
+        refreshChevron()
+    }
+
+    /// The chevron shows under the pointer, and always while the section is collapsed.
+    private func refreshChevron() {
+        let shown = isHovered || model?.collapsed == true
+        chevronBox.alphaValue = shown && renameField == nil ? 1 : 0
+    }
+
+    // MARK: Chevron
+
+    /// Down while open, right while collapsed, turned a quarter on the space header's spring
+    /// (SpringMotion.disclosure) one display frame at a time: AppKit's own rotation, as a rotation set
+    /// on the layer is reset by its layer geometry. A click while it turns picks it up where it is.
+    private func turnChevron() {
+        let degrees: CGFloat = model?.collapsed == true ? 90 : 0
+        guard window != nil, !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else {
+            stopChevron()
+            chevron.frameCenterRotation = degrees
+            return
+        }
+        chevronTurn = (CACurrentMediaTime(), chevron.frameCenterRotation, degrees)
+        if chevronLink == nil {
+            let l = displayLink(target: self, selector: #selector(stepChevron))
+            l.add(to: .main, forMode: .common)
+            chevronLink = l
         }
     }
+
+    private var chevronTurn: (start: CFTimeInterval, from: CGFloat, to: CGFloat)?
+    private var chevronLink: CADisplayLink?
+
+    @objc private func stepChevron(_ link: CADisplayLink) {
+        guard let turn = chevronTurn else { stopChevron(); return }
+        let spring = SpringMotion.disclosure
+        let t = link.targetTimestamp - turn.start
+        guard t < spring.settlingDuration else {
+            chevron.frameCenterRotation = turn.to
+            stopChevron()
+            return
+        }
+        chevron.frameCenterRotation = turn.to + (turn.from - turn.to) * CGFloat(spring.offset(at: t))
+    }
+
+    private func stopChevron() {
+        chevronTurn = nil
+        chevronLink?.invalidate()
+        chevronLink = nil
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if window == nil, let turn = chevronTurn {
+            stopChevron()
+            chevron.frameCenterRotation = turn.to
+        }
+    }
+
+    // MARK: Layout
 
     override func layout() {
         super.layout()
         let h = bounds.height
-        // Arc: the ✕ ends 5 pt in from the row, the folder button right before it.
-        var right = bounds.width - 5
-        for b in buttons.reversed() {
-            b.frame = NSRect(x: right - b.size.width, y: (h - b.size.height) / 2, width: b.size.width, height: b.size.height)
-            right = b.frame.minX
+        // The chevron ends 9 pt in from the row; a collapsed section's count sits 4 pt before it.
+        let box = NSRect(x: bounds.width - 9 - 16, y: (h - 16) / 2, width: 16, height: 16)
+        chevronBox.frame = box
+        var right = box.minX
+        if !countLabel.stringValue.isEmpty {
+            // Its box takes the text's whole width and the field's padding on both sides, so the last
+            // digit isn't clipped (12 Nov 2026).
+            let cs = countLabel.intrinsicContentSize
+            let w = ceil(cs.width) + 2 * SidebarText.inset + 2
+            countLabel.frame = NSRect(x: right - 4 - w + SidebarText.inset, y: (h - cs.height) / 2, width: w, height: cs.height)
+            right = countLabel.frame.minX + SidebarText.inset
+        } else {
+            countLabel.frame = .zero
         }
         let x = CraMetrics.rowLeading
         let th = titleLabel.intrinsicContentSize.height
         titleLabel.frame = NSRect(x: x - SidebarText.inset, y: (h - th) / 2, width: max(0, right - 8 - x) + 2 * SidebarText.inset, height: th)
+        if let f = renameField {
+            let fh = f.intrinsicContentSize.height
+            f.frame = NSRect(x: x - SidebarText.inset, y: (h - fh) / 2, width: max(0, bounds.width - 8 - x + SidebarText.inset), height: fh)
+        }
     }
+
+    // MARK: Clicks
+
+    /// Any click collapses or expands the section, at once (12 Nov 2026: no double-click rename, so no
+    /// wait for one). Rename is in its menu, and a new section starts with its name being typed.
+    override func click(_ event: NSEvent, at point: NSPoint) {
+        guard let m = model, !m.editing else { return }
+        toggle()
+    }
+
+    private func toggle() {
+        guard let m = model, let list else { return }
+        list.store.setExpanded(m.id, m.collapsed)
+    }
+
+    override func accessibilityPerformPress() -> Bool {
+        guard model != nil else { return false }
+        toggle()
+        return true
+    }
+
+    /// The header drags its section among Today's items (SpaceListView.sectionTarget), tabs and all.
+    override func dragItemID(at point: NSPoint) -> UUID? { model?.editing == true ? nil : model?.id }
 
     override func contextMenu(at point: NSPoint) -> NSMenu? {
         guard let m = model, let list else { return nil }
-        return SidebarMenus.tabGroup(m.id, list: list)
+        return SidebarMenus.tabGroup(m.id, collapsed: m.collapsed, list: list)
+    }
+
+    // MARK: Rename
+
+    private func beginRename(_ text: String) {
+        let f = NSTextField(string: text)
+        f.isBordered = false
+        f.drawsBackground = false
+        f.focusRingType = .none
+        f.font = .systemFont(ofSize: 13, weight: .semibold)
+        f.textColor = colors.textPrimary
+        f.delegate = self
+        f.cell?.isScrollable = true
+        renameField = f
+        addSubview(f)
+        titleLabel.isHidden = true
+        countLabel.isHidden = true
+        refreshChevron()
+        needsLayout = true
+        DispatchQueue.main.async { [weak self, weak f] in
+            guard let f, let w = self?.window else { return }
+            w.makeFirstResponder(f)
+            f.currentEditor()?.selectAll(nil)
+        }
+        // A click outside the field (anywhere in Pane: the sidebar, another row, the page) keeps what was
+        // typed and ends the rename; the click then does what it does.
+        clickOutside = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]) { [weak self, weak f] event in
+            guard let self, let f, self.renameField === f else { return event }
+            let inside = event.window === f.window && f.bounds.contains(f.convert(event.locationInWindow, from: nil))
+            if !inside { self.commitRename() }
+            return event
+        }
+    }
+
+    private func endRename() {
+        if let m = clickOutside { NSEvent.removeMonitor(m) }
+        clickOutside = nil
+        guard let f = renameField else { return }
+        renameField = nil
+        f.delegate = nil
+        if let w = window, let editor = f.currentEditor(), w.firstResponder === editor { w.makeFirstResponder(nil) }
+        f.removeFromSuperview()
+        titleLabel.isHidden = false
+        countLabel.isHidden = false
+        refreshChevron()
+    }
+
+    private func commitRename() {
+        guard let m = model, let list, list.ui.renamingID == m.id, let f = renameField else { return }
+        let name = f.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !name.isEmpty, name != m.title { list.store.undoable("Rename Section") { list.store.rename(m.id, to: name) } }
+        list.ui.renamingID = nil
+        CraLog.note("section rename ended: \(name.isEmpty ? m.title : name)")
+    }
+
+    func control(_ control: NSControl, textView: NSTextView, doCommandBy sel: Selector) -> Bool {
+        if sel == #selector(NSResponder.cancelOperation(_:)) { list?.ui.renamingID = nil; return true }
+        if sel == #selector(NSResponder.insertNewline(_:)) { commitRename(); return true }
+        return false
+    }
+
+    func controlTextDidEndEditing(_ obj: Notification) { commitRename() }
+}
+
+/// Where a section ends and ungrouped Today items go on (12 Nov 2026): a short hairline, so the tabs
+/// after it don't read as the section's own. It takes no clicks or hover; a drop on it goes right
+/// after the section, ungrouped (SpaceListView.resolve).
+final class SectionEndRowView: SidebarRowView {
+    static let height: CGFloat = 9
+    private let line = NSView()
+
+    override init(key: SpaceListView.RowKey, list: SpaceListView, colors: SidebarColors) {
+        super.init(key: key, list: list, colors: colors)
+        line.wantsLayer = true
+        addSubview(line)
+        setAccessibilityElement(false)
+        refresh()
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func setColors(_ c: SidebarColors) {
+        super.setColors(c)
+        refresh()
+    }
+
+    private func refresh() { line.layer?.backgroundColor = colors.separator.withAlphaComponent(0.55).cgColor }
+
+    override func baseFill() -> NSColor { .clear }
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+    override func layout() {
+        super.layout()
+        // From the tabs' icon column to the row's end, as the pinned divider runs.
+        let x = CraMetrics.rowLeading
+        line.frame = NSRect(x: x, y: ((bounds.height - 1) / 2).rounded(), width: max(0, bounds.width - x - 8), height: 1)
     }
 }
 

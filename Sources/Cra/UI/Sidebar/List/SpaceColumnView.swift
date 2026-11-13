@@ -549,9 +549,12 @@ enum MenuItems {
         @objc func fire() { run() }
     }
 
+    /// Every row's change to the sidebar is one ⌘Z step under its title (SidebarMenus.record; a row that
+    /// changes no item or archive entry leaves none). Inside a step already named, it is part of that one.
     @discardableResult
     static func add(_ menu: NSMenu, _ title: String, enabled: Bool = true, on: Bool? = nil, image: NSImage? = nil, _ run: @escaping () -> Void) -> NSMenuItem {
-        let a = Action(run)
+        let name = SidebarMenus.undoName(title)
+        let a = Action { SidebarMenus.record(name, run) }
         let item = NSMenuItem(title: title, action: #selector(Action.fire), keyEquivalent: "")
         item.target = a
         item.representedObject = a
@@ -638,7 +641,8 @@ final class FavoritesGridView: NSView {
         wantsLayer = true
         strip.onDrop = { [weak self] id in
             guard let self else { return false }
-            self.store.addToFavorites(id, in: self.spaceID)
+            // One ⌘Z step (SidebarUndo).
+            self.store.undoable("Add to Favorites") { self.store.addToFavorites(id, in: self.spaceID) }
             return true
         }
         strip.onTargetChange = { [weak self] _ in self?.onHeightChange(true) }
@@ -964,10 +968,14 @@ final class FavoritesGridView: NSView {
         let children = store.item(container)?.children ?? []
         let resting = order.filter { $0 != d.id }
         let index = d.slot < resting.count ? (children.firstIndex(of: resting[d.slot]) ?? children.count) : children.count
-        if order.contains(d.id) {
-            store.moveItem(d.id, to: container, index: index)
-        } else {
-            store.addToFavorites(d.id, in: spaceID, at: index)
+        // One ⌘Z step (SidebarUndo).
+        let reorder = order.contains(d.id), sid = spaceID
+        store.undoable(reorder ? "Move Favorite" : "Add to Favorites") {
+            if reorder {
+                store.moveItem(d.id, to: container, index: index)
+            } else {
+                store.addToFavorites(d.id, in: sid, at: index)
+            }
         }
         if store.settings.hapticFeedbackOnReorder {
             NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .drawCompleted)

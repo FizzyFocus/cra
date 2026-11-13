@@ -9,16 +9,27 @@ enum SidebarMenus {
         return m
     }
 
+    /// Runs what a sidebar menu item does to the sidebar as one step ⌘Z takes back, under `name`
+    /// (SidebarStore.undoable; the app sets it). A row that changes nothing leaves no step.
+    static var record: (_ name: String, _ body: () -> Void) -> Void = { _, body in body() }
+
+    /// The step's name for a row: its title without the ellipsis ("Rename…" → "Rename").
+    static func undoName(_ title: String) -> String { title.hasSuffix("…") ? String(title.dropLast()) : title }
+
+    /// `undo`: the step's name where the title won't do (a space's or a folder's name in a submenu).
     @discardableResult
-    private static func add(_ menu: NSMenu, _ title: String, enabled: Bool = true, on: Bool? = nil, _ run: @escaping () -> Void) -> NSMenuItem {
-        MenuItems.add(menu, title, enabled: enabled, on: on, run)
+    private static func add(_ menu: NSMenu, _ title: String, enabled: Bool = true, on: Bool? = nil, undo: String? = nil,
+                            _ run: @escaping () -> Void) -> NSMenuItem {
+        let name = undo ?? undoName(title)
+        return MenuItems.add(menu, title, enabled: enabled, on: on) { record(name, run) }
     }
 
     /// A row for a KeyBindings command, with its shortcut (MenuItems.add(_:action:)).
     @discardableResult
     private static func add(_ menu: NSMenu, action id: String, _ title: String? = nil, enabled: Bool = true, on: Bool? = nil,
                             _ run: @escaping () -> Void) -> NSMenuItem {
-        MenuItems.add(menu, action: id, title: title, enabled: enabled, on: on, run)
+        let name = undoName(title ?? KeyBindingRegistry.shared.action(id)?.name ?? id)
+        return MenuItems.add(menu, action: id, title: title, enabled: enabled, on: on) { record(name, run) }
     }
 
     private static func note(_ menu: NSMenu, _ title: String) {
@@ -63,9 +74,29 @@ enum SidebarMenus {
     // MARK: Tab groups
 
     /// Arc's Tab Group Context Menu: one item, "Remove header" (the tabs stay, loose).
-    static func tabGroup(_ id: UUID, list: SpaceListView) -> NSMenu {
+    /// A Section's header (TabGroups, 12 Nov 2026, the owner's call): what its hover buttons did (Arc's
+    /// Create Folder, and its ✕ that archived the section) is here, with collapsing, renaming and
+    /// moving the section among Today's items. Each is one ⌘Z step.
+    static func tabGroup(_ id: UUID, collapsed: Bool, list: SpaceListView) -> NSMenu {
         let menu = menu()
-        add(menu, "Remove header") { list.store.removeGroupHeader(id) }
+        let store = list.store
+        add(menu, collapsed ? "Expand Section" : "Collapse Section") { store.setExpanded(id, collapsed) }
+        add(menu, "Rename Section…") { list.ui.renamingID = id }
+        add(menu, "Move Section Up", enabled: store.canMoveTabGroup(id, .up)) { store.moveTabGroup(id, .up) }
+        add(menu, "Move Section Down", enabled: store.canMoveTabGroup(id, .down)) { store.moveTabGroup(id, .down) }
+        menu.addItem(.separator())
+        // Arc's "Create Folder": an open folder at the top of Pinned with the section's tabs.
+        add(menu, "Convert Section to Folder") {
+            guard let f = store.folderFromGroup(id) else { return }
+            store.setExpanded(f.id, true)
+        }
+        // Arc's "Remove header": the tabs stay where they are, loose.
+        add(menu, "Remove Section") { store.removeGroupHeader(id) }
+        menu.addItem(.separator())
+        let count = store.tabs(under: id).count
+        add(menu, "Archive Section Tabs", enabled: count > 0) {
+            list.closeTabs(store.tabs(under: id).map(\.id))
+        }
         return menu
     }
 
@@ -136,9 +167,16 @@ enum SidebarMenus {
         menu.addItem(.separator())
         let spaces = submenu(menu, "Move to Space")
         for s in store.orderedSpaces {
-            add(spaces, s.labeled, enabled: !store.isInSpace(id, s.id)) { store.moveTab(id, toSpace: s.id, window: ui.windowID) }
+            add(spaces, s.labeled, enabled: !store.isInSpace(id, s.id), undo: "Move Tab to Space") { store.moveTab(id, toSpace: s.id, window: ui.windowID) }
         }
         folderItems(menu, [id], list: list)
+        // A Section made by hand over this tab, its name selected to type over (TabGroups).
+        if !m.pinned, let sid = store.spaceID(ofItem: id), store.canMakeSection(with: [id], in: sid) {
+            add(menu, "New Section") {
+                guard let g = store.createSection(TabGroups.newName, with: [id], in: sid) else { return }
+                ui.renamingID = g.id
+            }
+        }
         menu.addItem(.separator())
         if m.pinned {
             if store.isSelected(id, window: ui.windowID) || ui.loadedTabIDs.contains(id) {
@@ -209,7 +247,7 @@ enum SidebarMenus {
                     let sub = submenu(menu, title)
                     let own = store.spaceID(ofItem: ids[0])
                     for s in store.orderedSpaces {
-                        add(sub, s.labeled, on: s.id == own) {
+                        add(sub, s.labeled, on: s.id == own, undo: "Move Tabs to Space") {
                             guard s.id != own else { return }
                             for id in ids { store.moveTab(id, toSpace: s.id, window: ui.windowID) }
                             ui.clearPicks()
@@ -219,6 +257,15 @@ enum SidebarMenus {
                     add(sub, "New Space…") { actions.newSpaceWith(ids) }
                 case "newFolder":
                     add(menu, title) { ui.renamingID = store.createFolder(with: ids).id }
+                    // The picked Today tabs under a new Section header, its name selected (TabGroups).
+                    // Its count is the Today tabs among the picks: pinned ones stay where they are.
+                    if let sid = store.spaceID(ofItem: clicked), case let joining = store.sectionCandidates(ids, in: sid), !joining.isEmpty {
+                        add(menu, "New Section with \(joining.count) \(joining.count == 1 ? "Tab" : "Tabs")") {
+                            guard let g = store.createSection(TabGroups.newName, with: ids, in: sid) else { return }
+                            ui.clearPicks()
+                            ui.renamingID = g.id
+                        }
+                    }
                 case "archive":
                     // Arc archives every pick, pinned ones too, without asking; a Today tab goes as ⌘W does.
                     add(menu, title) {
@@ -252,7 +299,7 @@ enum SidebarMenus {
         if !folders.isEmpty {
             let sub = submenu(menu, ids.count > 1 ? "Move \(ids.count) Tabs to Folder" : "Move to Folder")
             for f in folders {
-                add(sub, f.title ?? "Folder", enabled: !ids.allSatisfy { store.item($0)?.parentID == f.id }) {
+                add(sub, f.title ?? "Folder", enabled: !ids.allSatisfy { store.item($0)?.parentID == f.id }, undo: "Move to Folder") {
                     store.moveItems(ids, to: f.id, index: nil)
                 }
             }

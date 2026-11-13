@@ -139,7 +139,8 @@ final class ArcTooltipController {
 
     private func show(for view: any ArcTooltipTarget) {
         cancelPending()
-        guard let window = view.hostWindow, !view.text.isEmpty else { return }
+        // Not while a mouse button is held: a drag (a tab, a section) shows no tips on the way (12 Nov 2026).
+        guard let window = view.hostWindow, !view.text.isEmpty, NSEvent.pressedMouseButtons == 0 else { return }
         removePanel()
         let p = LittleTooltipPanel()
         let option = NSEvent.modifierFlags.contains(.option) ? view.optionText : nil

@@ -842,6 +842,9 @@ public struct WindowPrefs: Codable, Equatable {
     public var favoritesEmptyStateDismissed: Set<UUID> = []
     /// Closed folders that keep tabs in sight (FolderPeek): folder → its peeked tabs.
     public var peekedFolders: [UUID: [UUID]] = [:]
+    /// Tidy Tabs' groups collapsed under their header (TabGroups, 12 Nov 2026). Absent from the file
+    /// until one is collapsed, so files written before load and save unchanged.
+    public var collapsedTabGroups: Set<UUID>?
     /// Open browser windows, restored at launch. Never empty.
     public var windows: [WindowSession] = [WindowSession()]
 
@@ -1020,6 +1023,7 @@ extension WindowPrefs {
         collapsedPinnedSpaces = try c.decodeIfPresent(Set<UUID>.self, forKey: .collapsedPinnedSpaces) ?? []
         favoritesEmptyStateDismissed = try c.decodeIfPresent(Set<UUID>.self, forKey: .favoritesEmptyStateDismissed) ?? []
         peekedFolders = (try? c.decodeIfPresent([UUID: [UUID]].self, forKey: .peekedFolders)) ?? [:]
+        collapsedTabGroups = (try? c.decodeIfPresent(Set<UUID>.self, forKey: .collapsedTabGroups)).flatMap { $0.isEmpty ? nil : $0 }
         if let saved = try? c.decodeIfPresent([WindowSession].self, forKey: .windows), !saved.isEmpty {
             windows = saved
         } else {

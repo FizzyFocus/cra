@@ -4,18 +4,48 @@ import Testing
 
 /// Arc's Tidy Tabs with the Mac's own model: what the sidebar makes of the model's answer.
 struct TidyTabsTests {
-    @Test func offeredFromSixTodayTabsUntilTidied() {
-        let six = ["a", "b", "c", "d", "e", "f"]
-        #expect(TidyTabs.offers(todayTabs: 6, looseTabs: six, tidied: nil))
-        #expect(!TidyTabs.offers(todayTabs: 5, looseTabs: Array(six.prefix(5)), tidied: nil))
-        // Grouped tabs count (Arc: two loose and six grouped offered Tidy); nothing loose, nothing to do.
-        #expect(TidyTabs.offers(todayTabs: 8, looseTabs: ["a", "b"], tidied: nil))
-        #expect(!TidyTabs.offers(todayTabs: 8, looseTabs: [String](), tidied: nil))
-        // After a run (even one that grouped nothing) the tabs it saw don't bring it back…
-        #expect(!TidyTabs.offers(todayTabs: 6, looseTabs: six.reversed(), tidied: Set(six)))
-        #expect(!TidyTabs.offers(todayTabs: 6, looseTabs: ["a"], tidied: Set(six)))
-        // …a new tab does.
-        #expect(TidyTabs.offers(todayTabs: 7, looseTabs: ["a", "g"], tidied: Set(six)))
+    /// The owner's rule (12 Nov 2026): Tidy is on the divider whenever Today holds more than 10 tabs,
+    /// with fewer while Shift is held, and only with a loose tab left to sort.
+    @Test func shownAboveTenTodayTabsOrWithShift() {
+        #expect(TidyTabs.visibility(todayTabs: 11, looseTabs: 3) == .shown)
+        #expect(TidyTabs.visibility(todayTabs: 10, looseTabs: 10) == .withShift, "ten is not more than ten")
+        #expect(TidyTabs.visibility(todayTabs: 2, looseTabs: 2) == .withShift)
+        // Grouped tabs count towards the ten; nothing loose, nothing to tidy.
+        #expect(TidyTabs.visibility(todayTabs: 14, looseTabs: 1) == .shown)
+        #expect(TidyTabs.visibility(todayTabs: 14, looseTabs: 0) == .hidden)
+        #expect(TidyTabs.shows(.shown, shiftHeld: false) && TidyTabs.shows(.shown, shiftHeld: true))
+        #expect(!TidyTabs.shows(.withShift, shiftHeld: false) && TidyTabs.shows(.withShift, shiftHeld: true))
+        #expect(!TidyTabs.shows(.hidden, shiftHeld: true))
+    }
+
+    /// A collapsed group lists only what holds the open tab, as a closed folder does.
+    @Test func aCollapsedGroupKeepsItsOpenTabInSight() {
+        let kids = ["a", "split", "c"]
+        #expect(TabGroups.listed(children: kids, collapsed: false, holdsOpenTab: { _ in false }) == kids)
+        #expect(TabGroups.listed(children: kids, collapsed: true, holdsOpenTab: { _ in false }).isEmpty)
+        #expect(TabGroups.listed(children: kids, collapsed: true, holdsOpenTab: { $0 == "split" }) == ["split"])
+    }
+
+    /// A section made by hand goes where its first pick is: in a loose tab's place, after a section holding it.
+    @Test func aNewSectionGoesWhereItsFirstPickIs() {
+        let today = ["t1", "S1", "t2", "t3"]
+        let inS1: Set<String> = ["s1a", "s1b"]
+        let top = { (p: String) -> String? in inS1.contains(p) ? "S1" : (today.contains(p) ? p : nil) }
+        #expect(TabGroups.newSectionIndex(picked: ["t2", "t3"], today: today, topLevel: top) == 2)
+        #expect(TabGroups.newSectionIndex(picked: ["s1b", "t3"], today: today, topLevel: top) == 2, "after the section holding the first pick")
+        #expect(TabGroups.newSectionIndex(picked: ["pinned"], today: today, topLevel: top) == nil)
+        #expect(TabGroups.noun == "Section")
+    }
+
+    /// Move Up / Move Down swap a group with the next group that way; loose tabs keep their places.
+    @Test func groupsMovePastTheNextGroupOnly() {
+        let today = ["t1", "G1", "t2", "G2", "G3"]
+        let isGroup = { (id: String) in id.hasPrefix("G") }
+        #expect(TabGroups.moving("G2", .up, in: today, isGroup: isGroup) == ["t1", "G2", "t2", "G1", "G3"])
+        #expect(TabGroups.moving("G2", .down, in: today, isGroup: isGroup) == ["t1", "G1", "t2", "G3", "G2"])
+        #expect(TabGroups.moving("G1", .up, in: today, isGroup: isGroup) == nil)
+        #expect(TabGroups.moving("G3", .down, in: today, isGroup: isGroup) == nil)
+        #expect(TabGroups.moving("t1", .down, in: today, isGroup: isGroup) == nil, "a loose tab isn't a group")
     }
 
     @Test func promptListsTabsWithIdsAndExistingGroups() {
