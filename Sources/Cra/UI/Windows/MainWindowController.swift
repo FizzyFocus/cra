@@ -2952,8 +2952,9 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
                   event.hasPreciseScrollingDeltas else { return event }
             switch event.phase {
             case .mayBegin, .began:
+                // Create a Space open: no swipe pages the spaces under it (CreateSpaceSlide).
                 let inSidebar = (self.shell.sidebarVisible || self.shell.floatingSidebar) && event.window === host.window
-                    && host.bounds.contains(host.convert(event.locationInWindow, from: nil))
+                    && host.bounds.contains(host.convert(event.locationInWindow, from: nil)) && self.spaceGesturesAllowed
                 // In the Library a swipe can only take it back out; on the Spaces page the cards
                 // scroll first, and only a swipe that starts with them at their end leaves (Arc).
                 var overSidebar = inSidebar
@@ -3214,7 +3215,8 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
     /// wrapping as Spaces ▸ Previous/Next Space do (Arc's SidebarView, issue #233). Returns false
     /// for any other button, or one released anywhere else.
     func mouseButtonSwitchesSpace(_ button: Int, _ event: NSEvent) -> Bool {
-        guard let offset = MouseButtonSpaceSwitch.offset(buttonNumber: button), isOverSidebar(event) else { return false }
+        guard let offset = MouseButtonSpaceSwitch.offset(buttonNumber: button), isOverSidebar(event),
+              spaceGesturesAllowed else { return false }
         store.focusSpace(offset: offset, window: windowID)
         return true
     }
@@ -3242,7 +3244,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
     /// slides in, as a swipe would bring it (Arc 1.171, WheelSpaceSwitch). Returns false for a
     /// wheel the sidebar doesn't take.
     private func wheelSwitchesSpace(_ event: NSEvent) -> Bool {
-        guard isOverSidebar(event) else { return false }
+        guard isOverSidebar(event), spaceGesturesAllowed else { return false }
         let dx = event.scrollingDeltaX
         // On the Spaces page the cards scroll first; once they can't scroll that way the wheel pages,
         // which leaves the Library when it heads for the next space, and over the rail it leaves at
@@ -3262,8 +3264,15 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
         return true
     }
 
+    /// Swipes, a sideways wheel and a mouse's back and forward buttons may switch spaces: not while
+    /// Create a Space is open (CreateSpaceSlide), which only Cancel or Create Space closes.
+    private var spaceGesturesAllowed: Bool {
+        CreateSpaceSlide.allowsSpaceGesture(creatingSpace: sidebarUI.creatingSpace != nil)
+    }
+
     /// A space swipe of `steps` trackpad samples `dx` apart, 8 ms apart (cra://debug?swipe=).
     func debugSpaceSwipe(dx: CGFloat, steps: Int) {
+        guard spaceGesturesAllowed else { CraLog.note("space swipe ignored: Create a Space is open"); return }
         beginSpaceSwipe()
         for i in 1...max(1, steps) {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.008 * Double(i)) { [weak self] in
@@ -4583,10 +4592,15 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
         for p in window?.childWindows ?? [] where p is StyleEditorPanel { p.close() }
         if let id = createPreviewSpace { store.endThemePreview(forSpace: id, keep: false) }
         createPreviewSpace = nil
+        let made = create && model.isValid
+        // Cancel slides the card back out; Create Space goes on to the new space, which the pager
+        // shows at once (no page spring under the slide).
+        sidebarUI.createSpaceExit = made ? .creating : .cancelling
+        sidebarUI.pagerJumpsOnce = made
         sidebarUI.creatingSpace = nil
         let completion = createCompletion
         createCompletion = nil
-        if create, model.isValid {
+        if made {
             let id = store.createSpace(title: model.trimmedName, emoji: model.icon.emoji, symbol: model.icon.symbol, theme: model.theme).id
             switch model.profile {
             case .existing(let p): store.setProfile(p, forSpace: id)

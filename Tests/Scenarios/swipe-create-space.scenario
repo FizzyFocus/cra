@@ -1,10 +1,25 @@
 # Swiping on past the last space fills a ring round a +, a tick each quarter; letting go with it
 # full opens Create a Space, the new space going at the end (10 Nov 2026; SpaceCreateSwipe).
+# 12 Nov 2026 (the owner's call): it takes a whole sidebar's width past the last space, so a casual
+# swipe doesn't open it; it slides in as the page after the last space (CreateSpaceSlide) and the
+# space gestures do nothing until Cancel or Create Space.
 cra://debug?windowSize=1280x800
 wait 2
-cra://debug?swipe=-14,24
+# About half a sidebar past the last space (what used to fill the ring): nothing opens.
+cra://debug?swipe=-14,12
+wait 1
+reject-log swipe past the last space opens Create a Space
+# A long, deliberate swipe: it opens, sliding in.
+cra://debug?swipe=-16,32
 wait 1
 expect-log swipe past the last space opens Create a Space
+expect-log create a space slides: opening
+expect-log create a space slid: card
 cra://debug?windowState=creating
 expect-log window state creating: main0 .*docked=1
+# Open, a swipe doesn't page the spaces under it.
+cra://debug?swipe=14,24
+expect-log space swipe ignored: Create a Space is open
 cra://debug?createSpace=cancel
+expect-log create a space slides: cancelling
+expect-log create a space slid: list

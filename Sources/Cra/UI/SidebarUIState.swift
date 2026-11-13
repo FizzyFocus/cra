@@ -19,6 +19,12 @@ final class SidebarUIState {
     var renameSpaceRequest: UUID?
     /// Create a Space is open in this window's sidebar, in place of its content (CreateSpaceSheet).
     var creatingSpace: CreateSpaceModel?
+    /// How Create a Space closed last: Cancel slides it back out, Create Space goes on to the new
+    /// space (CreateSpaceSlide). Set before `creatingSpace` goes nil.
+    @ObservationIgnored var createSpaceExit: CreateSpaceSlide.Move = .cancelling
+    /// The space pager goes straight to the next space it shows, without its page spring: Create
+    /// Space's own slide brings the new space in.
+    @ObservationIgnored var pagerJumpsOnce = false
     /// The ⌘T bar is open for a new tab: the focused space's New Tab row is the active row,
     /// filled like the selected tab, which loses its fill (Arc: isCommandBarNewTabPlaceholderActive).
     var newTabPlaceholderActive = false

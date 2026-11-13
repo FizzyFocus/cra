@@ -181,24 +181,29 @@ final class SidebarView: NSView {
 
     // MARK: Create a Space
 
-    /// Create a Space comes in where the favorites and the tab list were, which fade out under it;
-    /// the top row and the dock stay. Closing gives them back.
+    /// Create a Space is the page after the last space (CreateSpaceSlide): it slides in from the
+    /// right where the favorites and the tab list were, which slide out to the left, on the spring
+    /// the Library slides in on; the top row and the dock stay. Cancel slides them back, Create
+    /// Space goes on to the new space, whose list comes in from the right.
     private func showCreateSpace(_ model: CreateSpaceModel?) {
         guard model !== createHost?.rootView.model else { return }
         if let old = createHost {
             createHost = nil
-            NSAnimationContext.runAnimationGroup { ctx in
-                ctx.duration = 0.12
-                ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
-                old.animator().alphaValue = 0
-                for v in createCovers { v.isHidden = false; v.animator().alphaValue = 1 }
-            } completionHandler: {
+            leavingCreateHost?.removeFromSuperview()
+            if model == nil {
+                leavingCreateHost = old
+                for v in createCovers { v.isHidden = false; v.alphaValue = 1 }
+                // The downloads tray shows only with downloads to list (updateTrayMask's rule).
+                trayHost.isHidden = DownloadHistory.shared.recent.isEmpty
+                startCreateSlide(ui.createSpaceExit)
+            } else {
                 old.removeFromSuperview()
             }
-            // The downloads tray shows only with downloads to list (updateTrayMask's rule).
-            trayHost.isHidden = DownloadHistory.shared.recent.isEmpty
         }
         guard let model else { return }
+        // Opened again while the last one slides out: that one goes at once.
+        leavingCreateHost?.removeFromSuperview()
+        leavingCreateHost = nil
         let host = NSHostingView(rootView: CreateSpaceSheet(model: model))
         host.sizingOptions = []
         model.toScreen = { [weak host] r in
@@ -208,23 +213,71 @@ final class SidebarView: NSView {
         }
         tabs.addSubview(host)
         createHost = host
-        layoutCreateHost()
-        NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = 0.12
-            ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
-            for v in createCovers { v.animator().alphaValue = 0 }
-        } completionHandler: { [weak self] in
-            // Faded isn't gone: the favorites' tooltips and the list's hover would still answer.
-            guard let self, self.createHost === host else { return }
-            for v in self.createCovers { v.isHidden = true }
-        }
+        for v in createCovers { v.alphaValue = 1 }
+        startCreateSlide(.opening)
     }
 
-    /// Between the top row and the dock.
+    /// The Create a Space slide on screen: the move, when it started and the progress it started from.
+    private var createSlide: (move: CreateSpaceSlide.Move, start: CFTimeInterval, from: Double)?
+    private var createSlideLink: CADisplayLink?
+    /// The card on its way out after Cancel or Create Space; it goes when the slide ends.
+    private var leavingCreateHost: NSHostingView<CreateSpaceSheet>?
+    /// Where the card and the space's list sit now, in column widths (CreateSpaceSlide.offsets).
+    private var createOffsets: (card: Double, list: Double) = (0, 0)
+
+    private func startCreateSlide(_ move: CreateSpaceSlide.Move) {
+        // One still sliding is taken over from where its card is (Cancel while it comes in).
+        let from = createSlide == nil ? 0 : CreateSpaceSlide.progress(move, card: createOffsets.card)
+        createSlide = (move, CACurrentMediaTime(), from)
+        createOffsets = CreateSpaceSlide.offsets(move, progress: from)
+        // Neither page shows outside the column, as in the Library's slide.
+        layer?.masksToBounds = true
+        CraLog.note("create a space slides: \(move)")
+        guard window != nil else { return finishCreateSlide() }
+        if createSlideLink == nil {
+            let link = displayLink(target: self, selector: #selector(stepCreateSlide))
+            link.add(to: .main, forMode: .common)
+            createSlideLink = link
+        }
+        needsLayout = true
+    }
+
+    @objc private func stepCreateSlide(_ link: CADisplayLink) {
+        guard let s = createSlide else { return finishCreateSlide() }
+        let t = link.targetTimestamp - s.start
+        if CreateSpaceSlide.isDone(at: t, from: s.from, width: Double(max(1, tabs.bounds.width))) { return finishCreateSlide() }
+        createOffsets = CreateSpaceSlide.offsets(s.move, progress: CreateSpaceSlide.progress(at: t, from: s.from))
+        needsLayout = true
+        layoutSubtreeIfNeeded()
+    }
+
+    private func finishCreateSlide() {
+        createSlideLink?.invalidate()
+        createSlideLink = nil
+        createSlide = nil
+        leavingCreateHost?.removeFromSuperview()
+        leavingCreateHost = nil
+        if createHost != nil {
+            createOffsets = (0, -1)
+            // Out of sight isn't gone: the favorites' tooltips and the list's hover would still answer.
+            for v in createCovers { v.isHidden = true }
+        } else {
+            createOffsets = (0, 0)
+        }
+        if ui.libraryReveal == nil { layer?.masksToBounds = false }
+        CraLog.note("create a space slid: \(createHost == nil ? "list" : "card")")
+        needsLayout = true
+    }
+
+    /// Between the top row and the dock, as far across as the slide has it.
     private func layoutCreateHost() {
-        guard let host = createHost else { return }
+        let w = tabs.bounds.width
+        if createOffsets.list != 0 {
+            for v in createCovers { v.frame.origin.x += (createOffsets.list * w).rounded() }
+        }
+        guard let host = createHost ?? leavingCreateHost else { return }
         let top = topBar.frame.maxY
-        host.frame = NSRect(x: 0, y: top, width: tabs.bounds.width, height: max(0, dock.frame.minY - 6 - top))
+        host.frame = NSRect(x: (createOffsets.card * w).rounded(), y: top, width: w, height: max(0, dock.frame.minY - 6 - top))
     }
 
     private var bannerHeight: CGFloat = 0
@@ -379,13 +432,14 @@ final class SidebarView: NSView {
         let listBottom = bannerTop - NowPlayingMetrics.restHeight(cards: player.shownCount)
         pager.frame = NSRect(x: 0, y: th, width: b.width, height: max(0, listBottom - th))
         placeFavorites(animated: false)
-        layoutCreateHost()
         let rows = DownloadHistory.shared.recent.count
         // The rows end just above the list's area; the view runs on down to the Library button
         // (4 pt into the dock), so moving up from the button to the rows never leaves it (11 Nov
         // 2026: the empty strip between closed the list on the way). Only the rows take clicks.
         let listTop = pager.frame.maxY - (DownloadsTrayMetrics.listHeight(rows: rows) + 2) - DownloadsTrayMetrics.bottomClearance
         trayHost.frame = NSRect(x: 0, y: listTop, width: b.width, height: max(0, dock.frame.minY + 4 - listTop))
+        // Last: Create a Space's slide moves the list's parts from where they were just put.
+        layoutCreateHost()
         // At the column's right edge, where the strip pulls away past the last space.
         let side = CreateSpaceSwipeIndicator.side
         createSwipe.frame = NSRect(x: b.width - side - 16, y: (pager.frame.midY - side / 2).rounded(), width: side, height: side)

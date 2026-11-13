@@ -147,6 +147,11 @@ final class SpacePagerView: NSView {
             // Fingers on the trackpad: follow them exactly.
             stopSpring()
             place(index: index, offset: -swipe * width)
+        } else if moved, ui.pagerJumpsOnce {
+            // Create Space slides the new space in itself (CreateSpaceSlide): no page spring under it.
+            ui.pagerJumpsOnce = false
+            stopSpring()
+            place(index: index, offset: 0)
         } else if moved, let shown, abs(shown - CGFloat(index)) > 0.002, width > 0 {
             settle(index: index, from: -(shown - CGFloat(index)) * width)
         } else if let spring, spring.index == index {
