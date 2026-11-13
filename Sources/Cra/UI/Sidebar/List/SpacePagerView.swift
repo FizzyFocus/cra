@@ -100,6 +100,7 @@ final class SpacePagerView: NSView {
     /// The strip at `index`'s page, `offset` points to the right of it.
     private func place(index: Int, offset: CGFloat) {
         let x = -CGFloat(index) * placedWidth + offset
+        if placedWidth > 0 { ui.pagerPlaced(position: CGFloat(index) - offset / placedWidth, width: placedWidth) }
         guard strip.frame.minX != x else { return }
         CATransaction.begin()
         CATransaction.setDisableActions(true)

@@ -140,6 +140,12 @@ final class SidebarUIState {
     /// The space pager and the window tint follow the swipe directly in AppKit, not through SwiftUI.
     @ObservationIgnored private var spaceSwipeObservers: [() -> Void] = []
     func observeSpaceSwipe(_ f: @escaping () -> Void) { spaceSwipeObservers.append(f) }
+    /// Where the space pager's strip shows, in pages, and its page width: SpacePagerView reports
+    /// every place it puts the strip, and the favorites ride along between spaces with lists of
+    /// their own (FavoritesGridView.followPager, FavoritesSlide).
+    @ObservationIgnored private var pagerObservers: [(CGFloat, CGFloat) -> Void] = []
+    func observePager(_ f: @escaping (_ position: CGFloat, _ width: CGFloat) -> Void) { pagerObservers.append(f) }
+    func pagerPlaced(position: CGFloat, width: CGFloat) { for f in pagerObservers { f(position, width) } }
     /// Release velocity for the settle spring, relative to the distance left to travel.
     var spaceSettleVelocity: Double = 0
     /// The strip is springing onto its page (after a swipe or a space change); it takes no

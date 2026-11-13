@@ -595,11 +595,22 @@ enum MenuItems {
 /// One grid per window, in the sidebar's chrome under the URL field and outside the space pager
 /// (SidebarView), like Arc's `sidebarFavoritesCollectionView` beside its pager: switching spaces
 /// by swipe, shortcut or the dock leaves it where it is. It shows the focused space's list, which
-/// is global (one per profile, AppSettings.sharedFavorites); a space with another list (another
-/// profile, or sharing off) cross-fades it in. Its open tile is the focused space's open tab.
+/// is global (one per profile, AppSettings.sharedFavorites). Between spaces with lists of their own
+/// (another profile, or sharing off) each list rides with its space's page, the same slide as the
+/// tabs (followPager, FavoritesSlide, 13 Nov 2026). Its open tile is the focused space's open tab.
 final class FavoritesGridView: NSView {
     /// The focused space, followed in sync().
     private var spaceID: UUID
+    /// A grid that shows this one space's list as it rides in beside the window's own; it takes
+    /// no clicks or drops, and goes once the pages are still again.
+    private let fixedSpace: UUID?
+    /// Those grids, by space, while the pager has another list in sight.
+    private var riders: [UUID: FavoritesGridView] = [:]
+    /// Where the pager last put its strip, in pages, and its page width.
+    private var pagerAt: (position: CGFloat, width: CGFloat)?
+    /// The lists ride with the pages: SidebarView clips them to the sidebar until they are still.
+    var onSlide: (Bool) -> Void = { _ in }
+    private(set) var sliding = false
     let store: SidebarStore
     let ui: SidebarUIState
     let actions: SidebarActions
@@ -631,8 +642,9 @@ final class FavoritesGridView: NSView {
         let slot: Int
     }
 
-    init(store: SidebarStore, ui: SidebarUIState, actions: SidebarActions, favicons: FaviconCache) {
-        spaceID = store.focusedSpaceID(window: ui.windowID)
+    init(store: SidebarStore, ui: SidebarUIState, actions: SidebarActions, favicons: FaviconCache, showing fixedSpace: UUID? = nil) {
+        spaceID = fixedSpace ?? store.focusedSpaceID(window: ui.windowID)
+        self.fixedSpace = fixedSpace
         self.store = store
         self.ui = ui
         self.actions = actions
@@ -661,7 +673,10 @@ final class FavoritesGridView: NSView {
         addSubview(strip)
         addSubview(card)
         addSubview(notesHost)
-        registerForDraggedTypes([.craSidebarItem])
+        if fixedSpace == nil {
+            registerForDraggedTypes([.craSidebarItem])
+            ui.observePager { [weak self] position, width in self?.followPager(position: position, width: width) }
+        }
         sync()
     }
 
@@ -676,10 +691,10 @@ final class FavoritesGridView: NSView {
         var dismissed = true
         var pins: [Pin] = []
         var protectedMedia: String?
-        let shownList = favoritesID
+        let shownList = favoritesID, shownSpace = spaceID
         var playing: [UUID: Playing] = [:]
         withObservationTracking {
-            spaceID = store.focusedSpaceID(window: ui.windowID)
+            spaceID = fixedSpace ?? store.focusedSpaceID(window: ui.windowID)
             guard let space = store.space(spaceID) else { return }
             palette = space.theme.palette
             // Arc (4 Nov): with the URL field in the sidebar, the pins leave it for this grid.
@@ -736,9 +751,12 @@ final class FavoritesGridView: NSView {
             }
         }
         self.palette = palette
-        // A space with a list of its own (another profile, or sharing off): the tiles cross-fade.
-        // Between spaces that share the list nothing moves; only the open tile follows the space.
-        if let shownList, shownList != favoritesID, window != nil, let layer {
+        // Another space with a list of its own (another profile, or sharing off): the lists ride
+        // with the pages (followPager). Between spaces that share the list nothing moves; only the
+        // open tile follows the space. The space's own list swapped (Change Profile) cross-fades.
+        let listChanged = shownList != nil && shownList != favoritesID && window != nil
+        let rides = listChanged && shownSpace != spaceID && fixedSpace == nil
+        if listChanged, !rides, let layer {
             let fade = CATransition()
             fade.type = .fade
             fade.duration = 0.15
@@ -771,7 +789,56 @@ final class FavoritesGridView: NSView {
         strip.isHidden = showsCard
         card.isHidden = !showsCard
         needsLayout = true
-        if countChanged { onHeightChange(false) }
+        // The grid now holds the list of the page coming in: it takes that page's place at once.
+        if rides, let at = pagerAt { followPager(position: at.position, width: at.width) }
+        if countChanged { onHeightChange(rides) }
+    }
+
+    // MARK: Riding with the pages (13 Nov 2026)
+
+    /// The pager put its strip at `position` (in pages): every favorites list in sight goes where
+    /// its page is (FavoritesSlide). This grid's own tiles move by its bounds' origin; another
+    /// list rides in a grid of its own laid over it.
+    private func followPager(position: CGFloat, width: CGFloat) {
+        pagerAt = (position, width)
+        let pages = store.pagedSpaces(window: ui.windowID).map(\.id)
+        let lists = pages.map { store.space($0)?.favoritesContainerID }
+        let place = FavoritesSlide.place(position: Double(position), lists: lists, shown: favoritesID)
+        // Out of sight while a jump passes other lists: a page and more off to the side.
+        let ownX = CGFloat(place.shown ?? 2) * width
+        let w = bounds.width
+        var kept: Set<UUID> = []
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        for o in place.others where pages.indices.contains(o.page) {
+            let sid = pages[o.page]
+            kept.insert(sid)
+            let rider = riders[sid] ?? {
+                let g = FavoritesGridView(store: store, ui: ui, actions: actions, favicons: favicons, showing: sid)
+                riders[sid] = g
+                addSubview(g)
+                return g
+            }()
+            // In this view's bounds, which are shifted by its own list's offset.
+            let f = NSRect(x: CGFloat(o.x) * width - ownX, y: 0, width: w, height: rider.height(forWidth: w))
+            if rider.frame != f { rider.frame = f }
+        }
+        for (sid, g) in riders where !kept.contains(sid) {
+            g.removeFromSuperview()
+            riders[sid] = nil
+        }
+        if bounds.origin.x != -ownX { setBoundsOrigin(NSPoint(x: -ownX, y: 0)) }
+        CATransaction.commit()
+        let now = !place.isAtRest
+        guard now != sliding else { return }
+        sliding = now
+        onSlide(now)
+        if now {
+            let n = place.others.count + (place.shown == nil ? 0 : 1)
+            CraLog.note("favorites ride with the pages\(ui.spaceSwipe != 0 ? " under the fingers" : ""): \(n) list\(n == 1 ? "" : "s") in sight")
+        } else {
+            CraLog.note("favorites still again")
+        }
     }
 
     /// Keep an overlay only while its favorite plays; `placeTiles` positions it over the playing pane.
@@ -865,6 +932,8 @@ final class FavoritesGridView: NSView {
     /// The resting strip only takes drops (AppKit finds drop targets apart from hitTest). With
     /// the header hidden and no favorites the divider sits under it, and its Clear gets the click.
     override func hitTest(_ point: NSPoint) -> NSView? {
+        // A list riding in beside this one shows only.
+        if fixedSpace != nil { return nil }
         let v = super.hitTest(point)
         return v === self || v === strip ? nil : v
     }
@@ -879,7 +948,8 @@ final class FavoritesGridView: NSView {
         }
         let top = ext.favoritesOffset
         let grid = grid(forWidth: w)
-        notesHost.frame = bounds
+        // From the origin: the bounds' own is shifted while the list rides with its page.
+        notesHost.frame = NSRect(origin: .zero, size: bounds.size)
         placeTiles(grid, top: top, animated: false)
         strip.frame = NSRect(x: 0, y: top + grid.gridHeight + (order.isEmpty ? 0 : 4), width: w, height: strip.height)
         card.frame = NSRect(x: 0, y: top, width: w, height: FavoritesEmptyCard.height)

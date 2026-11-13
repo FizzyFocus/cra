@@ -34,6 +34,9 @@ final class SidebarView: NSView {
     private let pager: SpacePagerView
     /// Arc's top apps, pinned under the URL field outside the pager: still while spaces change.
     private let favorites: FavoritesGridView
+    /// The favorites' band across the whole column: while a list rides in with its page it clips
+    /// them where the pager clips the tabs (FavoritesGridView.followPager).
+    private let favoritesClip = PassThroughClipView()
     private let trayHost: DownloadsTrayView
     /// Swiping on past the last space: the ring that opens Create a Space (SpaceCreateSwipe).
     private let createSwipe = CreateSpaceSwipeIndicator()
@@ -45,7 +48,7 @@ final class SidebarView: NSView {
     /// Create a Space, in place of the favorites, the pager and the trays while it is open.
     private var createHost: NSHostingView<CreateSpaceSheet>?
     /// The views Create a Space stands in for.
-    private var createCovers: [NSView] { [favorites, pager, player, trayHost, bannerHost] }
+    private var createCovers: [NSView] { [favoritesClip, pager, player, trayHost, bannerHost] }
     /// The palette drawn now; the theme-shown scenario hook reads it (#155).
     private(set) var palette: SpacePalette
     private var lastSpaceID: UUID?
@@ -70,9 +73,12 @@ final class SidebarView: NSView {
         trayMask.startPoint = CGPoint(x: 0.5, y: 0)
         trayMask.endPoint = CGPoint(x: 0.5, y: 1)
         // The favorites above the pager: the strip slides under them.
-        for v in [topBar, pager, favorites, player, trayHost, bannerHost, dock, createSwipe] as [NSView] { tabs.addSubview(v) }
+        favoritesClip.wantsLayer = true
+        favoritesClip.addSubview(favorites)
+        for v in [topBar, pager, favoritesClip, player, trayHost, bannerHost, dock, createSwipe] as [NSView] { tabs.addSubview(v) }
         addSubview(tabs)
         favorites.onHeightChange = { [weak self] animated in self?.placeFavorites(animated: animated) }
+        favorites.onSlide = { [weak self] sliding in self?.favoritesClip.layer?.masksToBounds = sliding }
         player.onCountChange = { [weak self] in self?.needsLayout = true }
         // A plain click anywhere in the sidebar that isn't a row, tile, button or control (its
         // background, a header, a divider, the space's name, a gutter) drops a ⌘/⇧-click tab
@@ -504,9 +510,12 @@ final class SidebarView: NSView {
     /// and lists on Arc's 0.15 s ease-out; a list swapped for another lands in one frame.
     private func placeFavorites(animated: Bool) {
         let w = max(0, tabs.bounds.width - 16)
-        let f = NSRect(x: 8, y: pager.frame.minY, width: w, height: favorites.height(forWidth: w))
+        let h = favorites.height(forWidth: w)
+        let clip = NSRect(x: 0, y: pager.frame.minY, width: tabs.bounds.width, height: h)
+        let f = NSRect(x: 8, y: 0, width: w, height: h)
         let bottom = favorites.tilesBottom(forWidth: w)
         guard animated, window != nil else {
+            if favoritesClip.frame != clip { favoritesClip.frame = clip }
             if favorites.frame != f { favorites.frame = f }
             pager.setFavoritesBottom(bottom, animated: false)
             return
@@ -515,6 +524,7 @@ final class SidebarView: NSView {
             ctx.duration = 0.15
             ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
             ctx.allowsImplicitAnimation = true
+            favoritesClip.animator().frame = clip
             favorites.animator().frame = f
             pager.setFavoritesBottom(bottom, animated: true)
         }
@@ -524,6 +534,15 @@ final class SidebarView: NSView {
 /// A container that lays its subviews out from the top.
 final class FlippedView: NSView {
     override var isFlipped: Bool { true }
+}
+
+/// A flipped container that takes no clicks of its own: only its subviews do.
+final class PassThroughClipView: NSView {
+    override var isFlipped: Bool { true }
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        let v = super.hitTest(point)
+        return v === self ? nil : v
+    }
 }
 
 // MARK: - Top bar
