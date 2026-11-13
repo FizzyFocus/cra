@@ -733,7 +733,10 @@
       const foot = el('div', { class: 'max-foot' });
       control(() => {
         const m = M();
-        foot.replaceChildren(el('p', { class: 'footnote center' }, m.explanation || ''),
+        // The searches Instant Links makes are the one thing that leaves the Mac (#407).
+        const searches = m.available && S && S.settings && S.settings.instantLinks
+          ? [el('p', { class: 'footnote center' }, 'Instant Links sends what it searches for to your search engine, as a search would.')] : [];
+        foot.replaceChildren(el('p', { class: 'footnote center' }, m.explanation || ''), ...searches,
           ...(m.canOpenSettings ? [el('button', { class: 'link-btn', type: 'button', onclick: () => run('openAppleIntelligence').catch(() => {}) }, 'Turn on Apple Intelligence in System Settings')] : []));
       });
       return [
@@ -741,6 +744,8 @@
           // #393: Arc Max's first row, Ask on Page, on the Mac's own Apple Intelligence model.
           feature('askOnPage', 'Ask on Page', 'Press Command + F on any page to ask a question and let Max answer it for you in seconds.', 'ask-on-page'),
           feature('tidyTabs', 'Tidy Tabs', 'Press the broom to let your Sidebar organize itself whenever you have six or more Today Tabs.', 'tidy-tabs'),
+          // #407: Arc 1.172's order, Instant Links right after Tidy Tabs; Shift-Return on a search in ⌘T.
+          feature('instantLinks', 'Instant Links', 'Press Shift + Enter for any web search to instantly open the top result. You can also search multiple queries!', 'instant-links'),
           feature('tidyTabTitles', 'Tidy Tab Titles', 'Have your tabs automatically renamed with tidier, shorter titles when you Pin them.', 'tidy-titles'),
           feature('tidyDownloads', 'Tidy Downloads', 'Keep your many files more organized with smartly renamed downloads — and make them a little easier to find later.', 'tidy-downloads'),
           // #324: Arc Max's hover cards, on the Mac's own Apple Intelligence model.
@@ -785,6 +790,8 @@
 
   // Max's pictures, after Arc's: the broom on lavender, a renamed tab on mauve, a renamed download on blue.
   const MAX_PICTURES = {
+    // Instant Links' picture (upstream's InstantLinksPicture): the command bar with a search and the ⇧ and ↩ keycaps, on pink.
+    'instant-links': '<svg viewBox="0 0 88 56"><rect x="9" y="20" width="70" height="16" rx="8" fill="#fff"/><circle cx="17.5" cy="27.4" r="2.2" fill="none" stroke="#8C8C8C" stroke-width=".9"/><path d="M19.1 29l1.5 1.5" stroke="#8C8C8C" stroke-width=".9" stroke-linecap="round"/><rect x="24" y="27" width="22" height="2" rx="1" fill="#CCC"/><rect x="56" y="24" width="8" height="8" rx="2" fill="#EBEBEB"/><text x="60" y="30.2" font-size="5.5" font-weight="600" fill="#595959" text-anchor="middle" font-family="-apple-system, system-ui, sans-serif">⇧</text><rect x="66" y="24" width="8" height="8" rx="2" fill="#EBEBEB"/><text x="70" y="30.2" font-size="5.5" font-weight="600" fill="#595959" text-anchor="middle" font-family="-apple-system, system-ui, sans-serif">↩</text></svg>',
     // Arc's AskOnPagePreview: a find card with its Ask button, on pink.
     'ask-on-page': '<svg viewBox="0 0 88 56"><rect x="12" y="12" width="40" height="9" rx="2.5" fill="#fff" opacity=".9"/><rect x="12" y="25" width="64" height="18" rx="3.5" fill="#fff"/><rect x="17" y="33" width="30" height="2.2" rx="1.1" fill="#D9D9D9"/><rect x="55" y="29.5" width="16" height="9" rx="2.5" fill="#383DFF"/><text x="63" y="35.8" font-size="5.2" font-weight="600" fill="#fff" text-anchor="middle" font-family="-apple-system, system-ui, sans-serif">Ask</text></svg>',
     'five-second-previews': '<svg viewBox="0 0 88 56"><rect x="9" y="13" width="70" height="30" rx="4" fill="#fff"/><path d="M15.2 19.6l1.2-1.2a1.4 1.4 0 0 1 2 2l-1.2 1.2M17.2 21.6l-1.2 1.2a1.4 1.4 0 0 1-2-2l1.2-1.2" fill="none" stroke="#8C8C8C" stroke-width=".8" stroke-linecap="round"/><rect x="21" y="18.6" width="30" height="3" rx="1.5" fill="#111"/><path d="M72 17.5l.7 1.7 1.7.7-1.7.7-.7 1.7-.7-1.7-1.7-.7 1.7-.7z" fill="#8C73E6"/><g fill="#8C8C8C"><circle cx="15.5" cy="28" r="1"/><circle cx="15.5" cy="33" r="1"/><circle cx="15.5" cy="38" r="1"/></g><g fill="#8C8C8C" opacity=".7"><rect x="18.5" y="27" width="44" height="2" rx="1"/><rect x="18.5" y="32" width="50" height="2" rx="1"/><rect x="18.5" y="37" width="34" height="2" rx="1"/></g></svg>',

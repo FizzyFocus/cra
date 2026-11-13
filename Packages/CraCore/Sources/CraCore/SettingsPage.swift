@@ -160,7 +160,7 @@ public enum SettingsBridge {
         // Advanced
         "commandBarCurrentSpaceOnly", "chromeEngine", "pageTopWindowDrag", "boostsEnabled", "hardwareAcceleration", "perfRecording",
         // Max
-        "askOnPage", "tidyTabs", "tidyTabTitles", "tidyDownloads", "fiveSecondPreviews",
+        "askOnPage", "tidyTabs", "instantLinks", "tidyTabTitles", "tidyDownloads", "fiveSecondPreviews",
     ]
 
     public enum Failure: Error, Equatable {

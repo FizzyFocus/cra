@@ -72,7 +72,7 @@ Embedded Framework, so sites and Chrome extensions work as they do in Chrome.
 | Boosts | Not yet |
 | Peek | ✅ |
 | Notes | Not yet |
-| Arc Max | Ask on Page, Tidy Tabs, Tidy Tab Titles, Tidy Downloads and 5-Second Previews, on the Mac's Apple Intelligence; nothing goes to a server |
+| Arc Max | Ask on Page, Instant Links, Tidy Tabs, Tidy Tab Titles, Tidy Downloads and 5-Second Previews, on the Mac's Apple Intelligence; only Instant Links' search queries leave the Mac, to the search engine |
 
 The [roadmap](https://crabrowser.app/roadmap) lists what's next.
 
