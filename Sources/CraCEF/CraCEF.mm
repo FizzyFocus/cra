@@ -159,6 +159,22 @@ static std::string ChromiumLabel(int ids, const char* fallback) {
 /// Page.addScriptToEvaluateOnNewDocument params every page browser gets once it exists
 /// (the page's world, then Cra's isolated world).
 static NSArray<NSString*>* g_documentStartParams = nil;
+/// The Boosts' document start script's params (+setBoostScript:world:, 13 Nov 2026), nil for none:
+/// every page browser has it, and a change replaces it in each.
+static NSString* g_boostScriptParams = nil;
+/// The sites those boosts are for (hosts without "www."): a new page bound for one of them loads
+/// once the script is in, so even its first document starts boosted.
+static NSArray<NSString*>* g_boostHosts = nil;
+
+static BOOL CraBoostedURL(NSString* url) {
+    if (!g_boostScriptParams.length || !g_boostHosts.count || !url.length) return NO;
+    NSString* host = [NSURL URLWithString:url].host.lowercaseString;
+    if (!host.length) return NO;
+    if ([host hasPrefix:@"www."]) host = [host substringFromIndex:4];
+    for (NSString* h in g_boostHosts)
+        if ([host isEqualToString:h] || [host hasSuffix:[@"." stringByAppendingString:h]]) return YES;
+    return NO;
+}
 
 /// Removes separators a removed item left at either end or next to another one. Hidden items
 /// don't count: Chrome's model keeps some it doesn't show.
@@ -215,6 +231,8 @@ static CraClient* AsCraClient(CefClient* c) {
 }
 
 @interface CraBrowser ()
+- (void)installBoostScript;
+- (void)loadAfterBoostScript;
 @property (nonatomic, strong) NSView* containerView;
 @property (nonatomic, copy) NSString* currentURL;
 @property (nonatomic, copy) NSString* currentTitle;
@@ -2586,6 +2604,12 @@ class CraDevToolsObserver : public CefDevToolsMessageObserver {
     CefRefPtr<CraDevToolsObserver> _cdpObserver;
     CefRefPtr<CefRegistration> _cdpRegistration;
     int _cdpNextID;
+    /// The Boosts' document start script in this browser, and which install it came from.
+    NSString* _boostScriptID;
+    int _boostScriptGeneration;
+    /// Made with no address because its first one is on a boosted site: it loads once the
+    /// Boosts' script is in (-installBoostScript).
+    BOOL _loadAfterBoostScript;
     CefRefPtr<CefBrowser> _devToolsBrowser;
     CefRefPtr<CefBrowser> _browser;
     CefRefPtr<CraClient> _client;
@@ -2713,7 +2737,14 @@ class CraDevToolsObserver : public CefDevToolsMessageObserver {
 /// What a new page is made with: no address when a saved history goes in first, which CEF
 /// makes without navigating at all.
 - (NSString*)initialURL {
-    return _pendingHistory ? @"" : (_pendingURL ?: @"about:blank");
+    if (_pendingHistory) return @"";
+    // A boosted site's page starts with its boost on, from the first document (13 Nov 2026): made
+    // empty, it loads once the Boosts' script is in (-installBoostScript).
+    if (!_isAgent && CraBoostedURL(_pendingURL)) {
+        _loadAfterBoostScript = YES;
+        return @"";
+    }
+    return _pendingURL ?: @"about:blank";
 }
 
 /// The saved list goes in once the page exists, after the document start scripts (the
@@ -2788,6 +2819,7 @@ class CraDevToolsObserver : public CefDevToolsMessageObserver {
                       completion:^(NSString*, NSString* error) {
                           if (error) NSLog(@"Cra: document start script not installed: %@", error);
                       }];
+    if (!_isAgent) [self installBoostScript];
     if (_sidePanelURL) {
         // DevTools messages run in order, so the document start scripts are in place as well.
         __weak CraBrowser* weakSelf = self;
@@ -3251,6 +3283,48 @@ static NSView* FindRenderWidgetHostView(NSView* root) {
 - (void)probeBackgroundColor {
     if (_browser) RunPageScript(_browser->GetMainFrame(), "bg", kBackgroundProbe);
 }
+/// The Boosts' script as it is now, in place of the one installed before. An install answered
+/// after a newer one began is taken out again, so only the latest stays.
+- (void)installBoostScript {
+    if (!_browser) return;
+    int generation = ++_boostScriptGeneration;
+    NSString* old = _boostScriptID;
+    _boostScriptID = nil;
+    void (^ignore)(NSString*, NSString*) = ^(NSString*, NSString*) {};
+    if (old) {
+        NSData* json = [NSJSONSerialization dataWithJSONObject:@{@"identifier": old} options:0 error:nil];
+        [self sendDevToolsMethod:@"Page.removeScriptToEvaluateOnNewDocument"
+                          params:[[NSString alloc] initWithData:json encoding:NSUTF8StringEncoding] completion:ignore];
+    }
+    NSString* params = g_boostScriptParams;
+    if (!params.length) { [self loadAfterBoostScript]; return; }
+    __weak CraBrowser* weakSelf = self;
+    [self sendDevToolsMethod:@"Page.addScriptToEvaluateOnNewDocument" params:params completion:^(NSString* result, NSString* error) {
+        CraBrowser* me = weakSelf;
+        if (error) { NSLog(@"Cra: boost script not installed: %@", error); return; }
+        id parsed = result ? [NSJSONSerialization JSONObjectWithData:[result dataUsingEncoding:NSUTF8StringEncoding] options:0 error:nil] : nil;
+        NSString* identifier = [parsed isKindOfClass:NSDictionary.class] ? parsed[@"identifier"] : nil;
+        if (![identifier isKindOfClass:NSString.class] || !me) return;
+        if (me->_boostScriptGeneration != generation) {
+            NSData* json = [NSJSONSerialization dataWithJSONObject:@{@"identifier": identifier} options:0 error:nil];
+            [me sendDevToolsMethod:@"Page.removeScriptToEvaluateOnNewDocument"
+                            params:[[NSString alloc] initWithData:json encoding:NSUTF8StringEncoding] completion:^(NSString*, NSString*) {}];
+            return;
+        }
+        me->_boostScriptID = identifier;
+    }];
+    // A page made empty has no renderer to answer yet: the script goes first and the load after it,
+    // in order, as a restored history's does (-restorePendingHistory).
+    [self loadAfterBoostScript];
+}
+
+/// The address a page made empty for its boost waited with (-initialURL), now the script is in.
+- (void)loadAfterBoostScript {
+    if (!_loadAfterBoostScript) return;
+    _loadAfterBoostScript = NO;
+    if (_browser && !_pendingHistory && _pendingURL.length) _browser->GetMainFrame()->LoadURL(CefStringFromNS(_pendingURL));
+}
+
 - (void)sendDevToolsMethod:(NSString*)method params:(NSString*)params
                 completion:(void (^)(NSString* _Nullable, NSString* _Nullable))completion {
     if (!_browser) { completion(nil, @"no browser"); return; }
@@ -3460,6 +3534,18 @@ static void MarkProfileExitedCleanly(NSString* profileDir) {
         if (json) [all addObject:[[NSString alloc] initWithData:json encoding:NSUTF8StringEncoding]];
     }
     g_documentStartParams = all;
+}
++ (void)setBoostScript:(NSString*)script world:(NSString*)world hosts:(NSArray<NSString*>*)hosts {
+    g_boostHosts = [hosts copy];
+    NSString* params = nil;
+    if (script.length) {
+        NSData* json = [NSJSONSerialization dataWithJSONObject:@{@"source": script, @"worldName": world ?: @"", @"runImmediately": @YES}
+                                                       options:0 error:nil];
+        if (json) params = [[NSString alloc] initWithData:json encoding:NSUTF8StringEncoding];
+    }
+    if ((params ?: @"").length == (g_boostScriptParams ?: @"").length && [params ?: @"" isEqualToString:g_boostScriptParams ?: @""]) return;
+    g_boostScriptParams = params;
+    for (CraBrowser* b in [g_allBrowsers allObjects]) if (!b.isClosed) [b installBoostScript];
 }
 + (BOOL)chromeHosting { return g_chromeHosting; }
 

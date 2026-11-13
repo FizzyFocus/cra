@@ -390,6 +390,11 @@ typedef NS_ENUM(NSInteger, CraChromiumString) {
 /// document already loaded): `script` in the page's world, `isolatedScript` in the isolated
 /// world named `world` (invisible to the page). Set before browsers are created.
 + (void)setDocumentStartScript:(NSString *)script isolatedScript:(NSString *)isolatedScript world:(NSString *)world;
+/// The Boosts' script (13 Nov 2026): run in the isolated world `world` of every page browser's
+/// documents from their start, like the one above, but replaced in every browser whenever it
+/// changes (empty: none). It carries each enabled boost and applies the page's own. A new page whose
+/// first address is on one of `hosts` loads once the script is in, so its first document is boosted too.
++ (void)setBoostScript:(NSString *)script world:(NSString *)world hosts:(NSArray<NSString *> *)hosts;
 /// Third-party ad and tracker blocking: subresource and subframe requests whose host
 /// (or a parent domain) is on the blocked list are cancelled when they are third-party
 /// to the tab's top-level page. Main-frame navigations always load. Takes effect for

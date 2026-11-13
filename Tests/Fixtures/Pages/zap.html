@@ -1,0 +1,22 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Zap fixture</title>
+<!-- Boosts' zaps on every load (13 Nov 2026): a banner there from the first byte, checked by the page
+     itself as it is parsed; then the page sets its own adoptedStyleSheets, as some frameworks do; then
+     elements that come later. -->
+<div id="banner" class="promo">Banner</div>
+<script>window.bannerWhileParsing = getComputedStyle(document.getElementById('banner')).display;</script>
+<p id="keep">Keep</p>
+<script>
+  document.adoptedStyleSheets = [];
+  setTimeout(() => {
+    const d = document.createElement('div');
+    d.className = 'promo late';
+    d.textContent = 'Late';
+    document.body.append(d);
+    const box = document.createElement('section');
+    box.innerHTML = '<aside class="sidebar-ad">Ad</aside>';
+    document.body.append(box);
+    window.lateAdded = true;
+  }, 400);
+</script>

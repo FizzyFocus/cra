@@ -30,7 +30,37 @@ struct BoostTests {
         #expect(css.contains("invert(1) hue-rotate(180deg)") && css.contains("contrast(1.5)"))
         #expect(css.contains("img, video") , "pictures are flipped back under an inverted page")
         #expect(css.contains("\"ui-serif\"") && css.contains("uppercase"))
-        #expect(css.contains(".ad, #banner { display: none !important; }") && css.hasSuffix("h1 { color: red }"))
+        #expect(css.contains(".ad { display: none !important; }\n#banner { display: none !important; }") && css.hasSuffix("h1 { color: red }"))
+    }
+
+    /// A zap the page's CSS can't parse used to drop every other zap with it: one list, one rule
+    /// (13 Nov 2026). Now each is its own rule.
+    @Test func aBadZapDoesntUndoTheOthers() {
+        var b = Boost(host: "example.com")
+        b.zapped = ["#banner", "div:has-unknown((", "  ", ".late"]
+        let rules = b.stylesheet.split(separator: "\n")
+        #expect(rules == ["#banner { display: none !important; }", "div:has-unknown(( { display: none !important; }", ".late { display: none !important; }"])
+    }
+
+    /// Every page starts with its boosts on (BoostScript): the start script carries each enabled
+    /// boost; none at all without one.
+    @Test func theStartScriptCarriesTheEnabledBoosts() throws {
+        var a = Boost(host: "example.com")
+        a.zapped = ["#banner"]
+        var off = Boost(host: "other.org")
+        off.enabled = false
+        off.zapped = [".x"]
+        #expect(BoostScript.documentStart([off]).isEmpty, "no enabled boost: pages run nothing")
+        let start = BoostScript.documentStart([a, off])
+        #expect(start.hasPrefix(BoostScript.runtime))
+        #expect(start.contains("\"host\":\"example.com\"") && !start.contains("other.org"))
+        #expect(start.contains("window.top !== window"), "the top frame only, as a commit applies it")
+        #expect(BoostScript.entries([a, off]) == [BoostScript.Entry(host: "example.com", css: a.stylesheet, zapped: ["#banner"])])
+        let apply = BoostScript.apply(css: "p{}", zapped: ["#a\"b"])
+        #expect(apply.hasSuffix(##"window.__craBoostRun(...["p{}",["#a\"b"]]);"##))
+        // The runtime watches for elements as they come, and puts the sheet back if the page drops it.
+        #expect(BoostScript.runtime.contains("MutationObserver") && BoostScript.runtime.contains("adoptedStyleSheets.includes"))
+        #expect(BoostScript.runtime.contains("DOMContentLoaded"))
     }
 
     @Test func aTintNeedsStrength() {

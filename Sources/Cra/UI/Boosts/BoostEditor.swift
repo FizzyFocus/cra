@@ -22,6 +22,10 @@ final class BoostEditorController {
         var toggleDevTools: () -> Void
         var devToolsOpen: () -> Bool
         var reload: () -> Void
+        /// What each zap hides on the page (ZapFacts), for the zap list.
+        var inspectZaps: ([String], @escaping ([ZapFacts]) -> Void) -> Void = { _, done in done([]) }
+        /// The ghost of a zapped element in its place on the page; nil takes it away.
+        var ghost: (String?) -> Void = { _ in }
     }
 
     func open(_ boost: Boost, over window: NSWindow, page: PageActions) {
@@ -90,6 +94,7 @@ final class BoostEditorController {
     }
 
     func close() {
+        model?.ghost(nil)
         model?.finishZap()
         model?.finishPicking()
         if let panel { panel.parent?.removeChildWindow(panel); panel.orderOut(nil) }
@@ -98,6 +103,44 @@ final class BoostEditorController {
     }
 
     var isOpen: Bool { panel != nil }
+    /// The boost open in the editor.
+    var editingBoostID: UUID? { model?.boost.id }
+
+    /// Scenario hooks: what the editor shows, and its zap menu's "Show All Zapped Elements".
+    var debugState: String {
+        guard let model else { return "closed" }
+        return "open \(model.boost.name) zapped=\(model.boost.zapped.count) zapping=\(model.zapping ? 1 : 0)"
+    }
+
+    func debugShowAllZapped() { model?.change { $0.zapped = [] } }
+
+    /// The zap list as it would show: each zap's label and size, from the page.
+    func debugZapList(_ label: String) {
+        guard let model else { CraLog.note("zap list \(label): no editor"); return }
+        model.page.inspectZaps(model.boost.zapped) { facts in
+            CraLog.note("zap list \(label): " + facts.map { "\($0.label) [\($0.detail)]" }.joined(separator: " | "))
+        }
+    }
+
+    /// A zap row hovered (its index; -1 off the list), and its Restore.
+    func debugZapHover(_ index: Int) {
+        guard let model else { return }
+        model.ghost(model.boost.zapped.indices.contains(index) ? model.boost.zapped[index] : nil)
+    }
+
+    func debugShowZapList(_ on: Bool) { model?.showingZaps = on }
+
+    func debugZapRestore(_ index: Int) {
+        guard let model, model.boost.zapped.indices.contains(index) else { return }
+        model.restore([model.boost.zapped[index]])
+    }
+
+    /// Its Zap button pressed to `on`; false with the editor closed.
+    func debugZap(_ on: Bool) -> Bool {
+        guard let model else { return false }
+        if model.zapping != on { model.toggleZap() }
+        return true
+    }
 
     /// The picker ends (its page went to the back).
     func stopPicking() { model?.finishPicking() }
@@ -105,11 +148,19 @@ final class BoostEditorController {
     /// DevTools opened or closed (the hammer, ⌥⌘I or their own close button).
     func devToolsChanged() { if let model { model.devToolsOpen = model.page.devToolsOpen() } }
 
-    /// What Zap hid, into the boost being edited.
-    func addZapped(_ selectors: [String]) {
+    /// What Zap hid, into its boost at once: through the editor while it shows that boost (one Undo
+    /// step a take), else straight into BoostStore, so a zap made just before the editor closed is
+    /// kept too (13 Nov 2026: it was dropped with the editor).
+    func addZapped(_ selectors: [String], to boostID: UUID?) {
+        guard !selectors.isEmpty else { return }
         CraLog.note("zap kept \(selectors.count) selector\(selectors.count == 1 ? "" : "s")")
-        guard let model, !selectors.isEmpty else { return }
-        model.change { b in b.zapped += selectors.filter { !b.zapped.contains($0) } }
+        if let model, boostID == nil || model.boost.id == boostID {
+            model.change { b in b.zapped += selectors.filter { !b.zapped.contains($0) } }
+            return
+        }
+        guard let id = boostID, var b = BoostStore.shared.boost(id) else { return }
+        b.zapped += selectors.filter { !b.zapped.contains($0) }
+        BoostStore.shared.update(b)
     }
 
     private func resize(width: CGFloat) {
@@ -139,6 +190,34 @@ final class BoostEditorModel {
     var picking = false
     var devToolsOpen = false
     @ObservationIgnored var page = BoostEditorController.PageActions(zap: { _ in }, pick: { _ in }, toggleDevTools: {}, devToolsOpen: { false }, reload: {})
+    /// The zap list's facts, by selector (asked when the list opens).
+    var zapFacts: [String: ZapFacts] = [:]
+    /// The zap list is open (the count beside Zap).
+    var showingZaps = false
+    /// The zap whose ghost shows on the page.
+    var ghosted: String?
+
+    func inspectZaps() {
+        page.inspectZaps(boost.zapped) { [weak self] facts in
+            self?.zapFacts = Dictionary(facts.map { ($0.selector, $0) }, uniquingKeysWith: { a, _ in a })
+        }
+    }
+
+    /// The pointer over a zap in the list (nil: off it).
+    func ghost(_ selector: String?) {
+        guard ghosted != selector else { return }
+        ghosted = selector
+        page.ghost(selector)
+    }
+
+    /// Restore: the zap goes and its element shows again (the ghost first taken away, so it
+    /// doesn't put the element's hiding back after).
+    func restore(_ selectors: [String]) {
+        ghost(nil)
+        let gone = Set(selectors)
+        change { $0.zapped.removeAll { gone.contains($0) } }
+        CraLog.note("zap restored \(selectors.count), \(boost.zapped.count) left")
+    }
     @ObservationIgnored var onClose: () -> Void = {}
     @ObservationIgnored var onWidth: (CGFloat) -> Void = { _ in }
 
@@ -308,8 +387,7 @@ private struct BoostEditorView: View {
                 .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).help("Change text case")
             }
             .frame(width: 147)
-            Button { model.toggleZap() } label: { wide("Zap", trailing: "bolt.fill", on: model.zapping) }.buttonStyle(.plain)
-                .help("Click things on the page to hide them")
+            zapRow
             Button { model.setCode(true) } label: { wide("Code", trailing: "curlybraces") }.buttonStyle(.plain)
             Spacer(minLength: 0)
         }
@@ -360,16 +438,49 @@ private struct BoostEditorView: View {
         .buttonStyle(.plain).help(help).accessibilityLabel(help)
     }
 
-    private func wide(_ title: String, trailing: String?, on: Bool = false) -> some View {
+    private func wide(_ title: String, trailing: String?, on: Bool = false, width: CGFloat = 147) -> some View {
         HStack {
             Text(title).font(.system(size: 14, weight: .semibold))
             if let trailing { Spacer(); Image(systemName: trailing).font(.system(size: 13, weight: .semibold)) }
         }
         .foregroundStyle(on ? .white : BoostStyle.ink)
         .padding(.horizontal, 12)
-        .frame(maxWidth: trailing == nil ? .infinity : 147, minHeight: 38)
-        .frame(width: trailing == nil ? nil : 147)
+        .frame(maxWidth: trailing == nil ? .infinity : width, minHeight: 38)
+        .frame(width: trailing == nil ? nil : width)
         .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(on ? BoostStyle.ink : BoostStyle.button))
+    }
+
+    /// Zap, and once the boost has zaps, how many beside it (13 Nov 2026): that count opens the
+    /// zap list, each zap named as the page shows it, its ghost on the page under the pointer.
+    private var zapRow: some View {
+        let zapped = model.boost.zapped
+        return HStack(spacing: 6) {
+            Button { model.toggleZap() } label: { wide("Zap", trailing: "bolt.fill", on: model.zapping, width: zapped.isEmpty ? 147 : 103) }
+                .buttonStyle(.plain)
+                .help("Click things on the page to hide them")
+            if !zapped.isEmpty {
+                Button { model.showingZaps.toggle() } label: {
+                    Text("\(zapped.count)")
+                        .font(.system(size: 14, weight: .semibold).monospacedDigit())
+                        .foregroundStyle(model.showingZaps ? .white : BoostStyle.ink)
+                        .frame(width: 38, height: 38)
+                        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(model.showingZaps ? BoostStyle.ink : BoostStyle.button))
+                }
+                .buttonStyle(.plain)
+                .help("\(zapped.count) zapped \(zapped.count == 1 ? "element" : "elements")")
+                .accessibilityLabel("\(zapped.count) zapped")
+                .popover(isPresented: Binding(get: { model.showingZaps }, set: { model.showingZaps = $0 }), arrowEdge: .leading) {
+                    ZapList(model: model)
+                }
+            }
+        }
+        .frame(width: 147)
+        .onChange(of: zapped.isEmpty) { _, none in if none { model.showingZaps = false } }
+    }
+
+    /// A selector short enough for a menu row.
+    private static func short(_ selector: String) -> String {
+        selector.count <= 40 ? selector : "…" + selector.suffix(39)
     }
 
     private var code: some View {
@@ -506,4 +617,81 @@ private final class FirstClickHostingView<Content: View>: NSHostingView<Content>
 
 extension Notification.Name {
     static let craShowBoostsLibrary = Notification.Name("craShowBoostsLibrary")
+}
+
+/// The editor's zap list (13 Nov 2026, the owner's call): each zap by the name and size of what it
+/// hides on the page (ZapFacts), its ghost in its place on the page while the pointer is on its
+/// row, a Restore for it and one for them all.
+private struct ZapList: View {
+    let model: BoostEditorModel
+
+    var body: some View {
+        let zapped = model.boost.zapped
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text(zapped.count == 1 ? "1 Zapped Element" : "\(zapped.count) Zapped Elements")
+                    .font(.system(size: 13, weight: .semibold))
+                Spacer()
+                Button("Restore All") { model.restore(zapped) }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(Color.accentColor)
+            }
+            .padding(.horizontal, 14)
+            .padding(.top, 12)
+            .padding(.bottom, 8)
+            Divider()
+            ScrollView {
+                VStack(spacing: 2) {
+                    ForEach(zapped, id: \.self) { s in ZapRow(selector: s, facts: model.zapFacts[s], model: model) }
+                }
+                .padding(6)
+            }
+            // A row is 58 pt; more than five scroll.
+            .frame(height: min(5, CGFloat(zapped.count)) * 60 + 12)
+        }
+        .frame(width: 300)
+        .onAppear { model.inspectZaps() }
+        .onDisappear { model.ghost(nil) }
+        .onChange(of: zapped) { _, _ in model.inspectZaps() }
+    }
+}
+
+private struct ZapRow: View {
+    let selector: String
+    let facts: ZapFacts?
+    let model: BoostEditorModel
+    @State private var hovering = false
+
+    var body: some View {
+        let onPage = (facts?.count ?? 1) > 0
+        HStack(alignment: .center, spacing: 10) {
+            Image(systemName: onPage ? "eye.slash" : "questionmark.square.dashed")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(.secondary)
+                .frame(width: 18)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(facts?.label ?? "…").font(.system(size: 13, weight: .semibold)).lineLimit(1)
+                Text(facts?.detail ?? " ").font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
+                Text(selector).font(.system(size: 10, design: .monospaced)).foregroundStyle(.tertiary).lineLimit(1).truncationMode(.middle)
+            }
+            Spacer(minLength: 4)
+            Button("Restore") { model.restore([selector]) }
+                .buttonStyle(.plain)
+                .font(.system(size: 12, weight: .semibold))
+                .padding(.horizontal, 9)
+                .padding(.vertical, 4)
+                .background(Capsule().fill(Color.primary.opacity(hovering ? 0.1 : 0.06)))
+                .help("Show it on the page again")
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color.primary.opacity(hovering ? 0.06 : 0)))
+        .contentShape(Rectangle())
+        .onHover { inside in
+            hovering = inside
+            // Its ghost on the page while the pointer is on the row; off it, gone.
+            if inside { model.ghost(onPage ? selector : nil) } else if model.ghosted == selector { model.ghost(nil) }
+        }
+    }
 }

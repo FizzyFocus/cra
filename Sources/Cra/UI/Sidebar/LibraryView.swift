@@ -854,10 +854,9 @@ private final class LibraryListView: NSView, NSTextFieldDelegate, NSTableViewDat
             v.identifier = .init("boost")
             v.show(b, icon: boostIcon(b), ink: colors.isDark ? .white : .black,
                    hoverFill: colors.hoverFill, tint: switchTint, knob: switchKnob)
-            v.open = { [store, actions] in
-                // Opens the site, where the boost shows.
-                _ = store.createTab(url: "https://\(b.host)/", select: true)
-                actions.closeLibrary()
+            v.open = { [actions] in
+                // The site, with the boost in its editor (13 Nov 2026).
+                actions.editBoost(b.id)
             }
             return v
         case .easels(let entries):
@@ -1014,8 +1013,11 @@ extension LibraryListView: NSMenuDelegate {
         switch rows[row] {
         case .header, .media, .easels: break
         case .boost(let b):
-            // Arc 1.172.1: Rename (in place) and Delete.
+            // Arc 1.172.1: Rename (in place) and Delete; Pane's Edit Boost first (13 Nov 2026).
             let cell = table.view(atColumn: 0, row: row, makeIfNecessary: false) as? BoostRowCell
+            let actions = actions
+            MenuItems.add(menu, "Edit Boost") { actions.editBoost(b.id) }
+            menu.addItem(.separator())
             MenuItems.add(menu, "Rename") { cell?.beginRename() }
             MenuItems.add(menu, "Delete") { BoostStore.shared.delete(b.id) }
         case .archived(let e):

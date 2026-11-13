@@ -115,9 +115,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             guard store.settings.boostsEnabled else { return nil }
             let boosts = Boost.applying(to: url, from: BoostStore.shared.boosts)
             guard !boosts.isEmpty else { return nil }
-            return (boosts.map(\.stylesheet).joined(separator: "\n"), boosts.map(\.js).filter { !$0.isEmpty }.joined(separator: ";\n"))
+            return (boosts.map(\.stylesheet).joined(separator: "\n"), boosts.map(\.js).filter { !$0.isEmpty }.joined(separator: ";\n"),
+                    Array(NSOrderedSet(array: boosts.flatMap(\.zapped))) as? [String] ?? [])
         }
-        BoostStore.changed = { [weak self] host in for m in self?.mainWindows ?? [] { m.browsers.reapplyBoosts(host: host) } }
+        // Every page starts with its boosts on, zaps included, before it paints (BoostScript, 13 Nov
+        // 2026); the start script follows each edit, and Boosts turned off takes it out.
+        updateBoostScript()
+        BoostStore.changed = { [weak self] host in
+            self?.updateBoostScript()
+            for m in self?.mainWindows ?? [] { m.browsers.reapplyBoosts(host: host) }
+        }
+        observeChanges(of: { [store] in store.settings.boostsEnabled }) { [weak self] _ in
+            self?.updateBoostScript()
+            for m in self?.mainWindows ?? [] { m.browsers.reapplyAllBoosts() }
+        }
         mainWindows = store.prefs.windows.map { MainWindowController(app: self, session: $0) }
         followKeyWindow()
         observeFlippingRows()
@@ -403,6 +414,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     }
 
     private var globalHotkey: GlobalHotkey?
+
+    /// The Boosts' start script every page runs (BoostScript): each enabled boost, none with Boosts off.
+    private func updateBoostScript() {
+        let on = store.settings.boostsEnabled
+        let script = on ? BoostScript.documentStart(BoostStore.shared.boosts) : ""
+        CraCEFRuntime.setBoostScript(script, world: PageScript.world, hosts: on ? BoostScript.entries(BoostStore.shared.boosts).map(\.host) : [])
+    }
 
     private func observeContentBlocking() {
         observeChanges(of: { [store] in store.settings.blockAdsAndTrackers }, apply: CraCEFRuntime.setContentBlockingEnabled)
@@ -1202,6 +1220,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                 CraLog.note("today rows \(label): \(today.joined(separator: " | "))")
                 return
             }
+            // editBoost=<host>: Library ▸ Boosts' click on that site's boost; boostEditor=<label>|close|showAll:
+            // what the editor shows, Done, or its zap menu's Show All Zapped Elements (13 Nov 2026).
+            if let host = dict["editBoost"] {
+                if let b = BoostStore.shared.boost(forHost: host) { main.editBoost(b.id) } else { CraLog.note("edit boost: no boost for \(host)") }
+                return
+            }
+            // zapList=<label>: the editor's zap list as it names them; zapHover=<i> (-1: off the list) and
+            // zapRestore=<i>: a row hovered (its ghost on the page) and its Restore (13 Nov 2026).
+            if let label = dict["zapList"] { BoostEditorController.shared.debugZapList(label); return }
+            // zapListShown=1|0: the count beside Zap pressed, its list open or closed.
+            if let v = dict["zapListShown"] { BoostEditorController.shared.debugShowZapList(v == "1"); return }
+            if let i = dict["zapHover"].flatMap(Int.init) { BoostEditorController.shared.debugZapHover(i); return }
+            if let i = dict["zapRestore"].flatMap(Int.init) { BoostEditorController.shared.debugZapRestore(i); return }
+            if let e = dict["boostEditor"] {
+                switch e {
+                case "close": BoostEditorController.shared.close()
+                case "showAll": BoostEditorController.shared.debugShowAllZapped()
+                default: CraLog.note("boost editor \(e): \(BoostEditorController.shared.debugState)")
+                }
+                return
+            }
             // sectionPolicies=<label>: each section's Tidy Tabs Behavior and tabs (TidyPolicy, 13 Nov 2026).
             if let label = dict["sectionPolicies"] {
                 let sid = store.focusedSpace(window: main.windowID).id
@@ -1271,7 +1310,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             // previewDismiss=1: the card goes, as when the pointer leaves it.
             if dict["previewDismiss"] != nil { FavoritePreviewCard.shared.dismiss(animated: false); return }
             // boostZap=1|0: Boost editor's Zap on or off for the open page.
-            if let z = dict["boostZap"] { main.debugZap(z == "1"); return }
+            // Through the editor's Zap button while it is open, as a click would be.
+            if let z = dict["boostZap"] { if !BoostEditorController.shared.debugZap(z == "1") { main.debugZap(z == "1") }; return }
+            // boostState=<label>: the visible page's boost runtime: its sheet adopted, zaps, elements hidden (BoostScript).
+            if let label = dict["boostState"] { main.browsers.debugBoostState(label); return }
             // boostPick=1|0|copyThis|copyRelated|zapRelated: the code panel's eyedropper on (the
             // menu answered with that action) or off.
             if let p = dict["boostPick"] { main.debugPick(p); return }

@@ -1,0 +1,8 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Deep zap fixture</title>
+<!-- Zap's selectors on a deep element with no id or class of its own (13 Nov 2026): one written
+     five levels up from it, "body > …", never matched again. -->
+<section><div><div><div><div><div><div><span>Other</span><span>Deep</span></div></div></div></div></div></div></section>
+<p id="keep">Keep</p>
+<aside class="promo">Promo</aside>

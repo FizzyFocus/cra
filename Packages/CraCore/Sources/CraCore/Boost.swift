@@ -103,7 +103,8 @@ public struct Boost: Codable, Equatable, Identifiable, Sendable {
         case .lower: rules.append("body, body * { text-transform: lowercase !important; }")
         case .capitalize: rules.append("body, body * { text-transform: capitalize !important; }")
         }
-        if !zapped.isEmpty { rules.append(zapped.joined(separator: ", ") + " { display: none !important; }") }
+        // A rule per zap: in one list, a selector the page's CSS can't parse dropped them all (13 Nov 2026).
+        for z in zapped where !z.trimmingCharacters(in: .whitespaces).isEmpty { rules.append("\(z) { display: none !important; }") }
         if !css.isEmpty { rules.append(css) }
         return rules.joined(separator: "\n")
     }

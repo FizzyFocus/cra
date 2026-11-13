@@ -1339,15 +1339,20 @@ final class BrowserManager: NSObject, @preconcurrency CraBrowserDelegate {
     }
 
     /// Arc's Boosts: the site's boost for this page (set by the app; BoostStore), nil for none.
-    static var boostFor: ((String) -> (css: String, js: String)?)?
+    static var boostFor: ((String) -> (css: String, js: String, zapped: [String])?)?
 
-    /// The page's boost: its stylesheet adopted like the theme data, its script run in the page.
-    /// An emptied boost clears what an earlier one adopted.
+    /// The page's boost: its stylesheet and zaps through BoostScript's runtime in Cra's isolated
+    /// world (the start script has usually put them on already; this covers a document that began
+    /// before it was in, and every edit), its script run in the page. An emptied boost clears what
+    /// an earlier one put on.
     func applyBoost(to browser: CraBrowser, clearing: Bool = true) {
         let boost = Self.boostFor?(browser.currentURL)
-        // A new document has nothing adopted: no call unless there is a boost to put on it.
+        // A new document has nothing on: no call unless there is a boost to put on it.
         guard boost != nil || clearing else { return }
-        adopt(boost?.css ?? "", as: "__craBoost", in: browser)
+        let script = BoostScript.apply(css: boost?.css ?? "", zapped: boost?.zapped ?? [])
+        guard let params = try? JSONSerialization.data(withJSONObject: ["expression": script]),
+              let json = String(data: params, encoding: .utf8) else { return }
+        browser.evaluate(inIsolatedWorld: PageScript.world, params: json) { _, _ in }
         if let js = boost?.js, !js.isEmpty { browser.executeJavaScript(js) }
     }
 
@@ -1355,6 +1360,22 @@ final class BrowserManager: NSObject, @preconcurrency CraBrowserDelegate {
     func reapplyBoosts(host: String) {
         for rt in runtimes.values where URL(string: rt.browser.currentURL)?.host.map(Boost.siteHost).map({ $0 == host || $0.hasSuffix("." + host) }) == true {
             applyBoost(to: rt.browser)
+        }
+    }
+
+    /// Boosts turned on or off: every page gets its boost, or loses it.
+    func reapplyAllBoosts() {
+        for rt in runtimes.values where rt.browser.currentURL.hasPrefix("http") { applyBoost(to: rt.browser) }
+    }
+
+    /// `cra://debug?boostState=`: what the visible page's boost runtime holds (BoostScript).
+    func debugBoostState(_ label: String) {
+        guard let id = visibleTabID, let b = runtimes[id]?.browser else { CraLog.note("boost state \(label): no page"); return }
+        let expression = "JSON.stringify(window.__craBoostState ? window.__craBoostState() : null)"
+        guard let params = try? JSONSerialization.data(withJSONObject: ["expression": expression, "returnByValue": true]),
+              let json = String(data: params, encoding: .utf8) else { return }
+        b.evaluate(inIsolatedWorld: PageScript.world, params: json) { result, error in
+            CraLog.note("boost state \(label): \(result ?? error ?? "-")")
         }
     }
 

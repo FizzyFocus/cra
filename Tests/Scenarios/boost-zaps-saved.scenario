@@ -1,0 +1,61 @@
+# Zaps are kept (13 Nov 2026, the owner's calls). Each click with Zap on goes into the boost at once,
+# so closing the editor with Zap still on keeps them (they were taken only when Zap was turned off,
+# and closing dropped them); its selector finds a deep element with no id or class again on reload
+# (one written "body > …" five levels up never did). Library ▸ Boosts opens the site with the boost in
+# its editor, its zaps counted there and listed by name and size, each one's ghost on the page under the
+# pointer; Restore and Show All Zapped Elements bring them back.
+budget rss=800 stalls50=20
+seed settings.json {"hasSeenImportPrompt": true, "toolbarDefaultMigrated": true}
+cra://open?url=${ORIGIN}/zap-deep.html
+expect-log loaded 127\.0\.0\.1 \(HTTP 200\)
+wait 1
+cra://action/newBoost
+wait 1
+cra://debug?boostEditor=new
+expect-log boost editor new: open My Boost zapped=0 zapping=0
+cra://debug?boostZap=1
+wait 0.5
+cra://debug?cdp=Runtime.evaluate&params={"expression":"(document.querySelectorAll('span')[1].click(),document.querySelector('aside.promo').click(),'clicked')"}
+expect-log Cra cdp Runtime.evaluate .*"value":"clicked"
+wait 0.8
+cra://debug?boostEditor=zapping
+expect-log boost editor zapping: open My Boost zapped=2 zapping=1
+# Done with Zap still on: the zaps stay.
+cra://debug?boostEditor=close
+wait 0.5
+cra://action/reload
+wait 2
+cra://debug?cdp=Runtime.evaluate&params={"expression":"['reload',getComputedStyle(document.querySelectorAll('span')[1]).display,getComputedStyle(document.querySelectorAll('span')[0]).display,getComputedStyle(document.querySelector('aside.promo')).display,getComputedStyle(document.getElementById('keep')).display].join('-')"}
+expect-log Cra cdp Runtime.evaluate .*"value":"reload-none-inline-none-block"
+# Library ▸ Boosts: the site (already open here) and the boost in its editor, two zaps.
+cra://debug?editBoost=127.0.0.1
+expect-log boost editor opened from the Library: 2 zapped
+cra://debug?boostEditor=reopened
+expect-log boost editor reopened: open My Boost zapped=2 zapping=0
+# The zap list names each by what it hides and its size; a row under the pointer shows its element's
+# ghost in place on the page, with a Restore badge, gone again off the row; Restore shows it for good.
+cra://debug?zapList=two
+expect-log zap list two: Text “Deep” \[span · [0-9]+ × [0-9]+\] \| Promo \[aside · [0-9]+ × [0-9]+\]$
+cra://debug?zapHover=1
+wait 0.4
+cra://debug?cdp=Runtime.evaluate&params={"expression":"['ghost',getComputedStyle(document.querySelector('aside.promo')).display,getComputedStyle(document.querySelector('aside.promo')).opacity,[...document.querySelectorAll('div')].some(d=>d.textContent==='↺ Restore')].join('-')"}
+expect-log Cra cdp Runtime.evaluate .*"value":"ghost-block-0\.45-true"
+cra://debug?zapHover=-1
+wait 0.4
+cra://debug?cdp=Runtime.evaluate&params={"expression":"['unghost',getComputedStyle(document.querySelector('aside.promo')).display,[...document.querySelectorAll('div')].some(d=>d.textContent==='↺ Restore')].join('-')"}
+expect-log Cra cdp Runtime.evaluate .*"value":"unghost-none-false"
+cra://debug?zapRestore=0
+wait 0.8
+expect-log zap restored 1, 1 left
+cra://debug?cdp=Runtime.evaluate&params={"expression":"['restored',getComputedStyle(document.querySelectorAll('span')[1]).display,getComputedStyle(document.querySelector('aside.promo')).display].join('-')"}
+expect-log Cra cdp Runtime.evaluate .*"value":"restored-inline-none"
+# Show All Zapped Elements: the rest back on the page at once, and after a reload.
+cra://debug?boostEditor=showAll
+wait 0.8
+cra://debug?cdp=Runtime.evaluate&params={"expression":"['shown',getComputedStyle(document.querySelectorAll('span')[1]).display,getComputedStyle(document.querySelector('aside.promo')).display].join('-')"}
+expect-log Cra cdp Runtime.evaluate .*"value":"shown-inline-block"
+cra://debug?boostEditor=close
+cra://action/reload
+wait 2
+cra://debug?cdp=Runtime.evaluate&params={"expression":"['after',getComputedStyle(document.querySelectorAll('span')[1]).display,getComputedStyle(document.querySelector('aside.promo')).display].join('-')"}
+expect-log Cra cdp Runtime.evaluate .*"value":"after-inline-block"

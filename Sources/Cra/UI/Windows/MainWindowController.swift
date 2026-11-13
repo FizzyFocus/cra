@@ -360,6 +360,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
         sidebarActions.toggleLibrary = { [weak self] in self?.toggleLibrary() }
         sidebarActions.showLibrary = { [weak self] page in self?.showLibrary(page) }
         sidebarActions.closeLibrary = { [weak self] in self?.leaveLibrary() }
+        sidebarActions.editBoost = { [weak self] id in self?.editBoost(id) }
         sidebarActions.exitPageFullscreen = { [weak self] in self?.exitContentFullscreen() }
         sidebarActions.openBookmark = { [weak self] b in self?.openBookmark(b) }
         sidebarUI.onShownSpaceChanged = { [weak self] in self?.dismissPopovers("another space shows", spaceChange: true) }
@@ -3779,16 +3780,58 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
 
     // MARK: Boosts
 
-    /// Arc's New Boost: the open site's boost (made if it has none) in the editor beside the page.
-    func openBoostEditor() {
+    /// Library ▸ Boosts (a click, or Edit Boost): the boost's site, in the tab on it already or a
+    /// new one, with the boost in the editor beside it to change its look, code and zaps (13 Nov
+    /// 2026; a click used to open only the site).
+    func editBoost(_ id: UUID) {
+        guard let boost = BoostStore.shared.boost(id) else { return }
+        let host = selectedTabID.flatMap { store.item($0)?.tab?.url }.flatMap { URL(string: $0)?.host }.map(Boost.siteHost)
+        if host.map({ $0 == boost.host || $0.hasSuffix("." + boost.host) }) != true {
+            _ = store.createTab(url: "https://\(boost.host)/", select: true)
+        }
+        leaveLibrary()
+        openBoostEditor(boost)
+        CraLog.note("boost editor opened from the Library: \(boost.zapped.count) zapped")
+    }
+
+    /// Arc's New Boost: the open site's boost (made if it has none) in the editor beside the page;
+    /// or `given`, from Library ▸ Boosts.
+    func openBoostEditor(_ given: Boost? = nil) {
         guard let window, let url = selectedTabID.flatMap({ store.item($0)?.tab?.url }),
-              let boost = BoostStore.shared.boostForSite(of: url) else { showToast("Boosts Work on Websites"); return }
+              let boost = given.flatMap({ BoostStore.shared.boost($0.id) }) ?? BoostStore.shared.boostForSite(of: url) else {
+            showToast("Boosts Work on Websites"); return
+        }
         BoostEditorController.shared.open(boost, over: window, page: .init(
             zap: { [weak self] on in self?.setZapping(on) },
             pick: { [weak self] on in self?.setPicking(on) },
             toggleDevTools: { [weak self] in self?.browsers.runDevTools(.toggle) },
             devToolsOpen: { [weak self] in self?.browsers.visibleTabHasDevTools ?? false },
-            reload: { [weak self] in self?.currentBrowser?.reload() }))
+            reload: { [weak self] in self?.currentBrowser?.reload() },
+            inspectZaps: { [weak self] zapped, done in self?.inspectZaps(zapped, done) },
+            ghost: { [weak self] selector in self?.evaluateBoostScript(BoostScript.ghost(selector)) { _ in } }))
+    }
+
+    /// The zap list's facts from the page in Cra's isolated world (BoostScript.inspect).
+    private func inspectZaps(_ zapped: [String], _ done: @escaping ([ZapFacts]) -> Void) {
+        evaluateBoostScript(BoostScript.inspect(zapped)) { text in
+            let facts = text.flatMap { try? JSONDecoder().decode([ZapFacts].self, from: Data($0.utf8)) }
+            // Not on this page (another site's tab now, or nothing answered): each zap listed as such.
+            done(facts ?? zapped.map { ZapFacts(selector: $0, count: 0) })
+        }
+    }
+
+    /// A Boost runtime call on the page on screen, in Cra's isolated world; `done` gets the string
+    /// it returns.
+    private func evaluateBoostScript(_ expression: String, _ done: @escaping (String?) -> Void) {
+        guard let b = currentBrowser,
+              let data = try? JSONSerialization.data(withJSONObject: ["expression": expression, "returnByValue": true]),
+              let params = String(data: data, encoding: .utf8) else { done(nil); return }
+        b.evaluate(inIsolatedWorld: PageScript.world, params: params) { result, _ in
+            MainActor.assumeIsolated {
+                let o = result.flatMap { try? JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any] }
+                done((o?["result"] as? [String: Any])?["value"] as? String)
+            }
+        }
     }
 
     /// The code panel's eyedropper (BoostPicker): the page outlines the element under the pointer
@@ -3857,7 +3900,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
             NSPasteboard.general.setString(selector, forType: .string)
             CraLog.note("boost pick copied \(selector)")
         case .zapRelated:
-            BoostEditorController.shared.addZapped([selector])
+            BoostEditorController.shared.addZapped([selector], to: BoostEditorController.shared.editingBoostID)
         }
     }
 
@@ -3866,15 +3909,44 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
     /// Testing without the pointer (cra://debug?boostZap=1|0): Zap on or off, as its button does.
     func debugZap(_ on: Bool) { setZapping(on) }
 
+    private var zapTimer: Timer?
+    private weak var zapBrowser: CraBrowser?
+    /// The boost Zap saves into: the one in the editor when Zap was turned on.
+    private var zapBoostID: UUID?
+
+    /// Zap (BoostZap): each click is saved into the boost at once, from a poll while Zap is on (and
+    /// put back on the page after a navigation); off hands over the rest.
     private func setZapping(_ on: Bool) {
+        zapTimer?.invalidate()
+        zapTimer = nil
+        if !on {
+            if let b = zapBrowser { takeZaps(from: b, expression: BoostZap.stopExpression) }
+            zapBrowser = nil
+            return
+        }
         guard let b = currentBrowser else { return }
-        if on { b.executeJavaScript(Self.zapScript); return }
-        b.sendDevToolsMethod("Runtime.evaluate", params: #"{"expression":"(()=>{const z=window.__craZap;if(!z)return '[]';z.stop();return JSON.stringify(z.hidden)})()","returnByValue":true}"#) { result, _ in
+        zapBrowser = b
+        zapBoostID = BoostEditorController.shared.editingBoostID
+        b.executeJavaScript(BoostZap.script)
+        let t = Timer(timeInterval: 0.25, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, let b = self.zapBrowser else { return }
+                self.takeZaps(from: b, expression: BoostZap.script + ";" + BoostZap.takeExpression)
+            }
+        }
+        RunLoop.main.add(t, forMode: .common)
+        zapTimer = t
+    }
+
+    private func takeZaps(from b: CraBrowser, expression: String) {
+        let boost = zapBoostID
+        guard let data = try? JSONSerialization.data(withJSONObject: ["expression": expression, "returnByValue": true]),
+              let params = String(data: data, encoding: .utf8) else { return }
+        b.sendDevToolsMethod("Runtime.evaluate", params: params) { result, _ in
             MainActor.assumeIsolated {
                 let o = result.flatMap { try? JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any] }
                 let text = (o?["result"] as? [String: Any])?["value"] as? String ?? "[]"
-                let selectors = (try? JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String]) ?? []
-                BoostEditorController.shared.addZapped(selectors)
+                BoostEditorController.shared.addZapped(BoostZap.selectors(text), to: boost)
             }
         }
     }
@@ -3882,19 +3954,6 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
     private var pickTimer: Timer?
     private weak var pickBrowser: CraBrowser?
     private var pickAnswer: BoostPicker.Action?
-
-    static let zapScript = """
-    (()=>{if(window.__craZap)return;const hidden=[];let over=null;
-    const sel=e=>{if(e.id)return '#'+CSS.escape(e.id);const p=[];for(let n=e;n&&n.nodeType===1&&n!==document.body&&p.length<5;n=n.parentElement){
-    if(n.id){p.unshift('#'+CSS.escape(n.id));break}let i=1;for(let s=n.previousElementSibling;s;s=s.previousElementSibling)if(s.tagName===n.tagName)i++;
-    p.unshift(n.tagName.toLowerCase()+':nth-of-type('+i+')')}return (p[0]&&p[0][0]==='#'?'':'body > ')+p.join(' > ')};
-    const mark=e=>{if(over)over.style.outline=over.__craOutline||'';over=e;if(e){e.__craOutline=e.style.outline;e.style.outline='2px solid #ff3b30'}};
-    const page=t=>t===document.body||t===document.documentElement;
-    const move=ev=>mark(page(ev.target)?null:ev.target);
-    const click=ev=>{ev.preventDefault();ev.stopPropagation();const t=ev.target;if(page(t))return;mark(null);hidden.push(sel(t));t.style.display='none'};
-    document.addEventListener('mouseover',move,true);document.addEventListener('click',click,true);
-    window.__craZap={hidden,stop(){document.removeEventListener('mouseover',move,true);document.removeEventListener('click',click,true);mark(null);delete window.__craZap}}})()
-    """
 
     // MARK: Arc parity (docs/arc-parity.md)
 

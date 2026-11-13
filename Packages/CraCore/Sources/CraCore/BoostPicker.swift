@@ -58,9 +58,9 @@ public enum BoostPicker {
         return try? JSONDecoder().decode(Pick.self, from: Data(json.utf8))
     }
 
-    /// Turns the picker on (once per page).
-    public static let script = """
-    (()=>{if(window.__craPick)return;
+    /// The selector helpers the picker and Zap share: `thisSel(e)` is the shortest selector that
+    /// matches only `e`, walking up to an id or the body, with no limit on depth.
+    public static let selectorHelpers = """
     const esc=CSS.escape,ok=c=>/^[A-Za-z_-][\\w-]*$/.test(c)&&c.length<=32&&(c.match(/\\d/g)||[]).length<=2;
     const count=s=>{try{return document.querySelectorAll(s).length}catch(e){return 0}};
     const page=e=>!e||e===document.body||e===document.documentElement;
@@ -71,6 +71,12 @@ public enum BoostPicker {
     const same=n.parentElement?[...n.parentElement.children].filter(x=>x.tagName===n.tagName):[n];
     p.unshift(part(n)+(same.length>1?':nth-of-type('+(same.indexOf(n)+1)+')':''));const s=p.join(' > ');if(count(s)===1)return s}
     return p.join(' > ')||part(e)};
+    """
+
+    /// Turns the picker on (once per page).
+    public static let script = """
+    (()=>{if(window.__craPick)return;
+    \(selectorHelpers)
     const relSel=e=>{const t=e.tagName.toLowerCase(),own=part(e),c=[own],par=e.parentElement;
     const ps=page(par)?null:(idOf(par)||part(par));if(ps)c.push(ps+' > '+own);
     for(const k of [...e.classList].filter(ok))c.push(t+'.'+esc(k));if(ps)c.push(ps+' > '+t);
