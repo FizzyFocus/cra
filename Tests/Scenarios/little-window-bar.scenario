@@ -1,0 +1,26 @@
+# The Little Window's bar (13 Nov 2026, the owner's calls): in the colours of the space it opens into
+# (light here; Arc draws it dark whatever the space), the address with the whole pill to itself (the
+# profile's chip in it left a narrow window none), and the page's profile picked from the bar's
+# right-click menu instead. A Little Window opens in the profile of the space it opens into.
+# Personal is on Default, Random on the profile Hobbies (as in little-window-route).
+budget rss=900 stalls50=40
+seed settings.json {"hasSeenImportPrompt": true, "toolbarDefaultMigrated": true, "defaultLinkDestination": {"littleWindow": {}}, "linkRoutes": [{"id": "E0000000-0000-0000-0000-000000000001", "match": "contains", "text": "n=random", "destination": {"littleWindow": {"space": "A0000000-0000-0000-0000-000000000002"}}}, {"id": "E0000000-0000-0000-0000-000000000002", "match": "contains", "text": "chrome://version", "destination": {"littleWindow": {"space": "A0000000-0000-0000-0000-000000000002"}}}, {"id": "E0000000-0000-0000-0000-000000000003", "match": "contains", "text": "n=gone", "destination": {"littleWindow": {"space": "A0000000-0000-0000-0000-000000000009"}}}]}
+seed sidebar.json {"version":1,"spaceOrder":["A0000000-0000-0000-0000-000000000001","A0000000-0000-0000-0000-000000000002"],"spaces":[{"id":"A0000000-0000-0000-0000-000000000001","title":"Personal","emoji":"🏠","favoritesContainerID":"C0000000-0000-0000-0000-000000000011","pinnedContainerID":"C0000000-0000-0000-0000-000000000012","todayContainerID":"C0000000-0000-0000-0000-000000000013","createdAt":"2026-11-06T08:00:00Z","theme":{"colors":["#8389FF","#8389FF"],"intensity":0.5,"noise":0,"appearance":"light","accent":"#8389FF","solid":true,"key":["#8389FF"]}},{"id":"A0000000-0000-0000-0000-000000000002","title":"Random","emoji":"🎲","favoritesContainerID":"C0000000-0000-0000-0000-000000000021","pinnedContainerID":"C0000000-0000-0000-0000-000000000022","todayContainerID":"C0000000-0000-0000-0000-000000000023","createdAt":"2026-11-06T08:00:00Z","profileID":"B0000000-0000-0000-0000-000000000001","theme":{"colors":["#8389FF","#8389FF"],"intensity":0.5,"noise":0,"appearance":"light","accent":"#8389FF","solid":true,"key":["#8389FF"]}}],"profiles":[{"id":"B0000000-0000-0000-0000-000000000001","name":"Hobbies"}],"items":[{"id":"C0000000-0000-0000-0000-000000000011","children":[],"isUnread":false,"createdAt":"2026-11-06T08:00:00Z","data":{"container":{"_0":{"favorites":{"spaceID":"A0000000-0000-0000-0000-000000000001"}}}}},{"id":"C0000000-0000-0000-0000-000000000012","children":[],"isUnread":false,"createdAt":"2026-11-06T08:00:00Z","data":{"container":{"_0":{"pinned":{"spaceID":"A0000000-0000-0000-0000-000000000001"}}}}},{"id":"C0000000-0000-0000-0000-000000000013","children":[],"isUnread":false,"createdAt":"2026-11-06T08:00:00Z","data":{"container":{"_0":{"today":{"spaceID":"A0000000-0000-0000-0000-000000000001"}}}}},{"id":"C0000000-0000-0000-0000-000000000021","children":[],"isUnread":false,"createdAt":"2026-11-06T08:00:00Z","data":{"container":{"_0":{"favorites":{"spaceID":"A0000000-0000-0000-0000-000000000002"}}}}},{"id":"C0000000-0000-0000-0000-000000000022","children":[],"isUnread":false,"createdAt":"2026-11-06T08:00:00Z","data":{"container":{"_0":{"pinned":{"spaceID":"A0000000-0000-0000-0000-000000000002"}}}}},{"id":"C0000000-0000-0000-0000-000000000023","children":[],"isUnread":false,"createdAt":"2026-11-06T08:00:00Z","data":{"container":{"_0":{"today":{"spaceID":"A0000000-0000-0000-0000-000000000002"}}}}}]}
+
+cra://debug?externalURL=${PAGE}?n=bar
+wait 2
+cra://debug?littleShown=opened
+expect-log little shown opened: windows=1 space=Personal profile=Default
+cra://debug?littleBar=wide
+expect-log little bar wide: address=127\.0\.0\.1 shown=all look=light menu=Copy Link\|──\|Profile \[Default✓,Hobbies\]$
+cra://debug?littleBar=narrow&width=520
+expect-log little bar narrow: address=127\.0\.0\.1 shown=all look=light
+# Profile ▸ Hobbies, asked first: the page loads again in Hobbies.
+cra://debug?littleBar=pick&run=Hobbies
+wait 0.5
+cra://debug?answerDialog=Change Profile
+wait 2
+cra://debug?littleShown=picked
+expect-log little shown picked: windows=1 space=Personal profile=Hobbies
+cra://debug?littleBar=after
+expect-log little bar after: .* menu=Copy Link\|──\|Profile \[Default,Hobbies✓\]$

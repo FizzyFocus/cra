@@ -1522,6 +1522,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             if let step = dict["littleMenu"] { littleWindows.last?.debugMenu(step); return }
             // littleCard=<step>: the newest Little Window's card, see debugCardStep (#337).
             if let step = dict["littleCard"] { littleWindows.last?.debugCardStep(step); return }
+            // littleBar=<label>[&width=<pt>][&run=<title>]: the newest Little Window's bar (how much of the
+            // address shows, light or dark) and its right-click menu, a row run (13 Nov 2026).
+            if let label = dict["littleBar"] {
+                let out = littleWindows.last?.debugBar(width: dict["width"].flatMap(Double.init).map { CGFloat($0) }, run: dict["run"]) ?? "no little window"
+                CraLog.note("little bar \(label): \(out)")
+                return
+            }
             // inspectAt=x,y: Inspect in the page's right-click menu at that point of the page (the
             // newest Little Window's or Peek's with target=little); devToolsShown=<label>: where each
             // Little Window's and Peek's DevTools are, and whether the front tab has any (#348).
