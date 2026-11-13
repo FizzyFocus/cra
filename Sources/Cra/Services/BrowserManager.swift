@@ -662,8 +662,8 @@ final class BrowserManager: NSObject, @preconcurrency CraBrowserDelegate {
         wake(id, rt)
     }
 
-    /// The tab menu's Load in Background (13 Nov 2026): the tab's page made, or a sleeping one woken,
-    /// behind, nothing shown. False when it has no page to load (an empty pane).
+    /// A tab's page made, or a sleeping one woken, behind, nothing shown (the tab menu's Reload on a
+    /// tab without one). False when it has no page to load (an empty pane).
     @discardableResult
     func loadInBackground(_ id: UUID) -> Bool {
         if let rt = runtimes[id] {

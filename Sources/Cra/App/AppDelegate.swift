@@ -1191,6 +1191,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                 CraLog.note("drag row \(n) onto \(m): \(SpaceListView.debugDrag(ui: main.sidebarUI, space: store.focusedSpace(window: main.windowID).id, from: n, onto: m, at: at))")
                 return
             }
+            // rightClickRow=<n>: that row right-clicked (its menu made, not shown); then the hovered row.
+            if let n = dict["rightClickRow"].flatMap(Int.init) {
+                CraLog.note("right-click row \(n): \(SpaceListView.debugRightClick(ui: main.sidebarUI, space: store.focusedSpace(window: main.windowID).id, row: n))")
+                return
+            }
             if let n = dict["rowMenu"].flatMap(Int.init) {
                 let out = SpaceListView.debugRowMenu(ui: main.sidebarUI, space: store.focusedSpace(window: main.windowID).id, row: n, run: dict["run"])
                 CraLog.note("row menu \(dict["label"] ?? "\(n)"): \(out)")

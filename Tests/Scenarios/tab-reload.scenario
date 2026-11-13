@@ -1,0 +1,25 @@
+# The tab menu's Reload (13 Nov 2026, the owner's calls): that tab's page, whichever tab is shown;
+# one asleep or never loaded loads behind, without switching to it (Load in Background is gone: Reload
+# does it). A right-click on a row takes the hover from the row lit before (one stayed lit).
+budget rss=800 stalls50=30
+seed settings.json {"hasSeenImportPrompt": true, "toolbarDefaultMigrated": true}
+
+cra://open?url=${PAGE}?n=1
+expect-log loaded 127\.0\.0\.1 \(HTTP 200\)
+cra://open?url=${PAGE}?n=2
+wait 2
+# Rows: 0 n=2 (shown), 1 n=1 (behind). Row 0 lit, then row 1 right-clicked: the hover is row 1's.
+cra://debug?hover=TabRowView,0
+cra://debug?rightClickRow=1
+expect-log right-click row 1: menu=1 hovered=1$
+# Unloaded (its page put to sleep), then Reload: it loads again behind; n=2 stays shown.
+cra://debug?rowMenu=1&run=Unload Tab
+wait 1
+cra://debug?rowMenu=1&label=unloaded
+expect-log row menu unloaded: .*\|Mute\|Reload\|Unload Tab \(off\)\|
+reject-log Load in Background
+cra://debug?rowMenu=1&run=Reload
+expect-log tab [0-9A-F]+ (loads in the background|loads its discarded page again)
+wait 1.5
+cra://debug?rowMenu=1&run=Reload
+expect-log tab [0-9A-F]+ reloads

@@ -815,7 +815,10 @@ class SidebarRowView: NSView {
     }
 
     override func menu(for event: NSEvent) -> NSMenu? {
-        contextMenu(at: convert(event.locationInWindow, from: nil))
+        // The row right-clicked takes the hover from wherever it was (13 Nov 2026): no pointer moves
+        // reach the list while a menu is up, so a right-click on another row left the first one lit.
+        list?.hoverForMenu(at: event.locationInWindow)
+        return contextMenu(at: convert(event.locationInWindow, from: nil))
     }
 }
 

@@ -39,8 +39,6 @@ final class SidebarUIState {
     var pageFullscreen = false
     /// Whether Unload Tab can act on `id` now: loaded, awake and not on screen.
     func canUnload(_ id: UUID) -> Bool { loadedTabIDs.contains(id) && !unloadedTabIDs.contains(id) && !onScreenTabIDs.contains(id) }
-    /// Load in Background (13 Nov 2026): a tab with no page yet, or one asleep, off screen.
-    func canLoadInBackground(_ id: UUID) -> Bool { !onScreenTabIDs.contains(id) && (!loadedTabIDs.contains(id) || unloadedTabIDs.contains(id)) }
     /// Whether the row of tab `id` shows it unloaded (half-strength name, dashed ring): it has no
     /// page in memory, never loaded since launch (every tab but the open one, as a relaunch leaves
     /// them), unloaded or put to sleep since. The open tab and tabs on screen never do: they are
@@ -254,9 +252,8 @@ final class SidebarActions {
     var exitPageFullscreen: () -> Void = {}
     /// Unload Tab: the page leaves memory, the tab stays and loads again when shown.
     var unloadTab: (UUID) -> Void = { _ in }
-    /// The tab menu's Reload and Load in Background: that tab's page, whether shown or not.
+    /// The tab menu's Reload: that tab's page, whether shown or not.
     var reloadTab: (UUID) -> Void = { _ in }
-    var loadInBackground: (UUID) -> Void = { _ in }
     /// A tab dragged out of every Cra window and let go there (screen point): Arc opens it in a
     /// Blank Window where it was dropped (GitHub #219).
     var tearOffTab: (UUID, NSPoint) -> Void = { _, _ in }

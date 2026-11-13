@@ -1089,6 +1089,9 @@ final class SpaceListView: NSView, NSDraggingSource {
         hoverAt(row.convert(NSPoint(x: row.bounds.midX, y: row.bounds.midY), to: nil))
     }
 
+    /// A row's right-click: the hover goes to the row under it, off any other.
+    func hoverForMenu(at windowPoint: NSPoint) { hoverAt(windowPoint) }
+
     private func hoverAt(_ windowPoint: NSPoint?) {
         var target: SidebarRowView?
         var local = NSPoint.zero
@@ -1350,6 +1353,20 @@ final class SpaceListView: NSView, NSDraggingSource {
 
     /// cra://debug?rowMenu=<n>[&run=<title>]: listed row n's right-click menu (rows as menuReadout writes
     /// them), and that row run as a click on it would run it.
+    /// cra://debug?rightClickRow=<n>: listed row n right-clicked, its menu made as AppKit asks for it
+    /// (not shown, so the run goes on), then which row has the hover.
+    static func debugRightClick(ui: SidebarUIState, space: UUID, row n: Int) -> String {
+        guard let l = all.allObjects.first(where: { $0.ui === ui && $0.spaceID == space }) else { return "no list" }
+        let listed = l.debugListed
+        guard listed.indices.contains(n), let v = l.views[listed[n].key], let w = v.window else { return "no row" }
+        let p = v.convert(NSPoint(x: v.bounds.midX, y: v.bounds.midY), to: nil)
+        guard let e = NSEvent.mouseEvent(with: .rightMouseDown, location: p, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                                         windowNumber: w.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1) else { return "no event" }
+        let menu = v.menu(for: e)
+        let lit = listed.firstIndex { l.views[$0.key]?.isHovered == true }.map(String.init) ?? "none"
+        return "menu=\(menu == nil ? 0 : 1) hovered=\(lit)"
+    }
+
     static func debugRowMenu(ui: SidebarUIState, space: UUID, row n: Int, run: String?) -> String {
         guard let l = all.allObjects.first(where: { $0.ui === ui && $0.spaceID == space }) else { return "no list" }
         let listed = l.debugListed
