@@ -1290,6 +1290,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             if let t = dict["zapListClick"] { CraLog.note("zap list click: \(BoostEditorController.shared.debugClickZapList(t))"); return }
             if let i = dict["zapHover"].flatMap(Int.init) { BoostEditorController.shared.debugZapHover(i); return }
             if let i = dict["zapRestore"].flatMap(Int.init) { BoostEditorController.shared.debugZapRestore(i); return }
+            // zapUnzapOnly=<i>: Restore's page part alone, the boost unchanged (shows it needs no reload).
+            if let i = dict["zapUnzapOnly"].flatMap(Int.init) { BoostEditorController.shared.debugUnzapOnly(i); return }
             // boostMenu=<name>|new|toggle: the editor's name menu: another of the site's boosts, New Boost for
             // the site, Turn Off/On; boostsFor=<host>: that site's boosts, in the order they apply (13 Nov 2026).
             if let row = dict["boostMenu"] { BoostEditorController.shared.debugMenu(row); return }

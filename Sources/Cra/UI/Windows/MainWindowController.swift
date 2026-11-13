@@ -3834,7 +3834,10 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
             devToolsOpen: { [weak self] in self?.browsers.visibleTabHasDevTools ?? false },
             reload: { [weak self] in self?.currentBrowser?.reload() },
             inspectZaps: { [weak self] zapped, done in self?.inspectZaps(zapped, done) },
-            ghost: { [weak self] selector in self?.evaluateBoostScript(BoostScript.ghost(selector)) { _ in } }))
+            ghost: { [weak self] selector in self?.evaluateBoostScript(BoostScript.ghost(selector)) { _ in } },
+            unzap: { [weak self] selectors in
+                self?.evaluateBoostScript(BoostScript.unzap(selectors)) { r in CraLog.note("zap restored on the page: \(r ?? "no page")") }
+            }))
     }
 
     /// The zap list's facts from the page in Cra's isolated world (BoostScript.inspect).

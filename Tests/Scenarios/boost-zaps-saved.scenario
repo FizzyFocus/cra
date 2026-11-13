@@ -44,6 +44,13 @@ cra://debug?zapHover=-1
 wait 0.4
 cra://debug?cdp=Runtime.evaluate&params={"expression":"['unghost',getComputedStyle(document.querySelector('aside.promo')).display,[...document.querySelectorAll('div')].some(d=>d.textContent==='↺ Restore')].join('-')"}
 expect-log Cra cdp Runtime.evaluate .*"value":"unghost-none-false"
+# Restore's page part alone (the boost still has the zap): the element shows at once, no reload
+# (13 Nov 2026: a restored element stayed hidden until the page was loaded again).
+cra://debug?zapUnzapOnly=0
+expect-log zap restored on the page: unzapped 1$
+wait 0.3
+cra://debug?cdp=Runtime.evaluate&params={"expression":"['live',getComputedStyle(document.querySelectorAll('span')[1]).display,document.querySelectorAll('[data-cra-boost-hidden]').length].join('-')"}
+expect-log Cra cdp Runtime.evaluate .*"value":"live-inline-1"
 # Restore and Restore All, clicked in the list as the pointer would (13 Nov 2026: a click on them closed
 # the list and restored nothing).
 cra://debug?zapListShown=1

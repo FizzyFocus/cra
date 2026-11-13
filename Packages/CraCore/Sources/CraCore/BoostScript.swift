@@ -32,6 +32,8 @@ public enum BoostScript {
         if (!was.has(el)) {
           was.set(el, [st.getPropertyValue('display'), st.getPropertyPriority('display')]);
           hidden.add(new WeakRef(el));
+          // Marked in the page too, so Restore finds it whichever script hid it (unzap).
+          el.setAttribute('data-cra-boost-hidden', st.getPropertyValue('display') + '|' + st.getPropertyPriority('display'));
         }
         st.setProperty('display', 'none', 'important');
       };
@@ -52,6 +54,7 @@ public enum BoostScript {
           if (!el) continue;
           const [v, p] = was.get(el) || ['', ''];
           if (v) el.style.setProperty('display', v, p); else el.style.removeProperty('display');
+          el.removeAttribute('data-cra-boost-hidden');
           was.delete(el);
         }
         // What the editor's Zap hid on this page (BoostZap), once its zap is taken back.
@@ -139,6 +142,12 @@ public enum BoostScript {
         (document.body || document.documentElement).append(badge);
         return els.length;
       };
+      // Restore in the editor (unzap): these selectors no longer hide, so new elements stay shown.
+      window.__craBoostForget = (list) => {
+        const gone = new Set(list);
+        zaps = zaps.filter((s) => !gone.has(s));
+        restore();
+      };
       window.__craBoostState = () => ({
         adopted: !!sheet && document.adoptedStyleSheets.includes(sheet),
         zaps: zaps.length,
@@ -193,6 +202,50 @@ public enum BoostScript {
     public static func ghost(_ selector: String?) -> String {
         let args = (try? JSONSerialization.data(withJSONObject: [selector.map { $0 as Any } ?? NSNull()], options: [])).flatMap { String(data: $0, encoding: .utf8) } ?? "[null]"
         return runtime + "\n" + "window.__craBoostGhost(...\(args));"
+    }
+
+    /// The editor's Restore (13 Nov 2026, the owner's call: a restored element stayed hidden until a
+    /// reload): on the page at once, whatever hid them. Each Boost stylesheet the document has
+    /// adopted loses its rule for these selectors; what they hid inline (the runtime, or the editor's
+    /// Zap) gets its own display back; and the runtime stops hiding them as elements come. The boost
+    /// saved without them is applied again after, as any edit is.
+    public static func unzap(_ selectors: [String]) -> String {
+        let args = (try? JSONSerialization.data(withJSONObject: [selectors], options: [])).flatMap { String(data: $0, encoding: .utf8) } ?? "[[]]"
+        return runtime + "\n" + #"""
+        ((sels) => {
+          const gone = new Set(sels);
+          for (const sh of [...document.adoptedStyleSheets]) {
+            let rules;
+            try { rules = sh.cssRules; } catch (e) { continue; }
+            for (let i = rules.length - 1; i >= 0; i--) {
+              const r = rules[i];
+              if (r.selectorText && gone.has(r.selectorText) && r.style && r.style.getPropertyValue('display') === 'none') {
+                try { sh.deleteRule(i); } catch (e) {}
+              }
+            }
+          }
+          let shown = 0;
+          for (const s of sels) {
+            let els = [];
+            try { els = document.querySelectorAll(s); } catch (e) {}
+            for (const el of els) {
+              for (const a of ['data-cra-zapped', 'data-cra-boost-hidden']) {
+                if (!el.hasAttribute(a)) continue;
+                const [v, p] = (el.getAttribute(a) || '|').split('|');
+                el.removeAttribute(a);
+                if (v) el.style.setProperty('display', v, p || ''); else el.style.removeProperty('display');
+              }
+              el.removeAttribute('data-cra-zap-pending');
+              if (el.style.getPropertyValue('display') === 'none' && el.style.getPropertyPriority('display') === 'important') {
+                el.style.removeProperty('display');
+              }
+              shown += 1;
+            }
+          }
+          window.__craBoostForget(sels);
+          return 'unzapped ' + shown;
+        })
+        """# + "(...\(args));"
     }
 
     /// The expression a commit or an edit evaluates in the isolated world: the runtime (in case the

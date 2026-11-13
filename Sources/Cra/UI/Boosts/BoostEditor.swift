@@ -26,6 +26,8 @@ final class BoostEditorController {
         var inspectZaps: ([String], @escaping ([ZapFacts]) -> Void) -> Void = { _, done in done([]) }
         /// The ghost of a zapped element in its place on the page; nil takes it away.
         var ghost: (String?) -> Void = { _ in }
+        /// Restore: what these zaps hid shows on the page at once (BoostScript.unzap).
+        var unzap: ([String]) -> Void = { _ in }
     }
 
     func open(_ boost: Boost, over window: NSWindow, page: PageActions) {
@@ -168,6 +170,12 @@ final class BoostEditorController {
         }
     }
 
+    /// Only the page's part of Restore, the boost left as it is (a scenario's proof it needs no reload).
+    func debugUnzapOnly(_ index: Int) {
+        guard let model, model.boost.zapped.indices.contains(index) else { return }
+        model.page.unzap([model.boost.zapped[index]])
+    }
+
     func debugZapRestore(_ index: Int) {
         guard let model, model.boost.zapped.indices.contains(index) else { return }
         model.restore([model.boost.zapped[index]])
@@ -254,6 +262,8 @@ final class BoostEditorModel {
     /// doesn't put the element's hiding back after).
     func restore(_ selectors: [String]) {
         ghost(nil)
+        // On the page at once, not only once the boost is applied again (13 Nov 2026).
+        page.unzap(selectors)
         let gone = Set(selectors)
         change { $0.zapped.removeAll { gone.contains($0) } }
         CraLog.note("zap restored \(selectors.count), \(boost.zapped.count) left")

@@ -17,6 +17,15 @@ struct BoostZapTests {
         // A zap taken back shows the element again on the page it was zapped on.
         #expect(BoostScript.runtime.contains("[data-cra-zapped]:not([data-cra-zap-pending])"))
     }
+
+    /// Restore acts on the page at once (13 Nov 2026): the rule out of every Boost sheet, what it hid
+    /// shown again whichever script hid it, and no more hiding of it as elements come.
+    @Test func restoreActsOnThePageAtOnce() {
+        let js = BoostScript.unzap(["#a", "div.b"])
+        #expect(js.hasPrefix(BoostScript.runtime) && js.hasSuffix(##"(...[["#a","div.b"]]);"##))
+        #expect(js.contains("deleteRule") && js.contains("data-cra-boost-hidden") && js.contains("__craBoostForget(sels)"))
+        #expect(BoostScript.runtime.contains("setAttribute('data-cra-boost-hidden'"), "what the runtime hides is marked in the page")
+    }
 }
 
 /// The zap list names elements as a person sees them (13 Nov 2026).
