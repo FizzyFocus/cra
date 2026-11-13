@@ -1,0 +1,45 @@
+# Tidy Tabs' groups and Library ▸ Archived Tabs (12 Nov 2026, the owner's calls): a group's header
+# collapses and expands it, keeping only the open tab in sight while collapsed, and Move Group Up /
+# Down reorders the groups; Archive Tabs (the header's menu) archives the group. A click on an archived
+# tab restores it in the background with Arc's toast, a ⇧-click switches to it (ArchivedTabRestore).
+# The groups are made by cra://debug?makeTabGroup=, as a model answer would (no Apple Intelligence).
+budget rss=800 stalls50=30
+seed settings.json {"hasSeenImportPrompt": true, "toolbarDefaultMigrated": true}
+
+cra://open?url=${PAGE}?n=1
+expect-log loaded 127\.0\.0\.1 \(HTTP 200\)
+cra://open?url=${PAGE}?n=2
+cra://open?url=${PAGE}?n=3
+cra://open?url=${PAGE}?n=4
+wait 2
+cra://debug?makeTabGroup=Alpha&tabs=2
+cra://debug?makeTabGroup=Beta&tabs=2
+wait 0.5
+cra://debug?tabGroups=made
+expect-log tab groups made: Alpha\(open rows=2/2\) Beta\(open rows=2/2\)
+
+# Collapsed: its tabs are kept, only the open one (if it is in there) stays listed.
+cra://debug?groupAction=collapse&group=Alpha
+cra://debug?tabGroups=collapsed
+expect-log tab groups collapsed: Alpha\(collapsed rows=[01]/2\) Beta\(open rows=2/2\)
+
+# Move Group Down / Up: past the next group.
+cra://debug?groupAction=down&group=Alpha
+cra://debug?tabGroups=moved
+expect-log tab groups moved: Beta\(open rows=2/2\) Alpha\(collapsed rows=[01]/2\)
+cra://debug?groupAction=up&group=Alpha
+cra://debug?groupAction=expand&group=Alpha
+cra://debug?tabGroups=back
+expect-log tab groups back: Alpha\(open rows=2/2\) Beta\(open rows=2/2\)
+
+# Archive Tabs: the group's tabs go to the archive and its header with them.
+cra://debug?groupAction=archive&group=Beta
+wait 1
+cra://debug?tabGroups=archived
+expect-log tab groups archived: Alpha\(open rows=2/2\) tidy=
+
+# A click restores in the background with the toast; ⇧-click restores and switches.
+cra://debug?restoreArchived=0
+expect-log archived tab restored in the background \(toast: Tab Restored · Show\)
+cra://debug?restoreArchived=0&shift=1
+expect-log archived tab restored and switched to

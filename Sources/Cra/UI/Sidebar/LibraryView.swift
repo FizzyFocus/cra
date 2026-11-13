@@ -357,6 +357,14 @@ private final class LibraryListView: NSView, NSTextFieldDelegate, NSTableViewDat
     private var outlineQuery = ""
     private var rows: [Row] = []
     private var mediaHiddenObserver: NSObjectProtocol?
+    private var scrollHoverObserver: NSObjectProtocol?
+
+    /// The rows on screen take their hover from where the pointer is now.
+    private func syncRowHover() {
+        table.enumerateAvailableRowViews { row, _ in
+            (row.view(atColumn: 0) as? LibraryItemCell)?.syncPointer()
+        }
+    }
     /// The width the grid rows were last sized for.
     private var gridWidth: CGFloat = 0
     private let searchBox = NSView()
@@ -429,6 +437,12 @@ private final class LibraryListView: NSView, NSTextFieldDelegate, NSTableViewDat
         scroll.hasHorizontalScroller = false
         scroll.contentInsets = NSEdgeInsets(top: 0, left: 0, bottom: 12, right: 0)
         scroll.automaticallyAdjustsContentInsets = false
+        // Rows scrolling under a still pointer take its hover (a reused row kept the last one's).
+        scroll.contentView.postsBoundsChangedNotifications = true
+        scrollHoverObserver = NotificationCenter.default.addObserver(forName: NSView.boundsDidChangeNotification, object: scroll.contentView,
+                                                                     queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.syncRowHover() }
+        }
         addSubview(scroll)
         outlineScroll.documentView = outline
         outlineScroll.drawsBackground = false
@@ -882,7 +896,7 @@ private final class LibraryListView: NSView, NSTextFieldDelegate, NSTableViewDat
             let v = tableView.makeView(withIdentifier: .init("item"), owner: nil) as? LibraryItemCell ?? LibraryItemCell()
             v.identifier = .init("item")
             v.showArchived(e, icon: favicons.image(forKey: e.item.tab?.faviconKey), colors: colors,
-                           restore: { [actions] in actions.restoreArchived(e.id) },
+                           restore: { [actions] shift in actions.restoreArchived(e.id, ArchivedTabRestore.switchesToTab(shift: shift)) },
                            remove: { [store] in store.removeFromArchive(e.id) })
             return v
         }
@@ -1006,7 +1020,9 @@ extension LibraryListView: NSMenuDelegate {
             MenuItems.add(menu, "Delete") { BoostStore.shared.delete(b.id) }
         case .archived(let e):
             let actions = actions, store = store
-            MenuItems.add(menu, "Restore") { actions.restoreArchived(e.id) }
+            // A click restores in the background, ⇧-click switches to it (ArchivedTabRestore); both here.
+            MenuItems.add(menu, "Restore") { actions.restoreArchived(e.id, false) }
+            MenuItems.add(menu, "Restore and Switch to Tab") { actions.restoreArchived(e.id, true) }
             MenuItems.add(menu, "Copy Link") {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(e.item.tab?.url ?? "", forType: .string)
@@ -1094,7 +1110,8 @@ private final class LibraryHeaderCell: NSView {
 }
 
 /// An archived tab (24 pt icon tile, title over URL) or a download (32 pt thumbnail, name over
-/// age): 52 pt tall inside 4 × 2 pt of padding, the space's hover fill under the pointer.
+/// age): 52 pt tall inside 4 × 2 pt of padding, a clear fill under the pointer. An archived tab's
+/// bin and restore buttons light up under the pointer too, and darken while pressed (12 Nov 2026).
 private final class LibraryItemCell: NSView, NSDraggingSource, PointerHover {
     private let card = FlippedView()
     private let tile = NSView()
@@ -1106,14 +1123,25 @@ private final class LibraryItemCell: NSView, NSDraggingSource, PointerHover {
     /// A finished download's file: opened by a click, dragged out.
     private var download: DownloadHistory.Entry?
     private var isDownloadRow = false
-    private var restore: (() -> Void)?
+    /// Restores the archived tab: `true` (Shift) switches to it, else it comes back in the background.
+    private var restore: ((Bool) -> Void)?
     /// An archived tab's hover buttons (Arc 1.172.1): the bin removes it from the archive, the
     /// curved arrow brings it back.
     private var remove: (() -> Void)?
     private let binButton = NSImageView()
     private let restoreButton = NSImageView()
     private var downAt: NSPoint?
-    var hovering = false { didSet { if hovering != oldValue { refreshHover(); needsLayout = true } } }
+    var hovering = false {
+        didSet {
+            guard hovering != oldValue else { return }
+            if !hovering { hoveredButton = nil }
+            refreshHover()
+            needsLayout = true
+        }
+    }
+    /// The archived row's button under the pointer, and the one being pressed.
+    private var hoveredButton: NSImageView? { didSet { if hoveredButton !== oldValue { refreshButtons() } } }
+    private var pressedButton: NSImageView? { didSet { if pressedButton !== oldValue { refreshButtons() } } }
     /// A finished download clicked: the Library opens it (the preview, or its app).
     var openDownload: ((String, NSRect?) -> Void)?
     /// The thumbnail's square on screen, visible or not.
@@ -1151,6 +1179,9 @@ private final class LibraryItemCell: NSView, NSDraggingSource, PointerHover {
             b.setAccessibilityElement(true)
             b.setAccessibilityRole(.button)
             b.setAccessibilityLabel(label)
+            b.wantsLayer = true
+            b.layer?.cornerRadius = 6
+            b.layer?.cornerCurve = .continuous
             card.addSubview(b)
         }
     }
@@ -1159,7 +1190,7 @@ private final class LibraryItemCell: NSView, NSDraggingSource, PointerHover {
 
     override var isFlipped: Bool { true }
 
-    func showArchived(_ e: ArchivedItem, icon image: NSImage?, colors: SidebarColors, restore: @escaping () -> Void, remove: @escaping () -> Void) {
+    func showArchived(_ e: ArchivedItem, icon image: NSImage?, colors: SidebarColors, restore: @escaping (Bool) -> Void, remove: @escaping () -> Void) {
         self.colors = colors
         download = nil
         isDownloadRow = false
@@ -1222,8 +1253,38 @@ private final class LibraryItemCell: NSView, NSDraggingSource, PointerHover {
         needsLayout = true
     }
 
+    /// A clear fill under the pointer: stronger than the sidebar's own hover, which read as no
+    /// hover at all on the Library's frosted column (12 Nov 2026).
     private func refreshHover() {
-        card.layer?.backgroundColor = (hovering ? colors.hoverFill : .clear).cgColor
+        let ink: NSColor = colors.isDark ? .white : .black
+        card.layer?.backgroundColor = (hovering ? ink.withAlphaComponent(colors.isDark ? 0.10 : 0.07) : .clear).cgColor
+        refreshButtons()
+    }
+
+    /// The bin and restore arrow: 60 % ink at rest; under the pointer a rounded fill comes in and the
+    /// glyph goes full strength (the bin red); pressed, the fill darkens.
+    private func refreshButtons() {
+        let ink: NSColor = colors.isDark ? .white : .black
+        for b in [binButton, restoreButton] {
+            let over = b === hoveredButton, down = b === pressedButton && over
+            let fill = down ? (colors.isDark ? 0.24 : 0.16) : over ? (colors.isDark ? 0.16 : 0.10) : 0
+            b.layer?.backgroundColor = ink.withAlphaComponent(fill).cgColor
+            b.contentTintColor = over ? (b === binButton ? .systemRed : ink.withAlphaComponent(0.9)) : ink.withAlphaComponent(0.6)
+        }
+    }
+
+    /// The button under `point` (in the card), when the row shows its buttons.
+    private func button(at point: NSPoint) -> NSImageView? {
+        guard !binButton.isHidden else { return nil }
+        return [binButton, restoreButton].first { $0.frame.insetBy(dx: -4, dy: -4).contains(point) }
+    }
+
+    /// Hover and the button under the pointer, from where the pointer is now (a scroll moved the row).
+    func syncPointer() {
+        syncHover()
+        guard hovering, let w = window else { hoveredButton = nil; return }
+        layoutSubtreeIfNeeded()
+        hoveredButton = button(at: card.convert(w.mouseLocationOutsideOfEventStream, from: nil))
     }
 
     override func layout() {
@@ -1240,9 +1301,7 @@ private final class LibraryItemCell: NSView, NSDraggingSource, PointerHover {
         let showsButtons = hovering && remove != nil && !isDownloadRow
         binButton.isHidden = !showsButtons
         restoreButton.isHidden = !showsButtons
-        let ink: NSColor = colors.isDark ? .white : .black
-        binButton.contentTintColor = ink.withAlphaComponent(0.6)
-        restoreButton.contentTintColor = ink.withAlphaComponent(0.6)
+        refreshButtons()
         restoreButton.frame = NSRect(x: card.bounds.width - 14 - 24, y: (h - 24) / 2, width: 24, height: 24)
         binButton.frame = restoreButton.frame.offsetBy(dx: -34, dy: 0)
         // HStack(spacing: 10) ends in a Spacer, so the text stops 10 + 8 pt short of the edge.
@@ -1257,20 +1316,28 @@ private final class LibraryItemCell: NSView, NSDraggingSource, PointerHover {
 
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
-        trackPointer()
+        // Moves too: the bin and the arrow each light up under the pointer.
+        trackPointer([.mouseEnteredAndExited, .mouseMoved, .activeAlways, .inVisibleRect])
     }
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
-        syncHover()
+        syncPointer()
     }
 
-    override func mouseEntered(with event: NSEvent) { syncHover() }
+    override func mouseEntered(with event: NSEvent) { syncPointer() }
     override func mouseExited(with event: NSEvent) { hovering = false }
+    override func mouseMoved(with event: NSEvent) {
+        if !hovering { syncHover() }
+        hoveredButton = button(at: card.convert(event.locationInWindow, from: nil))
+    }
 
-    override func mouseDown(with event: NSEvent) { downAt = event.locationInWindow }
+    override func mouseDown(with event: NSEvent) {
+        downAt = event.locationInWindow
+        pressedButton = button(at: card.convert(event.locationInWindow, from: nil))
+    }
 
-    override func mouseDragged(with event: NSEvent) {
+    private func dragDownload(_ event: NSEvent) {
         guard let start = downAt, let download else { return }
         let p = event.locationInWindow
         guard hypot(p.x - start.x, p.y - start.y) > 3 else { return }
@@ -1280,15 +1347,23 @@ private final class LibraryItemCell: NSView, NSDraggingSource, PointerHover {
         beginDraggingSession(with: [item], event: event, source: self)
     }
 
+    override func mouseDragged(with event: NSEvent) {
+        hoveredButton = button(at: card.convert(event.locationInWindow, from: nil))
+        dragDownload(event)
+    }
+
     override func mouseUp(with event: NSEvent) {
-        defer { downAt = nil }
+        defer { downAt = nil; pressedButton = nil }
         guard downAt != nil, bounds.contains(convert(event.locationInWindow, from: nil)) else { return }
         let p = card.convert(event.locationInWindow, from: nil)
         if !binButton.isHidden, binButton.frame.insetBy(dx: -4, dy: -4).contains(p) { remove?(); return }
         if let download {
             let thumbnail = window.map { $0.convertToScreen(card.convert(tile.frame, to: nil)) }
             if let openDownload { openDownload(download.path, thumbnail) } else { NSWorkspace.shared.open(URL(fileURLWithPath: download.path)) }
-        } else if !isDownloadRow { restore?() }
+        } else if !isDownloadRow {
+            // The row and its restore arrow alike: in the background, ⇧ switches to it (ArchivedTabRestore).
+            restore?(event.modifierFlags.contains(.shift))
+        }
     }
 
     func draggingSession(_ session: NSDraggingSession, sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation {

@@ -272,7 +272,9 @@ final class SidebarActions {
     /// The Library in the sidebar: open it on a page, leave it, restore an archived tab from it.
     var showLibrary: (LibraryPage) -> Void = { _ in }
     var closeLibrary: () -> Void = {}
-    var restoreArchived: (UUID) -> Void = { _ in }
+    /// An archived tab back into its space: `switchTo` (Shift) switches to it, else it comes back in
+    /// the background with a toast (ArchivedTabRestore).
+    var restoreArchived: (_ id: UUID, _ switchTo: Bool) -> Void = { _, _ in }
     var resetPinnedTab: (UUID) -> Void = { _ in }
     var separatePinnedTab: (UUID) -> Void = { _ in }
     var editPinnedURL: (UUID) -> Void = { _ in }

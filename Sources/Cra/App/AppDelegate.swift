@@ -1200,6 +1200,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                 }
                 return
             }
+            // restoreArchived=<n>[&shift=1]: Library ▸ Archived Tabs' nth row (newest first) clicked, ⇧ with
+            // shift=1: in the background with a toast, or switched to (ArchivedTabRestore).
+            if let n = dict["restoreArchived"].flatMap(Int.init), store.archive.indices.contains(n) {
+                main.sidebarActions.restoreArchived(store.archive[n].id, ArchivedTabRestore.switchesToTab(shift: dict["shift"] == "1"))
+                return
+            }
             // applescript=<source>: an AppleScript run inside Cra (raw «class …» codes address its own
             // dictionary), its result or error logged; no other app, so no Automation prompt.
             // Off the main thread, as a script from another app would be: commands that wait for a

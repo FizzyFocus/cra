@@ -378,10 +378,24 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
             guard let self, let window = self.window, let rowWindow = row.window else { return }
             BookmarkEditPopover.show(b, from: rowWindow.convertToScreen(row.convert(row.bounds, to: nil)), in: window, isNew: false)
         }
-        sidebarActions.restoreArchived = { [weak self] id in
+        sidebarActions.restoreArchived = { [weak self] id, switchTo in
             guard let self else { return }
-            _ = self.store.restoreArchived(id)
-            self.closeLibrary()
+            // ⇧: back and switched to, the Library left (as every click was). A click: back in the
+            // background, the Library staying, and Arc's toast for a tab opened behind the page.
+            var restored: SidebarItem?
+            self.store.undoable("Restore Tab") { restored = self.store.restoreArchived(id, select: switchTo) }
+            guard let tab = restored else { return }
+            if switchTo {
+                CraLog.note("archived tab restored and switched to")
+                self.closeLibrary()
+                return
+            }
+            CraLog.note("archived tab restored in the background (toast: \(ArchivedTabRestore.toast) · Show)")
+            self.showToast(ArchivedTabRestore.toast, action: ShinyToast.Action(title: "Show") { [weak self] in
+                guard let self else { return }
+                if self.sidebarUI.libraryPage != nil { self.closeLibrary() }
+                self.store.selectTab(tab.id, window: self.windowID)
+            })
         }
         sidebarActions.resetPinnedTab = { [weak self] id in self?.resetPinnedTab(id) }
         sidebarActions.separatePinnedTab = { [weak self] id in self?.separatePinnedTab(id) }
