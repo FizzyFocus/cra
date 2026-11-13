@@ -2271,8 +2271,28 @@ final class SidebarStore {
     var redoName: String? { redoStack.last?.name }
 
     private func undoState() -> SidebarState {
-        SidebarState(items: items.all, archive: archive,
-                     selections: Dictionary(prefs.windows.map { ($0.id, $0.selectedTabPerSpace) }, uniquingKeysWith: { a, _ in a }))
+        // A theme being previewed counts as the one stored: the picker's session is a step of its own.
+        var shownSpaces = spaces
+        for (id, t) in storedThemes { shownSpaces[id]?.theme = t }
+        return SidebarState(items: items.all, archive: archive,
+                            selections: Dictionary(prefs.windows.map { ($0.id, $0.selectedTabPerSpace) }, uniquingKeysWith: { a, _ in a }),
+                            spaces: shownSpaces, spaceOrder: spaceOrder, collapsed: prefs.collapsedTabGroups ?? [])
+    }
+
+    private func push(_ change: SidebarChange) {
+        undoStack.append(change)
+        if undoStack.count > SidebarUndo.depth { undoStack.removeFirst(undoStack.count - SidebarUndo.depth) }
+        redoStack.removeAll()
+    }
+
+    /// The theme picker closed on another theme for space `id` than `old`: one step, "Change Theme",
+    /// with that theme alone (the picker stays open while other things happen).
+    func recordThemeChange(space id: UUID, from old: SpaceTheme) {
+        guard recording == 0, let now = spaces[id]?.theme, now != old else { return }
+        var before = undoState()
+        before.spaces[id]?.theme = old
+        guard let change = SidebarUndo.change("Change Theme", before: before, after: undoState()) else { return }
+        push(change)
     }
 
     /// Runs `body`, the user's own change to the sidebar, as one step ⌘Z takes back as `name`
@@ -2286,9 +2306,7 @@ final class SidebarStore {
         body()
         recording -= 1
         guard let change = SidebarUndo.change(name, before: before, after: undoState()) else { return }
-        undoStack.append(change)
-        if undoStack.count > SidebarUndo.depth { undoStack.removeFirst(undoStack.count - SidebarUndo.depth) }
-        redoStack.removeAll()
+        push(change)
     }
 
     /// ⌘Z with nothing left to undo: `body` brings back the tab closed last (GitHub #21), as an undo of
@@ -2326,20 +2344,42 @@ final class SidebarStore {
         let problems = integrityProblems().count
         let oldItems = result.items.keys.map { ($0, items[$0]) }
         let oldArchive = archive
-        let oldSelections = prefs.windows.map { ($0.id, $0.selectedTabPerSpace) }
+        let oldWindows = prefs.windows
+        let oldSpaces = result.spaces.keys.map { ($0, spaces[$0]) }
+        let oldOrder = spaceOrder
+        let oldCollapsed = prefs.collapsedTabGroups
+        let liveProfiles = Dictionary(uniqueKeysWithValues: liveFolders.map { ($0.id, profileDirectoryName(item: $0.id)) })
         for (id, it) in result.items { items[id] = it }
         archive = result.archive
-        for w in prefs.windows {
-            let sel = result.selections[w.id] ?? [:]
-            if sel != w.selectedTabPerSpace { updateWindow(w.id) { $0.selectedTabPerSpace = sel } }
+        for (id, sp) in result.spaces {
+            spaces[id] = sp
+            storedThemes[id] = nil
         }
+        if let order = result.spaceOrder { spaceOrder = order }
+        for w in prefs.windows {
+            let sel = (result.selections[w.id] ?? [:]).filter { spaces[$0.key] != nil }
+            if sel != w.selectedTabPerSpace { updateWindow(w.id) { $0.selectedTabPerSpace = sel } }
+            // A window showing a space the step took away shows the first one.
+            if let f = w.focusedSpaceID, spaces[f] == nil, let first = spaceOrder.first { updateWindow(w.id) { $0.focusedSpaceID = first } }
+        }
+        let collapsed = result.collapsed.isEmpty ? nil : result.collapsed
+        if collapsed != prefs.collapsedTabGroups { var p = prefs; p.collapsedTabGroups = collapsed; prefs = p }
         // The sidebar must stay sound: anything else puts it back and drops the step.
         if integrityProblems().count > problems {
             for (id, it) in oldItems { items[id] = it }
             archive = oldArchive
-            for (w, sel) in oldSelections { updateWindow(w) { $0.selectedTabPerSpace = sel } }
+            for (id, sp) in oldSpaces { spaces[id] = sp }
+            spaceOrder = oldOrder
+            var p = prefs
+            p.windows = oldWindows
+            p.collapsedTabGroups = oldCollapsed
+            prefs = p
             CraLog.fault("sidebar \(undo ? "undo" : "redo") of \(change.name) would tear the sidebar: refused")
             return .refused(change.name)
+        }
+        // A space back on another profile: its live folders load again in that profile (as setProfile).
+        for (folder, profile) in liveProfiles where items[folder] != nil && profileDirectoryName(item: folder) != profile {
+            invalidateLiveFolder(folder)
         }
         if undo { redoStack.append(change) } else { undoStack.append(change) }
         CraLog.note("sidebar \(undo ? "undid" : "redid") \(change.name)")

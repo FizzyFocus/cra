@@ -81,6 +81,7 @@ enum StoreTests {
         openLinkInSplit()
         backToReferrer()
         recentTabsTakeBackgroundTabs()
+        spacesUndoAndRedo()
         print("Store: \(checks) checks passed")
     }
 
@@ -2739,6 +2740,42 @@ enum StoreTests {
         clock.advance(by: 1)
         store.selectTab(link.id)
         expect(store.recentTabs(in: sid, limit: .max) == [link.id, source.id, older.id], "on it, the next tab is the one it came from")
+    }
+
+    /// ⌘Z and ⇧⌘Z take back what is done to spaces too (13 Nov 2026, the owner's call): a rename, an
+    /// icon, a profile, a move, a space made, and a space deleted with its tabs.
+    @MainActor
+    private static func spacesUndoAndRedo() {
+        let store = AppComposition(clock: ManualScheduler()).store
+        let made = { () -> UUID in
+            var id = UUID()
+            store.undoable("New Space") { id = store.createSpace(title: "Work", emoji: "💼").id }
+            return id
+        }()
+        expect(store.undoName == "New Space" && store.spaceOrder.contains(made), "a space made is a step")
+        let tab = store.createTab(url: "https://example.com/work", in: made, select: false)
+        guard var s = store.space(made) else { expect(false, "the space is there"); return }
+        s.title = "Office"
+        store.undoable("Rename Space") { store.updateSpace(s) }
+        expect(store.undo() == .done("Rename Space") && store.space(made)?.title == "Work", "⌘Z gives a space its name back")
+        expect(store.redo() == .done("Rename Space") && store.space(made)?.title == "Office", "⇧⌘Z renames it again")
+        let p = store.createProfile(name: "Job")
+        store.undoable("Change Profile") { store.setProfile(p.id, forSpace: made) }
+        expect(store.undo() == .done("Change Profile") && store.space(made)?.profileID == nil, "⌘Z puts it back on Default")
+        let order = store.spaceOrder
+        store.undoable("Move Space") { store.moveSpace(made, to: 0) }
+        expect(store.spaceOrder.first == made && store.undo() == .done("Move Space") && store.spaceOrder == order, "⌘Z puts it back in its place")
+        store.focusSpace(made)
+        store.undoable("Delete Space") { store.deleteSpace(made) }
+        expect(store.space(made) == nil && store.focusedSpace.id != made && store.archive.contains { $0.id == tab.id }, "deleted: its tab archived")
+        let shownAfter = store.focusedSpace.id
+        expect(store.undo() == .done("Delete Space") && store.space(made)?.title == "Office" && store.spaceOrder == order
+               && store.item(tab.id) != nil && !store.archive.contains { $0.id == tab.id }, "⌘Z brings the space back with its tab, in its place")
+        store.focusSpace(made)
+        expect(store.focusedSpace.id == made, "the space back can be shown")
+        expect(store.redo() == .done("Delete Space") && store.space(made) == nil && store.focusedSpace.id == shownAfter,
+               "⇧⌘Z deletes it again, the window showing what it showed after the delete")
+        expect(store.integrityProblems().isEmpty, "the sidebar stays sound")
     }
 
     private static func expect(_ condition: @autoclosure () -> Bool, _ message: String) {

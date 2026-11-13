@@ -1,0 +1,65 @@
+# ⌘Z and ⇧⌘Z for sections and spaces (13 Nov 2026, the owner's calls). Remove Section comes back as it
+# was, collapsed if it was. In Library ▸ Spaces the keys reach the sidebar's undo (its search field took
+# them and did nothing), and what is done to spaces there is a step: a profile set from a card's menu, a
+# card moved. Home, Notes and Work are on Default; the Work profile is there to pick.
+budget rss=800 stalls50=40
+seed settings.json {"hasSeenImportPrompt": true, "toolbarDefaultMigrated": true, "favoritesDefaultMigrated": true}
+seed sidebar.json {"version":1,"spaceOrder":["A0000000-0000-0000-0000-000000000001","A0000000-0000-0000-0000-000000000002","A0000000-0000-0000-0000-000000000003"],"spaces":[{"id":"A0000000-0000-0000-0000-000000000001","title":"Home","emoji":"🏠","favoritesContainerID":"C0000000-0000-0000-0000-000000000011","pinnedContainerID":"C0000000-0000-0000-0000-000000000012","todayContainerID":"C0000000-0000-0000-0000-000000000013","createdAt":"2026-11-06T08:00:00Z","theme":{"colors":["#8389FF","#8389FF"],"intensity":0.5,"noise":0,"appearance":"light","accent":"#8389FF","solid":true,"key":["#8389FF"]}},{"id":"A0000000-0000-0000-0000-000000000002","title":"Notes","emoji":"📝","favoritesContainerID":"C0000000-0000-0000-0000-000000000021","pinnedContainerID":"C0000000-0000-0000-0000-000000000022","todayContainerID":"C0000000-0000-0000-0000-000000000023","createdAt":"2026-11-06T08:00:00Z","theme":{"colors":["#8389FF","#8389FF"],"intensity":0.5,"noise":0,"appearance":"light","accent":"#8389FF","solid":true,"key":["#8389FF"]}},{"id":"A0000000-0000-0000-0000-000000000003","title":"Work","emoji":"💼","favoritesContainerID":"C0000000-0000-0000-0000-000000000031","pinnedContainerID":"C0000000-0000-0000-0000-000000000032","todayContainerID":"C0000000-0000-0000-0000-000000000033","createdAt":"2026-11-06T08:00:00Z","theme":{"colors":["#8389FF","#8389FF"],"intensity":0.5,"noise":0,"appearance":"light","accent":"#8389FF","solid":true,"key":["#8389FF"]}}],"profiles":[{"id":"B0000000-0000-0000-0000-000000000001","name":"Work"}],"items":[{"id":"E0000000-0000-0000-0000-000000000001","parentID":"C0000000-0000-0000-0000-000000000011","children":[],"isUnread":false,"createdAt":"2026-11-06T08:00:00Z","data":{"tab":{"_0":{"url":"https://example.com/","savedTitle":"Example"}}}},{"id":"E0000000-0000-0000-0000-000000000002","parentID":"C0000000-0000-0000-0000-000000000011","children":[],"isUnread":false,"createdAt":"2026-11-06T08:00:00Z","data":{"tab":{"_0":{"url":"https://example.org/","savedTitle":"Org"}}}},{"id":"C0000000-0000-0000-0000-000000000011","children":["E0000000-0000-0000-0000-000000000001","E0000000-0000-0000-0000-000000000002"],"isUnread":false,"createdAt":"2026-11-06T08:00:00Z","data":{"container":{"_0":{"favorites":{"spaceID":"A0000000-0000-0000-0000-000000000001"}}}}},{"id":"C0000000-0000-0000-0000-000000000012","children":[],"isUnread":false,"createdAt":"2026-11-06T08:00:00Z","data":{"container":{"_0":{"pinned":{"spaceID":"A0000000-0000-0000-0000-000000000001"}}}}},{"id":"C0000000-0000-0000-0000-000000000013","children":[],"isUnread":false,"createdAt":"2026-11-06T08:00:00Z","data":{"container":{"_0":{"today":{"spaceID":"A0000000-0000-0000-0000-000000000001"}}}}},{"id":"C0000000-0000-0000-0000-000000000021","children":[],"isUnread":false,"createdAt":"2026-11-06T08:00:00Z","data":{"container":{"_0":{"favorites":{"spaceID":"A0000000-0000-0000-0000-000000000002"}}}}},{"id":"C0000000-0000-0000-0000-000000000022","children":[],"isUnread":false,"createdAt":"2026-11-06T08:00:00Z","data":{"container":{"_0":{"pinned":{"spaceID":"A0000000-0000-0000-0000-000000000002"}}}}},{"id":"C0000000-0000-0000-0000-000000000023","children":[],"isUnread":false,"createdAt":"2026-11-06T08:00:00Z","data":{"container":{"_0":{"today":{"spaceID":"A0000000-0000-0000-0000-000000000002"}}}}},{"id":"E0000000-0000-0000-0000-000000000003","parentID":"C0000000-0000-0000-0000-000000000031","children":[],"isUnread":false,"createdAt":"2026-11-06T08:00:00Z","data":{"tab":{"_0":{"url":"https://example.net/","savedTitle":"Net"}}}},{"id":"C0000000-0000-0000-0000-000000000031","children":["E0000000-0000-0000-0000-000000000003"],"isUnread":false,"createdAt":"2026-11-06T08:00:00Z","data":{"container":{"_0":{"favorites":{"spaceID":"A0000000-0000-0000-0000-000000000003"}}}}},{"id":"C0000000-0000-0000-0000-000000000032","children":[],"isUnread":false,"createdAt":"2026-11-06T08:00:00Z","data":{"container":{"_0":{"pinned":{"spaceID":"A0000000-0000-0000-0000-000000000003"}}}}},{"id":"C0000000-0000-0000-0000-000000000033","children":[],"isUnread":false,"createdAt":"2026-11-06T08:00:00Z","data":{"container":{"_0":{"today":{"spaceID":"A0000000-0000-0000-0000-000000000003"}}}}}]}
+
+cra://open?url=${PAGE}?n=1
+expect-log loaded 127\.0\.0\.1 \(HTTP 200\)
+cra://open?url=${PAGE}?n=2
+cra://open?url=${PAGE}?n=3
+wait 2
+# A collapsed section removed, then ⌘Z: back with its tabs, its behavior, collapsed; ⇧⌘Z removes it again.
+cra://debug?newSection=Mine&tabs=2
+wait 0.5
+cra://debug?rowMenu=0&run=Collapse Section
+wait 0.6
+cra://debug?rowMenu=0&run=Remove Section
+wait 0.6
+cra://debug?todayRows=removed
+expect-log today rows removed: n=3 \| n=2 \| n=1$
+cra://debug?key=z,6,1048576
+wait 0.8
+expect-log sidebar undid Remove Section
+cra://debug?tabGroups=undone
+expect-log tab groups undone: Mine\(collapsed rows=[01]/2\)
+cra://debug?sectionPolicies=undone
+expect-log section policies undone: Mine=Add Only\[n=3,n=2\]$
+cra://debug?key=Z,6,1179648
+wait 0.8
+expect-log sidebar redid Remove Section
+cra://debug?todayRows=redone
+expect-log today rows redone: n=3 \| n=2 \| n=1$
+
+# Library ▸ Spaces: Set Profile ▸ Work from Notes' card, then ⌘Z and ⇧⌘Z there.
+cra://action/manageSpaces
+wait 1.5
+cra://debug?libraryCardMenu=1&run=Work
+wait 0.5
+cra://debug?spaceOrder=profiled
+expect-log space order profiled: Home\(Default\) Notes\(Work\) Work\(Default\)$
+cra://debug?key=z,6,1048576
+wait 0.8
+expect-log sidebar undid Change Profile
+cra://debug?spaceOrder=unprofiled
+expect-log space order unprofiled: Home\(Default\) Notes\(Default\) Work\(Default\)$
+cra://debug?key=Z,6,1179648
+wait 0.8
+expect-log sidebar redid Change Profile
+# A card moved to the end, and back with ⌘Z.
+cra://debug?libraryMoveCard=0&to=2
+wait 0.8
+cra://debug?spaceOrder=moved
+expect-log space order moved: Notes\(Work\) Work\(Default\) Home\(Default\)$
+cra://debug?key=z,6,1048576
+wait 0.8
+expect-log sidebar undid Move Space
+cra://debug?spaceOrder=back
+expect-log space order back: Home\(Default\) Notes\(Work\) Work\(Default\)$
+reject-log sidebar (undo|redo) refused
+reject-log would tear the sidebar
+cra://debug?leaveLibrary=1
+wait 1
+cra://debug?checkStore=1

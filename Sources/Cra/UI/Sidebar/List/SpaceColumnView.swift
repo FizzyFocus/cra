@@ -482,7 +482,7 @@ final class SpaceHeaderView: NSView, NSTextFieldDelegate {
         endRename()
         guard !name.isEmpty, name != space.title else { return }
         space.title = name
-        store.updateSpace(space)
+        store.undoable("Rename Space") { store.updateSpace(space) }
     }
 
     func control(_ control: NSControl, textView: NSTextView, doCommandBy sel: Selector) -> Bool {
@@ -538,9 +538,10 @@ enum SpaceMenu {
             }
         case .setProfile:
             let profiles = MenuItems.submenu(m, "Set Profile")
-            MenuItems.add(profiles, "Default", on: space.profileID == nil) { store.setProfile(nil, forSpace: id) }
+            // One ⌘Z step, "Change Profile", whatever the profile is called.
+            MenuItems.add(profiles, "Default", on: space.profileID == nil, undo: "Change Profile") { store.setProfile(nil, forSpace: id) }
             for p in store.profiles {
-                MenuItems.add(profiles, p.name, on: space.profileID == p.id) { store.setProfile(p.id, forSpace: id) }
+                MenuItems.add(profiles, p.name, on: space.profileID == p.id, undo: "Change Profile") { store.setProfile(p.id, forSpace: id) }
             }
             profiles.addItem(.separator())
             MenuItems.add(profiles, "New Profile…") { actions.newProfile(id) }
@@ -596,8 +597,9 @@ enum MenuItems {
     /// Every row's change to the sidebar is one ⌘Z step under its title (SidebarMenus.record; a row that
     /// changes no item or archive entry leaves none). Inside a step already named, it is part of that one.
     @discardableResult
-    static func add(_ menu: NSMenu, _ title: String, enabled: Bool = true, on: Bool? = nil, image: NSImage? = nil, _ run: @escaping () -> Void) -> NSMenuItem {
-        let name = SidebarMenus.undoName(title)
+    static func add(_ menu: NSMenu, _ title: String, enabled: Bool = true, on: Bool? = nil, image: NSImage? = nil, undo: String? = nil,
+                    _ run: @escaping () -> Void) -> NSMenuItem {
+        let name = undo ?? SidebarMenus.undoName(title)
         let a = Action { SidebarMenus.record(name, run) }
         let item = NSMenuItem(title: title, action: #selector(Action.fire), keyEquivalent: "")
         item.target = a

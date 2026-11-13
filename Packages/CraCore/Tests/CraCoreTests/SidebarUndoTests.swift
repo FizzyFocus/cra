@@ -47,12 +47,96 @@ struct SidebarUndoTests {
 
     static let window = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
 
-    static func applied(_ s: SidebarState, _ r: (items: [UUID: SidebarItem?], archive: [ArchivedItem], selections: [UUID: [UUID: UUID]])) -> SidebarState {
+    static func applied(_ s: SidebarState, _ r: SidebarUndoResult) -> SidebarState {
         var out = s
         for (id, it) in r.items { out.items[id] = it }
         out.archive = r.archive
         out.selections = r.selections
+        for (id, sp) in r.spaces { out.spaces[id] = sp }
+        if let o = r.spaceOrder { out.spaceOrder = o }
+        out.collapsed = r.collapsed
         return out
+    }
+
+    static func space(_ title: String, emoji: String = "") -> Space {
+        Space(id: UUID(), title: title, emoji: emoji, theme: SpaceTheme.presets[0], favoritesContainerID: UUID(),
+              pinnedContainerID: UUID(), todayContainerID: UUID(), createdAt: Date(timeIntervalSince1970: 0))
+    }
+
+    /// Spaces are undone too (13 Nov 2026): a rename, an icon, a profile; a space made or deleted, and
+    /// their order. A field changed since keeps its newer value.
+    @Test func spacesAreUndoneAndRedone() throws {
+        let a = Self.space("Home"), b = Self.space("Work")
+        let start = SidebarState(items: [:], archive: [], selections: [:], spaces: [a.id: a, b.id: b], spaceOrder: [a.id, b.id])
+        var renamed = start
+        renamed.spaces[a.id]!.title = "House"
+        renamed.spaces[a.id]!.emoji = "🏠"
+        let rename = try #require(SidebarUndo.change("Rename Space", before: start, after: renamed))
+        let back = Self.applied(renamed, try #require(SidebarUndo.apply(rename, undo: true, to: renamed)))
+        #expect(back.spaces[a.id]!.title == "Home" && back.spaces[a.id]!.emoji == "")
+        // The emoji changed again since: it stays; the name still goes back.
+        var since = renamed
+        since.spaces[a.id]!.emoji = "🏡"
+        let merged = Self.applied(since, try #require(SidebarUndo.apply(rename, undo: true, to: since)))
+        #expect(merged.spaces[a.id]!.title == "Home" && merged.spaces[a.id]!.emoji == "🏡")
+
+        // Reordered, then deleted, each undone.
+        var moved = start
+        moved.spaceOrder = [b.id, a.id]
+        let move = try #require(SidebarUndo.change("Move Space", before: start, after: moved))
+        #expect(Self.applied(moved, try #require(SidebarUndo.apply(move, undo: true, to: moved))).spaceOrder == [a.id, b.id])
+        var deleted = start
+        deleted.spaces[b.id] = nil
+        deleted.spaceOrder = [a.id]
+        let delete = try #require(SidebarUndo.change("Delete Space", before: start, after: deleted))
+        let restored = Self.applied(deleted, try #require(SidebarUndo.apply(delete, undo: true, to: deleted)))
+        #expect(restored.spaces[b.id] == b && restored.spaceOrder == [a.id, b.id])
+        let redone = Self.applied(restored, try #require(SidebarUndo.apply(delete, undo: false, to: restored)))
+        #expect(redone.spaces[b.id] == nil && redone.spaceOrder == [a.id])
+
+        // A space made since an earlier move stays when the move is undone, after the others.
+        let c = Self.space("New")
+        var later = moved
+        later.spaces[c.id] = c
+        later.spaceOrder.append(c.id)
+        #expect(Self.applied(later, try #require(SidebarUndo.apply(move, undo: true, to: later))).spaceOrder == [a.id, b.id, c.id])
+    }
+
+    /// A space deleted takes its lists with it; undone, the lists come back with their tabs (13 Nov 2026:
+    /// a container, with no parent to go back into, stayed gone and the step was refused).
+    @Test func aDeletedSpacesListsComeBackWithTheirTabs() throws {
+        var f = Fixture()
+        let before = f.state()
+        let today = f.today.id
+        let kids = f.items[today]!.children
+        for id in [f["a"], f["b"], f["c"], f["d"], f["e"], f["F"]] { f.items[id] = nil }
+        f.items[today] = nil
+        let after = f.state()
+        let change = try #require(SidebarUndo.change("Delete Space", before: before, after: after))
+        let undone = Self.applied(after, try #require(SidebarUndo.apply(change, undo: true, to: after)))
+        #expect(undone.items == before.items && undone.items[today]?.children == kids)
+    }
+
+    /// A section removed and brought back is collapsed again if it was (13 Nov 2026: it came back open).
+    /// Collapsing on its own is not a step.
+    @Test func aRemovedSectionComesBackCollapsed() throws {
+        var f = Fixture()
+        var g = SidebarItem.tabGroup("Mine", parent: f.today.id)
+        f.items[g.id] = g
+        f.insert(f["a"], into: g.id, at: 0)
+        g = f.items[g.id]!
+        f.items[f.today.id]!.children.insert(g.id, at: 0)
+        var before = f.state()
+        before.collapsed = [g.id]
+        #expect(SidebarUndo.change("Collapse Section", before: f.state(), after: before) == nil)
+        f.insert(f["a"], into: f.today.id, at: 0)
+        f.remove(g.id)
+        let after = f.state()
+        let change = try #require(SidebarUndo.change("Remove Section", before: before, after: after))
+        let undone = Self.applied(after, try #require(SidebarUndo.apply(change, undo: true, to: after)))
+        #expect(undone.items[g.id] != nil && undone.collapsed == [g.id])
+        let redone = Self.applied(undone, try #require(SidebarUndo.apply(change, undo: false, to: undone)))
+        #expect(redone.items[g.id] == nil && redone.collapsed.isEmpty)
     }
 
     @Test func closingATabUndoesAndRedoes() throws {

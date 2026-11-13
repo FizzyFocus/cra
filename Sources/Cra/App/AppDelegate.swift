@@ -1251,6 +1251,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                 CraLog.note("space icons \(label): header=\(header) cards=\(main.window?.contentView.flatMap(SpacesManagerView.debugIcons) ?? "-")")
                 return
             }
+            // libraryMoveCard=<from>&to=<slot>: a card dragged by its move handle and let go at that slot.
+            if let from = dict["libraryMoveCard"].flatMap(Int.init), let to = dict["to"].flatMap(Int.init) {
+                if let why = main.window?.contentView.flatMap({ SpacesManagerView.debugMoveCard(in: $0, from: from, to: to) }) {
+                    CraLog.note("library move card: \(why)")
+                }
+                return
+            }
+            // spaceOrder=<label>: the spaces by name in their order, each with its profile.
+            if let label = dict["spaceOrder"] {
+                CraLog.note("space order \(label): " + store.orderedSpaces.map { "\($0.title)(\(store.profileName($0.profileID)))" }.joined(separator: " "))
+                return
+            }
             // libraryCardMenu=<i>&run=<title>[&list=1]: card i's ••• menu (-1 the last), or its tab list's
             // right-click menu, that row chosen.
             if let i = dict["libraryCardMenu"].flatMap(Int.init), let run = dict["run"] {
@@ -2551,7 +2563,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     /// reports its ui::TextInputType, 0 = none).
     private func undoClosedTab(_ event: NSEvent) -> Bool {
         let undo = Shortcut("z", .command).matches(event), redo = Shortcut("z", [.command, .shift]).matches(event)
-        guard undo || redo, !textFieldHasKey(event) else { return false }
+        guard undo || redo, !textTakesStep(redo: redo, in: event.window ?? NSApp.keyWindow) else { return false }
         sidebarUndo(redo: redo)
         return true
     }
@@ -2573,8 +2585,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     @objc func editRedo(_ sender: Any?) { editStep(redo: true, sender) }
 
     private func editStep(redo: Bool, _ sender: Any?) {
-        if textResponderHasKey(), NSApp.sendAction(Selector((redo ? "redo:" : "undo:")), to: nil, from: sender) { return }
+        if textTakesStep(redo: redo, in: NSApp.keyWindow), NSApp.sendAction(Selector((redo ? "redo:" : "undo:")), to: nil, from: sender) { return }
         sidebarUndo(redo: redo)
+    }
+
+    /// The text being typed in takes ⌘Z and ⇧⌘Z when it has typing of its own to take back: a field
+    /// out of sight, or one with nothing to undo (the Library's search on its Spaces page), leaves the
+    /// step to the sidebar (13 Nov 2026: in Library ▸ Spaces ⌘Z went to the search and ⇧⌘Z nowhere).
+    /// A page's input always takes it.
+    private func textTakesStep(redo: Bool, in window: NSWindow?) -> Bool {
+        let responder = window?.firstResponder
+        guard let text = responder as? NSText else {
+            if let view = responder as? NSView, NSStringFromClass(type(of: view)) == "RenderWidgetHostViewCocoa",
+               view.responds(to: NSSelectorFromString("textInputType")),
+               (view.value(forKey: "textInputType") as? Int ?? 0) != 0 { return true }
+            return false
+        }
+        if let field = text.delegate as? NSView, field.isHiddenOrHasHiddenAncestor || field.window == nil { return false }
+        guard let undo = text.undoManager else { return false }
+        return redo ? undo.canRedo : undo.canUndo
     }
 
     /// The key window's first responder takes text (textFieldHasKey without an event).
@@ -2826,7 +2855,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         let a = AppDialog(title: "Delete your “\(space.title)” Space?",
                           message: "This will archive all the tabs and folders inside it.",
                           actions: [DialogAction("Delete", role: .destructive), .cancel])
-        if a.runModal(over: window) == .alertFirstButtonReturn { store.deleteSpace(space.id) }
+        // One ⌘Z step (SidebarUndo): the space comes back with its tabs, from the archive.
+        if a.runModal(over: window) == .alertFirstButtonReturn { store.undoable("Delete Space") { store.deleteSpace(space.id) } }
     }
 
     // MARK: Windows

@@ -4710,10 +4710,14 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
         let completion = createCompletion
         createCompletion = nil
         if made {
-            let id = store.createSpace(title: model.trimmedName, emoji: model.icon.emoji, symbol: model.icon.symbol, theme: model.theme).id
-            switch model.profile {
-            case .existing(let p): store.setProfile(p, forSpace: id)
-            case .new: store.setProfile(store.createProfile(name: model.trimmedProfileName).id, forSpace: id)
+            // One ⌘Z step (SidebarUndo): the space, its profile and its place.
+            var id = UUID()
+            store.undoable("New Space") {
+                id = store.createSpace(title: model.trimmedName, emoji: model.icon.emoji, symbol: model.icon.symbol, theme: model.theme).id
+                switch model.profile {
+                case .existing(let p): store.setProfile(p, forSpace: id)
+                case .new: store.setProfile(store.createProfile(name: model.trimmedProfileName).id, forSpace: id)
+                }
             }
             completion?(id)
         }
@@ -4764,19 +4768,22 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
         let engines = ChromiumSearchEngine.spaceChoices(among: SearchEngines.shared.keywords(profilePath: profilePath))
         let view = SpaceEditorView(existing: space, profiles: store.profiles, initialProfile: initialProfile, searchEngines: engines,
                                    defaultEngineName: defaultEngine.name, onSave: { [weak panel] title, icon, theme, profile, newName, searchEngine in
-            let id: UUID
-            if let sid = space?.id, var s = store.space(sid) {
-                s.title = title; s.icon = icon; s.theme = theme
-                store.updateSpace(s)
-                id = s.id
-            } else {
-                id = store.createSpace(title: title, emoji: icon.emoji, symbol: icon.symbol, theme: theme).id
+            var id = UUID()
+            // One ⌘Z step (SidebarUndo).
+            store.undoable(space == nil ? "New Space" : "Edit Space") {
+                if let sid = space?.id, var s = store.space(sid) {
+                    s.title = title; s.icon = icon; s.theme = theme
+                    store.updateSpace(s)
+                    id = s.id
+                } else {
+                    id = store.createSpace(title: title, emoji: icon.emoji, symbol: icon.symbol, theme: theme).id
+                }
+                switch profile {
+                case .existing(let p): store.setProfile(p, forSpace: id)
+                case .new: store.setProfile(store.createProfile(name: newName).id, forSpace: id)
+                }
+                store.setSearchEngine(searchEngine, forSpace: id)
             }
-            switch profile {
-            case .existing(let p): store.setProfile(p, forSpace: id)
-            case .new: store.setProfile(store.createProfile(name: newName).id, forSpace: id)
-            }
-            store.setSearchEngine(searchEngine, forSpace: id)
             if let panel { window.endSheet(panel) }
             if space == nil { created?(id) }
         }, onCancel: { [weak panel] in if let panel { window.endSheet(panel) } }, onPreview: { theme in

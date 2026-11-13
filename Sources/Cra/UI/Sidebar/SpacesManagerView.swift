@@ -123,8 +123,18 @@ final class SpacesManagerView: NSView {
         v.layoutSubtreeIfNeeded()
         card.scrollToVisible(card.bounds)
         let menu = list ? card.listMenu : SpaceMenu.make(spaceID: v.order[i], store: v.store, ui: v.ui, actions: v.actions, anchor: card, from: .library, rename: {})
-        guard let menu, let item = menu.items.first(where: { $0.title == run || $0.title == run + "…" }) else { return "no row \(run)" }
-        menu.performActionForItem(at: menu.index(of: item))
+        // A row of a submenu too (Set Profile ▸ Work).
+        let rows = (menu?.items ?? []) + (menu?.items ?? []).flatMap { $0.submenu?.items ?? [] }
+        guard let item = rows.first(where: { $0.title == run || $0.title == run + "…" }), let owner = item.menu else { return "no row \(run)" }
+        owner.performActionForItem(at: owner.index(of: item))
+        return nil
+    }
+
+    /// Card `from` dragged to slot `to` and let go there, as its move handle does.
+    static func debugMoveCard(in root: NSView, from: Int, to: Int) -> String? {
+        guard let v = find(root) else { return "no Spaces page" }
+        guard v.order.indices.contains(from), v.order.indices.contains(to) else { return "no slot" }
+        v.commitMove(v.order[from], slot: to)
         return nil
     }
 
@@ -175,10 +185,17 @@ final class SpacesManagerView: NSView {
         let to = dragSlot ?? from
         dragging = nil
         dragSlot = nil
+        commitMove(id, slot: to)
+    }
+
+    /// A card let go at `slot`: the cards spring into the new order and the space moves there, one ⌘Z
+    /// step (SidebarUndo).
+    private func commitMove(_ id: UUID, slot to: Int) {
+        guard let from = order.firstIndex(of: id) else { return }
         let target = to != from ? store.spaceOrder.firstIndex(of: order[to]) : nil
         order = CardReorder.order(order, moving: from, to: to)
         placeCards(springing: true)
-        if let target { store.moveSpace(id, to: target) }
+        if let target { store.undoable("Move Space") { store.moveSpace(id, to: target) } }
     }
 
     /// Each card's frame: in `order`, or while dragging in the order it makes room for, the dragged

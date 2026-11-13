@@ -12,7 +12,7 @@ extension MainWindowController {
             guard var s = store.space(id) else { return }
             s.emoji = emoji
             s.symbol = symbol
-            store.updateSpace(s)
+            store.undoable(emoji.isEmpty && symbol == nil ? "Remove Space Icon" : "Change Space Icon") { store.updateSpace(s) }
             popover?.performClose(nil)
         }
         let picker = SpaceIconPicker(current: space.emoji, currentSymbol: space.symbol, onPick: { set($0, nil) },
@@ -69,10 +69,15 @@ extension MainWindowController {
         // A Library card by the window's right edge opens it on its left (13 Nov 2026).
         let place = placeThemePicker(sourceY: source.y, edgeX: edge, leftEdgeX: card?.minX)
         themePickerSpaceID = id
+        // The picker's session is one ⌘Z step, "Change Theme" (SidebarUndo).
+        let old = store.space(id)?.theme ?? space.theme
         let panel = ThemePickerPopover.present(on: window, theme: space.theme, topLeft: place.topLeft, arrowY: place.arrowY,
                                                arrowOnTrailing: place.arrowOnTrailing,
                                                onChange: { theme in store.previewTheme(theme, forSpace: id) },
-                                               onClose: { store.endThemePreview(forSpace: id, keep: true) })
+                                               onClose: {
+                                                   store.endThemePreview(forSpace: id, keep: true)
+                                                   store.recordThemeChange(space: id, from: old)
+                                               })
         let shown = NSRect(x: panel.frame.minX + ThemePickerPopover.cardLeading, y: panel.frame.maxY - ThemePickerPopover.cardTop - ThemePickerPopover.cardSize.height,
                            width: ThemePickerPopover.cardSize.width, height: ThemePickerPopover.cardSize.height)
         let side = place.arrowOnTrailing ? "left" : place.arrowY == nil ? "inside" : "right"
@@ -136,7 +141,7 @@ extension MainWindowController {
         let store = self.store
         DialogPanel.present(over: window) { close in
             ChangeProfileDialog(space: space, profiles: store.profiles, spaces: profileSpaces, onChange: { p in
-                store.setProfile(p, forSpace: id)
+                store.undoable("Change Profile") { store.setProfile(p, forSpace: id) }
                 close()
             }, onCreate: { [weak self] name, ids in
                 self?.createProfile(name: name, forSpaces: ids)
@@ -150,7 +155,10 @@ extension MainWindowController {
 
     private func createProfile(name: String, forSpaces ids: Set<UUID>) {
         let p = store.createProfile(name: name)
-        for s in profileSpaces where ids.contains(s.id) { store.setProfile(p.id, forSpace: s.id) }
+        // The spaces moving onto it are one ⌘Z step; the profile stays (Settings ▸ Profiles deletes it).
+        store.undoable("Change Profile") {
+            for s in profileSpaces where ids.contains(s.id) { store.setProfile(p.id, forSpace: s.id) }
+        }
     }
     /// Manage Spaces…: the Library on its Spaces page, every space side by side.
     func showManageSpaces() { showLibrary(.spaces) }

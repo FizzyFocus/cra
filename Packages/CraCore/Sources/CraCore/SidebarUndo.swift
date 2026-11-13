@@ -43,6 +43,20 @@ public struct SidebarChange: Equatable {
     /// Window → space → open tab, for the windows and spaces whose open tab the action changed.
     public let selectionBefore: [UUID: [UUID: UUID?]]
     public let selectionAfter: [UUID: [UUID: UUID?]]
+    /// Spaces the action made, removed or changed (a name, an icon, a theme, a profile; 13 Nov 2026).
+    public var spaceEdits: [UUID: SpaceEdit] = [:]
+    /// The spaces' order before and after, when the action changed it.
+    public var orderBefore: [UUID]? = nil
+    public var orderAfter: [UUID]? = nil
+    /// Sections collapsed (true) or open before and after, for the ones the action changed: a section
+    /// removed and brought back comes back as it was.
+    public var collapsedBefore: [UUID: Bool] = [:]
+    public var collapsedAfter: [UUID: Bool] = [:]
+
+    public struct SpaceEdit: Equatable {
+        public var before: Space?
+        public var after: Space?
+    }
 }
 
 extension SidebarChange {
@@ -53,7 +67,10 @@ extension SidebarChange {
         SidebarChange(name: name,
                       edits: edits.mapValues { .init(before: $0.after, after: $0.before, placeBefore: $0.placeAfter, placeAfter: $0.placeBefore) },
                       archiveAdded: archiveRemoved, archiveRemoved: archiveAdded,
-                      selectionBefore: selectionAfter, selectionAfter: selectionBefore)
+                      selectionBefore: selectionAfter, selectionAfter: selectionBefore,
+                      spaceEdits: spaceEdits.mapValues { .init(before: $0.after, after: $0.before) },
+                      orderBefore: orderAfter, orderAfter: orderBefore,
+                      collapsedBefore: collapsedAfter, collapsedAfter: collapsedBefore)
     }
 }
 
@@ -63,12 +80,32 @@ public struct SidebarState: Equatable {
     public var archive: [ArchivedItem]
     /// Window → space → open tab.
     public var selections: [UUID: [UUID: UUID]]
+    /// The spaces, their order, and the sections shown collapsed.
+    public var spaces: [UUID: Space]
+    public var spaceOrder: [UUID]
+    public var collapsed: Set<UUID>
 
-    public init(items: [UUID: SidebarItem], archive: [ArchivedItem], selections: [UUID: [UUID: UUID]]) {
+    public init(items: [UUID: SidebarItem], archive: [ArchivedItem], selections: [UUID: [UUID: UUID]],
+                spaces: [UUID: Space] = [:], spaceOrder: [UUID] = [], collapsed: Set<UUID> = []) {
         self.items = items
         self.archive = archive
         self.selections = selections
+        self.spaces = spaces
+        self.spaceOrder = spaceOrder
+        self.collapsed = collapsed
     }
+}
+
+/// What `SidebarUndo.apply` turns the sidebar into: only what differs from now.
+public struct SidebarUndoResult: Equatable {
+    /// Items that change (nil: removed).
+    public var items: [UUID: SidebarItem?]
+    public var archive: [ArchivedItem]
+    public var selections: [UUID: [UUID: UUID]]
+    /// Spaces that change (nil: removed), the order when it changes, and the collapsed sections.
+    public var spaces: [UUID: Space?]
+    public var spaceOrder: [UUID]?
+    public var collapsed: Set<UUID>
 }
 
 public enum SidebarUndo {
@@ -102,7 +139,18 @@ public enum SidebarUndo {
         let beforeKeys = Set(before.archive.map(key)), afterKeys = Set(after.archive.map(key))
         let added = after.archive.enumerated().filter { !beforeKeys.contains(key($0.element)) }.map { SidebarChange.Removed(index: $0.offset, entry: $0.element) }
         let removed = before.archive.enumerated().filter { !afterKeys.contains(key($0.element)) }.map { SidebarChange.Removed(index: $0.offset, entry: $0.element) }
-        guard !edits.isEmpty || !added.isEmpty || !removed.isEmpty else { return nil }
+        var spaceEdits: [UUID: SidebarChange.SpaceEdit] = [:]
+        for id in Set(before.spaces.keys).union(after.spaces.keys) where before.spaces[id] != after.spaces[id] {
+            spaceEdits[id] = .init(before: before.spaces[id], after: after.spaces[id])
+        }
+        let orderChanged = before.spaceOrder != after.spaceOrder
+        // An open or collapsed section on its own isn't a step, as an open tab isn't.
+        guard !edits.isEmpty || !added.isEmpty || !removed.isEmpty || !spaceEdits.isEmpty || orderChanged else { return nil }
+        var collapsedBefore: [UUID: Bool] = [:], collapsedAfter: [UUID: Bool] = [:]
+        for id in before.collapsed.symmetricDifference(after.collapsed) {
+            collapsedBefore[id] = before.collapsed.contains(id)
+            collapsedAfter[id] = after.collapsed.contains(id)
+        }
         var selBefore: [UUID: [UUID: UUID?]] = [:], selAfter: [UUID: [UUID: UUID?]] = [:]
         for w in Set(before.selections.keys).union(after.selections.keys) {
             let b = before.selections[w] ?? [:], a = after.selections[w] ?? [:]
@@ -113,7 +161,9 @@ public enum SidebarUndo {
             }
         }
         return SidebarChange(name: name, edits: edits, archiveAdded: added, archiveRemoved: removed,
-                             selectionBefore: selBefore, selectionAfter: selAfter)
+                             selectionBefore: selBefore, selectionAfter: selAfter, spaceEdits: spaceEdits,
+                             orderBefore: orderChanged ? before.spaceOrder : nil, orderAfter: orderChanged ? after.spaceOrder : nil,
+                             collapsedBefore: collapsedBefore, collapsedAfter: collapsedAfter)
     }
 
     /// Of `now` (children in their new order, all of them in `was` too), the ones whose order changed:
@@ -143,18 +193,20 @@ public enum SidebarUndo {
     /// The sidebar with `change` undone (`undo`) or done again: the items that differ from `current`
     /// (nil: removed), the archive and the open tabs as they become. Nil when something the change
     /// touched was changed since in a way it can't go back over.
-    public static func apply(_ change: SidebarChange, undo: Bool, to current: SidebarState)
-        -> (items: [UUID: SidebarItem?], archive: [ArchivedItem], selections: [UUID: [UUID: UUID]])? {
+    public static func apply(_ change: SidebarChange, undo: Bool, to current: SidebarState) -> SidebarUndoResult? {
         let from: (SidebarChange.Edit) -> SidebarItem? = { undo ? $0.after : $0.before }
         let to: (SidebarChange.Edit) -> SidebarItem? = { undo ? $0.before : $0.after }
         let placeFrom: (SidebarChange.Edit) -> SidebarChange.Place? = { undo ? $0.placeAfter : $0.placeBefore }
         let placeTo: (SidebarChange.Edit) -> SidebarChange.Place? = { undo ? $0.placeBefore : $0.placeAfter }
 
-        // Each item is where the change left it: there, and under the same parent.
+        // Each item is where the change left it: there, and under the same parent. Each space too.
         for (id, e) in change.edits {
             let now = current.items[id], was = from(e)
             guard (now == nil) == (was == nil) else { return nil }
             if let now, let was, now.parentID != was.parentID { return nil }
+        }
+        for (id, e) in change.spaceEdits {
+            guard (current.spaces[id] == nil) == ((undo ? e.after : e.before) == nil) else { return nil }
         }
 
         var items = current.items
@@ -173,16 +225,17 @@ public enum SidebarUndo {
                 if items[id] != nil { detach(id); items[id] = nil; touched.insert(id) }
                 continue
             }
-            guard let p = placeTo(e) else { continue }   // a container: no parent of its own
-            let moves = from(e) == nil || placeFrom(e) != p
             if from(e) == nil {
                 // Coming back: as it was, its children placed one by one below (all of them are edits).
+                // A container too (a deleted space's lists; 13 Nov 2026: it stayed gone, and its tabs
+                // had nowhere to go back to).
                 var it = target
                 it.children = []
                 items[id] = it
                 touched.insert(id)
             }
-            if moves { placing.append((id, p)) }
+            guard let p = placeTo(e) else { continue }   // a container: no parent of its own
+            if from(e) == nil || placeFrom(e) != p { placing.append((id, p)) }
         }
         // Fields go back where nothing changed them since; parents and children follow the places.
         for (id, e) in change.edits {
@@ -230,9 +283,52 @@ public enum SidebarUndo {
             for (s, tab) in spaces where items[tab] == nil { selections[w]?[s] = nil }
         }
 
+        // Spaces: back as they were, a field changed since keeping its newer value; one made goes, one
+        // removed comes back; the order as it was, with any space made since kept after.
+        var spaces: [UUID: Space?] = [:]
+        var kept = Set(current.spaceOrder)
+        for (id, e) in change.spaceEdits {
+            let was = undo ? e.after : e.before, target = undo ? e.before : e.after
+            switch (current.spaces[id], target) {
+            case (_, nil): spaces[id] = .some(nil); kept.remove(id)
+            case (nil, let t?): spaces[id] = t; kept.insert(id)
+            case (let now?, let t?):
+                let merged = was.map { mergeSpace(now, from: $0, to: t) } ?? t
+                if merged != now { spaces[id] = merged }
+            }
+        }
+        var order: [UUID]?
+        if let target = undo ? change.orderBefore : change.orderAfter {
+            let o = target.filter(kept.contains) + current.spaceOrder.filter { kept.contains($0) && !target.contains($0) }
+            if o != current.spaceOrder { order = o }
+        } else if spaces.values.contains(where: { $0 == nil }) {
+            order = current.spaceOrder.filter(kept.contains)
+        }
+        // Sections open or collapsed as they were, where they are there.
+        var collapsed = current.collapsed
+        for (id, on) in undo ? change.collapsedBefore : change.collapsedAfter {
+            if on, items[id] != nil { collapsed.insert(id) } else { collapsed.remove(id) }
+        }
+
         var out: [UUID: SidebarItem?] = [:]
         for id in touched where items[id] != current.items[id] { out[id] = .some(items[id]) }
-        return (out, archive, selections)
+        return SidebarUndoResult(items: out, archive: archive, selections: selections, spaces: spaces, spaceOrder: order, collapsed: collapsed)
+    }
+
+    /// `now` with each of a space's fields `from` → `to` changed back, if it is still what `from` left.
+    static func mergeSpace(_ now: Space, from: Space, to: Space) -> Space {
+        var out = now
+        func take<T: Equatable>(_ kp: WritableKeyPath<Space, T>) {
+            if from[keyPath: kp] != to[keyPath: kp], now[keyPath: kp] == from[keyPath: kp] { out[keyPath: kp] = to[keyPath: kp] }
+        }
+        take(\.title)
+        take(\.emoji)
+        take(\.symbol)
+        take(\.theme)
+        take(\.profileID)
+        take(\.favoritesContainerID)
+        take(\.searchEngine)
+        return out
     }
 
     /// `now` with each field `from` → `to` changed back, if it is still what `from` left.

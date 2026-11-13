@@ -1494,14 +1494,14 @@ final class SpaceDockView: NSView {
         placeCells(animated: false, dragX: CGFloat(r.to - r.from) * pitch)
         guard let dropped else {
             reorder = nil
-            store.moveSpace(r.id, to: target)
+            store.undoable("Move Space") { store.moveSpace(r.id, to: target) }
             return
         }
         Self.slide(dropped, to: NSRect(x: slot, y: dropped.frame.minY, width: dropped.frame.width, height: dropped.frame.height)) { [weak self] in
             MainActor.assumeIsolated {
                 guard let self else { return }
                 self.reorder = nil
-                self.store.moveSpace(r.id, to: target)
+                self.store.undoable("Move Space") { self.store.moveSpace(r.id, to: target) }
                 self.refreshCells()
             }
         }
