@@ -452,7 +452,10 @@ final class LittleWindowController: NSWindowController, NSWindowDelegate, @preco
 
     func focusPage() {
         guard let b = browser else { return }
-        if let w = b.hostWindow, w.parent === window { w.makeKey() }
+        if let w = b.hostWindow, w.parent === window {
+            w.makeKey()
+            ChromiumPageFocus.focus(w)
+        }
         b.setFocused(true)
     }
 
@@ -1531,8 +1534,14 @@ final class LittleWindowController: NSWindowController, NSWindowDelegate, @preco
         if popup != nil { closePopup() }
     }
 
+    func windowDidBecomeKey(_ notification: Notification) {
+        guard (notification.object as? NSWindow) === window, let host = browser?.hostWindow else { return }
+        ChromiumPageFocus.focus(host)
+    }
+
     func windowDidResignKey(_ notification: Notification) {
         let w = notification.object as? NSWindow
+        if w === window, let host = browser?.hostWindow { ChromiumPageFocus.blur(host) }
         if w === popup {
             DispatchQueue.main.async { [weak self] in
                 guard let self, let p = self.popup, !p.isKeyWindow else { return }
@@ -1903,7 +1912,11 @@ final class LittleWindowController: NSWindowController, NSWindowDelegate, @preco
         }
     }
 
-    func browserDidReceiveFocus(_ browser: CraBrowser) {}
+    func browserDidReceiveFocus(_ browser: CraBrowser) {
+        guard self.browser === browser, !isParked, !isCard, window?.isVisible == true,
+              let host = browser.hostWindow else { return }
+        ChromiumPageFocus.focus(host)
+    }
 
     func browserDidClose(_ browser: CraBrowser) {
         browser.containerView.removeFromSuperview()
