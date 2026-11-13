@@ -2782,10 +2782,16 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
 
     /// Leaving a Library that opened over the hidden sidebar: the sidebar goes back to floating,
     /// away once the pointer isn't on it, never docked.
+    /// The pointer off it, the sidebar stays out until the pointer moves on away, comes onto it or clicks
+    /// outside (FloatingSidebarReturnHold, 12 Nov 2026): it used to go the moment the slide back landed.
     private func restoreFloatingAfterLibrary() {
         libraryFloats = false
-        guard let floatingSidebar, floatingSidebar.isShown else { return }
-        if !pointerOnFloatingSidebar(width: shell.sidebarWidth) { floatingSidebar.hide(animated: true) }
+        guard let floatingSidebar, floatingSidebar.isShown, let window else { return }
+        if !pointerOnFloatingSidebar(width: shell.sidebarWidth) {
+            // Measured from the real pointer, which the sidebar's own samples follow.
+            floatingSidebar.holdAfterReturn(pointer: shell.convert(window.convertPoint(fromScreen: NSEvent.mouseLocation), from: nil))
+        }
+        CraLog.note("floating sidebar stays after the Library (\(floatingSidebar.returnHold.map { "held, pointer \(Int($0.startDistance)) pt off it" } ?? "pointer on it"))")
     }
 
     /// cra://debug?pointerOnSidebar=1|0: the floating sidebar's pointer test answered so (a scenario

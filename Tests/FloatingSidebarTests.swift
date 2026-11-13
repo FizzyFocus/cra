@@ -213,6 +213,28 @@ enum FloatingSidebarTests {
         sidebar.staysShown = { false }
         sidebar.didHide = nil
 
+        // Back from the Library under a resting pointer off the sidebar (12 Nov 2026): it stays out
+        // until the pointer moves on away, comes onto it or clicks outside; it used to go at once.
+        sidebar.show()
+        drainAnimations()
+        let rest = CGPoint(x: 600, y: 300)
+        sidebar.holdAfterReturn(pointer: rest)
+        sidebar.pointerSample(at: rest, pressedMouseButtons: 0)
+        expect(sidebar.isShown && sidebar.returnHold != nil, "where the pointer rested, the sidebar stays out")
+        sidebar.pointerSample(at: CGPoint(x: 630, y: 300), pressedMouseButtons: 0)
+        expect(sidebar.isShown, "a small drift doesn't take it away")
+        sidebar.pointerSample(at: CGPoint(x: 680, y: 300), pressedMouseButtons: 0)
+        expect(!sidebar.isShown && sidebar.returnHold == nil, "moving on away does")
+        drainAnimations()
+        sidebar.show()
+        drainAnimations()
+        sidebar.holdAfterReturn(pointer: rest)
+        sidebar.pointerSample(at: on, pressedMouseButtons: 0)
+        expect(sidebar.isShown && sidebar.returnHold == nil, "coming onto the sidebar ends the hold")
+        sidebar.pointerSample(at: off, pressedMouseButtons: 0)
+        expect(!sidebar.isShown, "after which leaving takes it away as usual")
+        drainAnimations()
+
         // Popovers hung from the sidebar (the Extensions popover, the bookmark card) go as the
         // sidebar starts to go, not after its slide: they were left on screen with nothing under
         // them (10 Nov 2026).

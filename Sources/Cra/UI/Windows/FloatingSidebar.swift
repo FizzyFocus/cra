@@ -26,6 +26,10 @@ final class FloatingSidebarController {
     var willHide: (() -> Void)?
     /// The pointer has been on the sidebar since it came out.
     private var visited = false
+    /// Back from the Library with the pointer off the sidebar: it stays out until the pointer moves on
+    /// away, comes onto it, or clicks outside it (FloatingSidebarReturnHold, 12 Nov 2026).
+    private(set) var returnHold: FloatingSidebarReturnHold?
+    private var returnHoldClicks: Any?
     var palette: () -> SpacePalette
     /// Called after the panel is attached so the overlay panel can be re-ordered above it.
     var didAttachPanel: (() -> Void)?
@@ -199,6 +203,13 @@ final class FloatingSidebarController {
     func pointerSample(at p: CGPoint, pressedMouseButtons: Int) {
         guard isShown else { return }
         let width = shell.shownSidebarWidth, edge = shell.edgeToEdge
+        if let hold = returnHold {
+            switch hold.verdict(distanceFromSidebar: distanceFromSidebar(p)) {
+            case .hold: return
+            case .visited: endReturnHold(); visited = true
+            case .release: endReturnHold()
+            }
+        }
         if !FloatingSidebarGeometry.shouldHide(at: p, in: shell.bounds, sidebarWidth: width, pressedMouseButtons: 0, edgeToEdge: edge) {
             visited = true
         }
@@ -513,10 +524,45 @@ final class FloatingSidebarController {
         reattach(floating: false)
     }
 
+    /// Keep the sidebar out, the pointer `p` (in the shell) off it, until the pointer moves on away from
+    /// it, comes onto it, or clicks outside it: the Library slid back to the space under a resting pointer.
+    func holdAfterReturn(pointer p: CGPoint) {
+        guard isShown else { return }
+        let d = distanceFromSidebar(p)
+        guard d > 0 else { return }
+        returnHold = FloatingSidebarReturnHold(distanceFromSidebar: d)
+        if returnHoldClicks == nil {
+            returnHoldClicks = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]) { [weak self] event in
+                guard let self, self.returnHold != nil else { return event }
+                // A click in the sidebar's own panel (or its popovers) isn't outside it.
+                if let w = event.window, w === self.panel || w.parent === self.panel { return event }
+                self.endReturnHold()
+                self.hide(animated: true)
+                return event
+            }
+        }
+    }
+
+    private func endReturnHold() {
+        returnHold = nil
+        if let m = returnHoldClicks { NSEvent.removeMonitor(m) }
+        returnHoldClicks = nil
+    }
+
+    /// How far `p` (in the shell) is from the sidebar's rectangle, 0 on it: the sidebar at its own
+    /// width, not the Library's drawer still narrowing around it (measured against that, a pointer just
+    /// past the sidebar counted as on it, and the sidebar went once the drawer had narrowed).
+    private func distanceFromSidebar(_ p: CGPoint) -> Double {
+        let maxX = shell.bounds.minX + FloatingSidebarGeometry.margin + shell.sidebarWidth
+        return FloatingSidebarReturnHold.distance(x: Double(p.x), y: Double(p.y), sidebarMinX: Double(shell.bounds.minX), sidebarMaxX: Double(maxX),
+                                                  top: Double(shell.bounds.maxY), bottom: Double(shell.bounds.minY))
+    }
+
     func hide(animated: Bool) {
         // A synchronous hide also finishes a hide already in flight (for example,
         // before a traffic-light action). Repeated animated exits do not restart it.
         guard isShown || (!animated && shell.sidebarDetached), panel != nil else { return }
+        endReturnHold()
         if isShown { willHide?() }
         isShown = false
         staged = false

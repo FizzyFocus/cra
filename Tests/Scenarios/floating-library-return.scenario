@@ -1,0 +1,21 @@
+# Back from the Library to a floating sidebar (12 Nov 2026, the owner's call): with the pointer off
+# the sidebar, the Library's slide back to the space leaves the floating sidebar out instead of taking
+# it away as the slide lands; it goes once the pointer moves on away, comes onto it (then leaves as
+# usual) or clicks outside it (FloatingSidebarReturnHold; the release is checked in
+# scripts/test-floating-sidebar.sh, as a scenario can't move the pointer).
+cra://debug?windowSize=1280x800
+wait 2
+cra://action/toggleSidebar
+wait 1
+cra://action/showArchive
+wait 1.5
+cra://debug?windowState=open
+expect-log window state open: main0 .*docked=0 floating=1 drawer=400 library=archive
+cra://debug?pointerOnSidebar=0
+cra://debug?leaveLibrary=1
+wait 1.5
+expect-log floating sidebar stays after the Library
+cra://debug?windowState=held
+expect-log window state held: main0 .*docked=0 floating=1 drawer=0 library=-
+cra://debug?pointerOnSidebar=auto
+cra://debug?floatingSidebar=0
