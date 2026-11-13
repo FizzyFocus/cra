@@ -683,6 +683,8 @@
 #408   Packages/CraCore/Tests/CraCoreTests/AskOnPageTests.swift::everyQuestionReadsOnItsCard  4700f64b8bc7
 #408   Packages/CraCore/Tests/CraCoreTests/AskOnPageTests.swift::lightSpaceOnDarkMacGetsALightQuestion  462fb908f263
 #408   Tests/Scenarios/ask-on-page-dark-card.scenario  b4f7984975ed
+#411   Tests/BrowserManagerLifecycleTests.swift::nowPlayingSkipsUncontrollableSoundCase  834fe4ecbf39
+#411   Tests/Scenarios/player-skips-dings.scenario  1cc76ac02572
 #413   Packages/CraCore/Tests/CraCoreTests/SpaceMenuLayoutTests.swift::incognitoSpaceOffersNoProfile  ba6e000f474d
 #413   Tests/Scenarios/incognito-space-menu.scenario  6a20db2d4b60
 #413   Tests/StoreTests.swift::incognitoSpaceKeepsItsContext  8803458c0f95
