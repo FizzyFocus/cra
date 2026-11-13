@@ -163,6 +163,10 @@ enum SidebarMenus {
             store.setMuted(id, !tab.muted)
             actions.performAction("muteTab:\(id)")
         }
+        // That tab's page, whether it is the one shown or not (13 Nov 2026): Reload loads it again;
+        // Load in Background makes a page with none yet, or wakes a sleeping one, without switching to it.
+        add(menu, "Reload") { actions.reloadTab(id) }
+        add(menu, "Load in Background", enabled: ui.canLoadInBackground(id)) { actions.loadInBackground(id) }
         // Frees the page's memory; the tab stays and loads again when shown. Not for a tab on screen.
         add(menu, "Unload Tab", enabled: ui.canUnload(id) && tab.loadOnStart != true) { actions.unloadTab(id) }
         // Its page loads when Cra opens and stays in memory (10 Nov 2026).

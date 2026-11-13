@@ -662,6 +662,28 @@ final class BrowserManager: NSObject, @preconcurrency CraBrowserDelegate {
         wake(id, rt)
     }
 
+    /// The tab menu's Load in Background (13 Nov 2026): the tab's page made, or a sleeping one woken,
+    /// behind, nothing shown. False when it has no page to load (an empty pane).
+    @discardableResult
+    func loadInBackground(_ id: UUID) -> Bool {
+        if let rt = runtimes[id] {
+            wake(id, rt)
+            return true
+        }
+        guard ensureRuntime(for: id) != nil else { return false }
+        log(id, "loads in the background")
+        return true
+    }
+
+    /// The tab menu's Reload: the tab's page loads again where it is, shown or not; one asleep wakes,
+    /// one with no page gets one, behind.
+    func reloadTab(_ id: UUID) {
+        guard let rt = runtimes[id] else { loadInBackground(id); return }
+        if rt.discarded { wake(id, rt); return }
+        rt.browser.reload()
+        log(id, "reloads")
+    }
+
     /// Shown again: Chromium loads a discarded page when it becomes visible; Cra.load starts it
     /// now, as Chrome does on selecting the tab, so a covered window doesn't wait.
     private func wake(_ id: UUID, _ rt: TabRuntime) {

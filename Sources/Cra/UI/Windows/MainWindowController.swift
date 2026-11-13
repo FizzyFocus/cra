@@ -328,6 +328,8 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
         sidebarActions.openCommandBar = { [weak self] mode in self?.openCommandBar(mode) }
         sidebarActions.closeTab = { [weak self] id in self?.closeTab(id) }
         sidebarActions.unloadTab = { [weak self] id in self?.unloadTab(id) }
+        sidebarActions.reloadTab = { [weak self] id in self?.browsers.reloadTab(id) }
+        sidebarActions.loadInBackground = { [weak self] id in self?.browsers.loadInBackground(id) }
         sidebarActions.moveBlankWindow = { [weak self] space in
             guard let self else { return }
             self.app.moveBlankWindow(self, toSpace: space)

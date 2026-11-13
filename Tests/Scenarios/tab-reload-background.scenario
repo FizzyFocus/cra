@@ -1,0 +1,24 @@
+# The tab menu's Reload and Load in Background (13 Nov 2026, the owner's calls): that tab's page,
+# whichever tab is shown. Load in Background makes the page of a tab with none (or wakes one asleep)
+# without switching to it, and is offered only then; Reload loads a tab's page again where it is.
+budget rss=800 stalls50=30
+seed settings.json {"hasSeenImportPrompt": true, "toolbarDefaultMigrated": true}
+
+cra://open?url=${PAGE}?n=1
+expect-log loaded 127\.0\.0\.1 \(HTTP 200\)
+cra://open?url=${PAGE}?n=2
+wait 2
+# Rows: 0 n=2 (shown), 1 n=1 (behind). Unloaded first (its page put to sleep), so there is something to load.
+cra://debug?rowMenu=1&run=Unload Tab
+wait 1
+cra://debug?rowMenu=1&label=unloaded
+expect-log row menu unloaded: .*\|Reload\|Load in Background\|Unload Tab \(off\)\|
+cra://debug?rowMenu=1&run=Load in Background
+expect-log tab [0-9A-F]+ (loads in the background|loads its discarded page again)
+wait 1.5
+cra://debug?todayRows=behind
+expect-log today rows behind: n=2 \| n=1$
+cra://debug?rowMenu=1&label=loaded
+expect-log row menu loaded: .*\|Reload\|Load in Background \(off\)\|Unload Tab\|
+cra://debug?rowMenu=1&run=Reload
+expect-log tab [0-9A-F]+ reloads

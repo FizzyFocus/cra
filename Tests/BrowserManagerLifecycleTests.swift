@@ -151,6 +151,7 @@ enum BrowserManagerLifecycleTests {
         embeddedPageHandoffCase()
         await snapshotCase()
         loadingTabCase()
+        reloadAndLoadInBackgroundCase()
         themeDataCase()
         await sleepCase("an unchanged idle page sleeps", shouldSleep: true) { _, _ in }
         await sleepCase("loading started while the probe was pending stays awake") { _, rt in rt.browser.setLoading(true) }
@@ -538,6 +539,24 @@ enum BrowserManagerLifecycleTests {
         expect(probe?.isCancelled == true && rt.probeWork != nil && rt.probeWork !== probe, "its probe moves to after the load")
         manager.unload(id)
         expect(rt.probeWork == nil && rt.snapshotWork == nil, "unloading drops the pending probe")
+        manager.closeAll()
+    }
+
+    /// The tab menu's Reload and Load in Background (13 Nov 2026): a tab with no page gets one behind,
+    /// shown nowhere; Reload loads a page that is there again, and gives one to a tab without.
+    @MainActor
+    private static func reloadAndLoadInBackgroundCase() {
+        let store = SidebarStore()
+        let manager = BrowserManager(store: store, favicons: FaviconCache(), container: NSView())
+        let behind = store.createTab(url: "https://example.test/behind", select: false).id
+        expect(manager.runtime(for: behind) == nil && manager.loadInBackground(behind), "Load in Background makes the page")
+        expect(manager.runtime(for: behind) != nil && manager.visibleTabID != behind, "behind: it isn't shown")
+        let rt = manager.runtime(for: behind)!
+        manager.reloadTab(behind)
+        expect(rt.browser.reloads == 1, "Reload loads that page again")
+        let other = store.createTab(url: "https://example.test/other", select: false).id
+        manager.reloadTab(other)
+        expect(manager.runtime(for: other) != nil, "Reload on a tab with no page gives it one")
         manager.closeAll()
     }
 

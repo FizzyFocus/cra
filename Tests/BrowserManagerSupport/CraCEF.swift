@@ -90,6 +90,9 @@ open class CraBrowser {
     /// Scripts run in the page's own world (a Boost's JavaScript), in order.
     public private(set) var scripts: [String] = []
     public func executeJavaScript(_ script: String) { scripts.append(script) }
+    /// The tab menu's Reload (BrowserManager.reloadTab).
+    public private(set) var reloads = 0
+    public func reload() { reloads += 1 }
     /// Icon fetches the page has asked for, answered by the test (FaviconFinder).
     public var faviconDownloads: [(url: String, completion: (NSImage?) -> Void)] = []
     public var imageFetches: [(url: String, completion: (Int, String, Data?) -> Void)] = []
