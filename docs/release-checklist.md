@@ -370,6 +370,11 @@ built release app with a test profile. Note anything that fails in the release's
   is a summary, not the first answer again, and no answer starts with "BEGIN DIALOGUE", "Human:" or a made-up
   question. Then a factual follow-up gets its own quote. The model is on-device and varies, so ask a few times.
 
+- **Ask on Page, long answers and unanswerable questions:** ask a long article something it doesn't say
+  ("why did el salvador succeed?"): the answer never quotes a solar-power page or J.W. Peters. Ask for "the
+  key points of this entire article in detailed bullet points": the window and the page keep scrolling smoothly
+  while it writes, and the answer never vanishes and starts over.
+
 - **PR #324, 5-Second Previews:** with Apple Intelligence on and Settings ▸ Max ▸ 5-Second Previews
   on, rest 1 s on a story title on Hacker News, a Google result and a link in a post on X: a loading
   card hangs under the link, then the answer streams in (picture, bold line, 2–4 rows), next to Arc's
