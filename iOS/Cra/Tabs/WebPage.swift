@@ -130,12 +130,22 @@ final class WebPage: NSObject, WKNavigationDelegate, WKUIDelegate, UIScrollViewD
     })();
     """
 
-    /// Tells the app the page has drawn: two frames after its HTML is in, its stylesheets applied.
+    /// Tells the app the page has drawn: two frames after the body has its first element (a page
+    /// that streams shows its top while the rest arrives), or after its HTML is all in.
     private static let paintedScript = """
     (() => {
+      let sent = false;
       const post = () => requestAnimationFrame(() => requestAnimationFrame(() => {
+        if (sent) return;
+        sent = true;
         try { window.webkit.messageHandlers.craPainted.postMessage(1); } catch (e) {}
       }));
+      const look = () => {
+        if (sent) return;
+        if (document.body && document.body.firstElementChild) return post();
+        if (document.readyState === 'loading') requestAnimationFrame(look);
+      };
+      requestAnimationFrame(look);
       if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', post, { once: true }); else post();
     })();
     """

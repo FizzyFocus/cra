@@ -67,6 +67,13 @@ be signed in). After 7 days, run it again.
     scripts/ios.sh open                      # show the Simulator window
     scripts/ios.sh device                    # build for the connected iPhone and install it
     swift test --package-path Packages/CraCore --filter Mobile   # the decisions, on the Mac
+    scripts/ios-sync-e2e.sh                  # the Mac's folder sync read by the phone, end to end
+
+`scripts/ios-sync-e2e.sh` runs a throwaway build/Pane.app (beside the installed Pane) on a seeded sidebar
+that syncs into /tmp/pane-sync-test, times each write as folders, a section and Pinned open and
+shut, then runs `SyncFolderTests`: the Spaces sheet reading that folder, following it when it
+changes, and slow pages from 127.0.0.1:8765 loading under the progress line. Those tests skip
+without the folder.
 
 The simulator boots without a window. `CRA_IOS_SIM` picks the device ("Pane iPhone 17" by
 default, created when missing). Xcode only builds for iOS when the iOS platform matching its

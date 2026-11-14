@@ -168,6 +168,9 @@ final class SettingsTests: BrowserTestCase {
     func testSiteSettingsKeepsASitesChoice() {
         launch(["-CraOpenURL", "https://example.com/", "-CraSearch", "NO"])
         XCTAssertTrue(app.buttons["bar-menu"].waitForExistence(timeout: 10))
+        // The menu names the page's site once the page has an address: on a slow launch the bar
+        // comes first, and a menu opened then is All Sites'.
+        XCTAssertTrue(app.webViews.staticTexts.firstMatch.waitForExistence(timeout: 20), "example.com never showed")
         app.buttons["bar-menu"].tap()
         app.buttons["menu-row-siteSettings"].tap()
         XCTAssertTrue(app.staticTexts["EXAMPLE.COM SETTINGS"].waitForExistence(timeout: 5))
@@ -176,12 +179,14 @@ final class SettingsTests: BrowserTestCase {
         sleep(1)
         keep("site-settings")
         ads.switches.firstMatch.tap()
-        XCTAssertEqual(ads.value as? String, "0")
+        wait(for: [expectation(for: NSPredicate(format: "value == '0'"), evaluatedWith: ads)], timeout: 5)
         app.buttons["Done"].tap()
         app.buttons["menu-row-siteSettings"].tap()
         XCTAssertTrue(app.switches["setting-block-ads"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.switches["setting-block-ads"].value as? String, "0")
-        // App Settings is one step further, with the global options behind their own row.
+        // App Settings is one step further, with the global options behind their own row: below the
+        // first screen of rows, which is all the list has made until it scrolls.
+        app.collectionViews.firstMatch.swipeUp()
         XCTAssertTrue(app.buttons["setting-app-settings"].waitForExistence(timeout: 5))
         app.buttons["setting-app-settings"].tap()
         XCTAssertTrue(app.buttons["setting-global-site-settings"].waitForExistence(timeout: 5))
@@ -600,6 +605,116 @@ final class IncognitoTests: BrowserTestCase {
     }
 }
 
+/// The Mac's sync folder read by the phone, end to end (14 Nov 2026): `scripts/ios-sync-e2e.sh`
+/// has a real Pane.app sync a seeded sidebar into /tmp/pane-sync-test (Work open, Specs shut, the
+/// section Reading collapsed) and serves pages on 127.0.0.1:8765. Skipped without that folder.
+final class SyncFolderTests: BrowserTestCase {
+    static let folder = "/tmp/pane-sync-test"
+    static var sidebarFile: URL { URL(fileURLWithPath: folder + "/Pane/sidebar.json") }
+    static var manifestFile: URL { URL(fileURLWithPath: folder + "/Pane/manifest.json") }
+
+    override func setUpWithError() throws {
+        try super.setUpWithError()
+        try XCTSkipUnless(FileManager.default.fileExists(atPath: Self.sidebarFile.path), "run scripts/ios-sync-e2e.sh")
+    }
+
+    private func openSpaces(_ extra: [String] = []) {
+        launch(["-CraOpenURL", Self.page("First"), "-CraSearch", "NO", "-CraSyncDir", Self.folder] + extra)
+        waitForPage("First")
+        app.buttons["bar-tabs"].tap()
+        XCTAssertTrue(app.buttons["bar-spaces"].waitForExistence(timeout: 5))
+        app.buttons["bar-spaces"].tap()
+        XCTAssertTrue(app.buttons["space-tab-Inbox"].waitForExistence(timeout: 10))
+    }
+
+    /// Rewrites a synced file as iCloud Drive would deliver a newer one: through a file coordinator.
+    private func rewrite(_ url: URL, _ change: (inout [String: Any]) -> Void) throws {
+        var json = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+        change(&json)
+        let data = try JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys])
+        var error: NSError?
+        var writeError: Error?
+        NSFileCoordinator().coordinate(writingItemAt: url, options: .forReplacing, error: &error) { url in
+            do { try data.write(to: url, options: .atomic) } catch { writeError = error }
+        }
+        if let failure = error ?? writeError { throw failure }
+    }
+
+    /// The sheet draws the Mac's sidebar as the Mac shows it, and redraws when the folder changes
+    /// under it, with no tap.
+    func testTheSheetShowsTheMacsSidebarAndFollowsTheFolder() throws {
+        openSpaces()
+        XCTAssertEqual(app.staticTexts["space-title"].firstMatch.label, "Personal")
+        XCTAssertTrue(app.staticTexts["spaces-sync-status"].label.hasPrefix("Updated"))
+        XCTAssertTrue(app.buttons["space-favorite-Calendar"].exists)
+        XCTAssertEqual(app.buttons["space-pinned"].value as? String, "Open")
+        XCTAssertEqual(app.buttons["space-folder-Work"].value as? String, "Open")
+        XCTAssertTrue(app.buttons["space-tab-Docs"].exists)
+        XCTAssertEqual(app.buttons["space-folder-Specs"].value as? String, "Closed", "Specs is shut on the Mac")
+        XCTAssertFalse(app.buttons["space-tab-Spec"].exists)
+        XCTAssertTrue(app.buttons["space-tab-A Story"].exists)
+        XCTAssertEqual(app.buttons["space-section-Reading"].value as? String, "Closed", "Reading is collapsed on the Mac")
+        XCTAssertFalse(app.buttons["space-tab-A Paper"].exists)
+        sleep(1)
+        keep("sync-folder-spaces")
+
+        // The Mac opens Specs and Reading: a newer sidebar lands in the folder.
+        let sidebar = try JSONSerialization.jsonObject(with: Data(contentsOf: Self.sidebarFile)) as? [String: Any]
+        let items = sidebar?["items"] as? [[String: Any]] ?? []
+        let specs = try XCTUnwrap(items.first { $0["title"] as? String == "Specs" }?["id"] as? String)
+        try rewrite(Self.sidebarFile) { json in
+            var layout = json["layout"] as? [String: Any] ?? [:]
+            layout["expandedFolders"] = (layout["expandedFolders"] as? [String] ?? []) + [specs]
+            layout["collapsedSections"] = [String]()
+            json["layout"] = layout
+        }
+        try rewrite(Self.manifestFile) { json in json["writtenAt"] = ISO8601DateFormatter().string(from: Date()) }
+        XCTAssertTrue(app.buttons["space-tab-Spec"].waitForExistence(timeout: 8), "the sheet follows the folder")
+        XCTAssertTrue(app.buttons["space-tab-A Paper"].waitForExistence(timeout: 2))
+        XCTAssertEqual(app.staticTexts["spaces-sync-status"].label, "Updated just now")
+        sleep(1)
+        keep("sync-folder-live")
+        app.swipeLeft()
+        XCTAssertTrue(app.buttons["space-tab-Scores"].waitForExistence(timeout: 3))
+        keep("sync-folder-play")
+    }
+
+    /// A slow page opened from a Space waits on the Space's colour with the loading line, not a
+    /// black screen, then shows.
+    func testAPageFromASpaceWaitsOnItsColourWithTheLoadingLine() {
+        openSpaces()
+        app.buttons["space-tab-Inbox"].tap()
+        sleep(1)
+        keep("space-page-loading")
+        waitForPage("Inbox")
+        sleep(1)
+        keep("space-page-loaded")
+    }
+
+    /// In dark mode a page that keeps the phone waiting stands on the dark backdrop; one that draws
+    /// part of itself shows that part with the line still running.
+    func testAPageLoadingInDarkModeIsNeverBlack() {
+        launch(["-CraOpenURL", "http://127.0.0.1:8765/slowhead?t=Dark", "-CraSearch", "NO", "-CraAppearance", "dark"])
+        sleep(1)
+        let cover = app.otherElements["page-loading-cover"]
+        XCTAssertTrue(cover.exists, "a page with nothing to draw yet waits under the cover")
+        keep("dark-loading")
+        waitForPage("Dark")
+        app.buttons["bar-search"].tap()
+        app.textFields["search-field"].typeText("http://127.0.0.1:8765/slowbody?t=Partial\n")
+        // The heading and first paragraph come at once, the rest 12 s later: the cover lifts for the
+        // top. (A page whose first part is a word or two stays undrawn until it loads: WebKit waits
+        // for 200 characters or so.)
+        XCTAssertTrue(app.webViews.staticTexts["Partial"].waitForExistence(timeout: 8))
+        wait(for: [expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: cover)], timeout: 3)
+        XCTAssertFalse(app.webViews.staticTexts["The rest of the page."].exists, "the top showed while the rest was coming")
+        keep("dark-partial")
+        XCTAssertTrue(app.webViews.staticTexts["The rest of the page."].waitForExistence(timeout: 20))
+        sleep(1)
+        keep("dark-loaded")
+    }
+}
+
 final class SpacesTests: BrowserTestCase {
     /// The tab row's left button shows the Mac's Spaces as its sidebar has them: Favorites, a
     /// Pinned header that folds the pinned area, folders open or shut as on the Mac, Today's
@@ -612,7 +727,7 @@ final class SpacesTests: BrowserTestCase {
         app.buttons["bar-spaces"].tap()
         XCTAssertTrue(app.buttons["space-tab-Inbox"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.staticTexts["space-title"].firstMatch.label, "Personal")
-        XCTAssertTrue(app.otherElements["spaces-sync-status"].label.contains("Updated just now"))
+        XCTAssertEqual(app.staticTexts["spaces-sync-status"].label, "Updated just now")
         XCTAssertTrue(app.buttons["space-favorite-Calendar"].exists)
         XCTAssertTrue(app.buttons["space-tab-Docs"].exists)
         XCTAssertTrue(app.buttons["space-folder-Specs"].exists)
