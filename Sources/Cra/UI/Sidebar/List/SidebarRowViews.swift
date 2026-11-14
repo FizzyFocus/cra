@@ -2803,7 +2803,8 @@ enum DividerTidy: Equatable {
 }
 
 /// The line between pinned and Today; "Clear" shows on hover, and "Tidy" before it whenever Today
-/// holds more than 10 tabs, or with fewer while the row is hovered with Shift held (DividerTidy; Arc
+/// holds more than 10 tabs, or with fewer while the row is hovered with Shift held, as long as two of
+/// them are loose (TidyTabs.visibility; DividerTidy; Arc
 /// 1.171: UnpinnedSectionHeaderCellView with SidebarTidyButton, a SquiggleDivider while it works).
 final class DividerRowView: SidebarRowView {
     private let line = NSView()

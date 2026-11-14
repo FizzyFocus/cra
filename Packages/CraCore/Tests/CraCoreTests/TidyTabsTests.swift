@@ -10,9 +10,12 @@ struct TidyTabsTests {
         #expect(TidyTabs.visibility(todayTabs: 11, looseTabs: 3) == .shown)
         #expect(TidyTabs.visibility(todayTabs: 10, looseTabs: 10) == .withShift, "ten is not more than ten")
         #expect(TidyTabs.visibility(todayTabs: 2, looseTabs: 2) == .withShift)
-        // Grouped tabs count towards the ten; nothing loose, nothing to tidy.
-        #expect(TidyTabs.visibility(todayTabs: 14, looseTabs: 1) == .shown)
+        // Grouped tabs count towards the ten; Tidy needs two loose tabs, as a group takes two (Pane, 14 Nov
+        // 2026: one tab left loose after a run kept it on the divider with nothing to sort).
+        #expect(TidyTabs.visibility(todayTabs: 14, looseTabs: 2) == .shown)
+        #expect(TidyTabs.visibility(todayTabs: 14, looseTabs: 1) == .hidden)
         #expect(TidyTabs.visibility(todayTabs: 14, looseTabs: 0) == .hidden)
+        #expect(TidyTabs.visibility(todayTabs: 1, looseTabs: 1) == .hidden, "one tab: nothing to group, not even with Shift")
         #expect(TidyTabs.shows(.shown, shiftHeld: false) && TidyTabs.shows(.shown, shiftHeld: true))
         #expect(!TidyTabs.shows(.withShift, shiftHeld: false) && TidyTabs.shows(.withShift, shiftHeld: true))
         #expect(!TidyTabs.shows(.hidden, shiftHeld: true))

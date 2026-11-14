@@ -55,11 +55,15 @@ public enum TidyTabs {
         case shown
     }
 
+    /// Tidy needs this many loose Today tabs: it sorts loose tabs only, and a group takes two.
+    public static let minimumLoose = 2
+
     /// The divider shows Tidy whenever Today holds more than `shownAbove` tabs, and with fewer while
-    /// Shift is held; either way only with a loose tab left to sort (Tidy sorts loose tabs only). It
-    /// no longer hides after a run until a new tab comes, as Arc's did (12 Nov 2026).
+    /// Shift is held; either way only with `minimumLoose` loose tabs to sort (Pane, 14 Nov 2026: a run
+    /// that left one tab loose kept it there, grouped tabs counting towards the ten). It no longer
+    /// hides after a run that leaves enough loose tabs until a new tab comes, as Arc's did (12 Nov 2026).
     public static func visibility(todayTabs: Int, looseTabs: Int) -> Visibility {
-        guard looseTabs > 0 else { return .hidden }
+        guard looseTabs >= minimumLoose else { return .hidden }
         return todayTabs > shownAbove ? .shown : .withShift
     }
 
