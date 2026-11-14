@@ -1,6 +1,8 @@
-# Cra for iPhone
+# Pane for iPhone
 
-The iPhone and iPad app. Where the Mac app matches Arc, this one matches Arc Search, Arc's
+The iPhone and iPad app, upstream Cra's ported to Pane on 14 Nov 2026 (UPSTREAM_SYNC.md): what
+people see says Pane, while the project, targets and folders keep Cra's names, as on the Mac, so
+upstream's later commits still apply. Where the Mac app matches Arc, this one matches Arc Search, Arc's
 iOS browser: the same screens, measurements, gestures and motion. What it has and what is
 still missing is in [ios-parity.md](ios-parity.md); what is known about Arc Search and where
 it was learned is in [arc-search-reference.md](arc-search-reference.md).
@@ -25,8 +27,32 @@ The app shares CraCore with the Mac app (search engines, typed-address rules, co
 rules, the sidebar model for synced Spaces). CraCore therefore also builds for iOS 17; the two
 pieces that start child processes are Mac-only.
 
-The bundle identifier is `dk.kildahl.cra`, the Mac app's, so both can use the iCloud container
-`iCloud.dk.kildahl.cra`.
+## Identity and signing (Pane)
+
+The bundle identifiers are `uz.pane.ios`, `uz.pane.ios.share`, `uz.pane.ios.widgets` and
+`uz.pane.ios.uitests`, signed by team `GWSB8L799B`, the Mac app's Apple Development team. Its own
+links are `pane://search`, `pane://voice` and `pane://spaces`.
+
+`GWSB8L799B` is a free Apple team (a Personal Team): Apple gives it no iCloud containers and no App
+Groups, and Xcode's profiles for it last 7 days. So, unlike upstream (which shares the Mac's App
+ID and its iCloud container `iCloud.dk.kildahl.cra`):
+
+- **Spaces from the Mac** come through a folder in iCloud Drive. On the Mac, Settings ▸ General ▸
+  Sync ▸ Use a Folder… picks a folder there; on the phone, Sync with Pane for Mac ▸ I have Pane on
+  my Mac ▸ Choose the Folder… picks the same one in Files, kept as a security-scoped bookmark
+  (`SyncedSidebar`). The Mac app needs no new entitlement for this.
+- **The share inbox** is a Keychain item in an access group the app and its share extension both
+  claim (`$(AppIdentifierPrefix)uz.pane.ios.shared`; see Share extension below).
+
+With the paid Apple Developer Program the upstream way would work again: an iCloud container
+(say `iCloud.uz.pane.browser`) on both App IDs, with a provisioning profile for the Mac app too
+(`CRA_PROVISIONING_PROFILE` in scripts/build.sh). Without such a profile, claiming the container
+in the Mac app would keep it from launching.
+
+To put the app on an iPhone: connect it (or have it on this Mac's Wi-Fi), unlock it, trust this
+Mac, turn on Developer Mode, and run `scripts/ios.sh device`. Xcode registers the app ids on the
+team and makes the 7-day profile (`-allowProvisioningUpdates`; Xcode ▸ Settings ▸ Accounts has to
+be signed in). After 7 days, run it again.
 
 ## Build and run
 
@@ -35,9 +61,10 @@ The bundle identifier is `dk.kildahl.cra`, the Mac app's, so both can use the iC
     scripts/ios.sh shot /tmp/cra.png         # screenshot
     scripts/ios.sh test                      # UI tests; screenshots in build/ios/test-screens
     scripts/ios.sh open                      # show the Simulator window
+    scripts/ios.sh device                    # build for the connected iPhone and install it
     swift test --package-path Packages/CraCore --filter Mobile   # the decisions, on the Mac
 
-The simulator boots without a window. `CRA_IOS_SIM` picks the device ("Cra iPhone 17" by
+The simulator boots without a window. `CRA_IOS_SIM` picks the device ("Pane iPhone 17" by
 default, created when missing). Xcode only builds for iOS when the iOS platform matching its
 SDK is installed: `xcodebuild -downloadPlatform iOS`.
 
@@ -51,7 +78,7 @@ Launch arguments put the app in a state for a screenshot or a test:
 | `-CraSearch NO` | Launches without the search sheet |
 | `-CraFakeModel YES` | Canned answers in place of the on-device model |
 | `-CraSummarize YES` | Summarizes the first page once it has loaded |
-| `-CraSyncDir <folder>` or `demo` | The folder the Mac's sidebar syncs into, or a made-up sidebar |
+| `-CraSyncDir <folder>` or `demo` | The folder the Mac's sidebar syncs into (in place of the one picked in Files), or a made-up sidebar |
 | `-CraFakeVoice <text>` | What voice search hears instead of the microphone |
 | `-CraShowVoice YES` | Holds the voice overlay up, for a screenshot |
 | `-CraOnboarding YES` | Shows onboarding on a test's data folder |
@@ -92,27 +119,29 @@ Summarize) used a cloud service that ends on 23 November 2026.
 
 ## TestFlight
 
-`scripts/ios-testflight.sh` archives a Release build signed for team 673A7J2J54 and uploads it
+TestFlight needs the paid Apple Developer Program, which Pane's team isn't in (14 Nov 2026).
+`scripts/ios-testflight.sh` archives a Release build signed for team GWSB8L799B and uploads it
 to App Store Connect; the build number is the commit count. It signs with the Apple ID in
 Xcode ▸ Settings ▸ Accounts, or with an App Store Connect API key given as `ASC_KEY_PATH`,
 `ASC_KEY_ID` and `ASC_ISSUER_ID` (the .p8 stays in `~/.appstoreconnect/private_keys`, never in
-the repo). The app record for `dk.kildahl.cra` has to exist in App Store Connect before the
-first upload. Builds are for iPhone and iPad (`TARGETED_DEVICE_FAMILY = 1,2`); `CRA_IOS_SIM="Cra iPad" scripts/ios.sh test …` runs the UI tests on an iPad simulator.
+the repo). The app record for `uz.pane.ios` has to exist in App Store Connect before the
+first upload. Builds are for iPhone and iPad (`TARGETED_DEVICE_FAMILY = 1,2`); `CRA_IOS_SIM="Pane iPad" scripts/ios.sh test …` runs the UI tests on an iPad simulator.
 
 ## Share extension
 
-`iOS/CraShare` is "Cra" in other apps' share sheets. Done writes the link into
-`share-inbox.json` in the App Group `group.dk.kildahl.cra` (`MobileShareInbox`, a coordinated
-read-change-write); the app takes it each time it becomes active (`SharedLinks.swift`). A test
-can put a link in the inbox as the extension would with `-CraFakeShare <url>` (and
-`-CraFakeShareTo favorites`). Signing registers the App Group through the API key, like the
-iCloud container.
+`iOS/CraShare` is "Pane" in other apps' share sheets. Done writes the link into the inbox, a
+Keychain item (`MobileShareInbox.updateInKeychain`, service `uz.pane.ios.share-inbox`) in the access
+group both targets claim, `$(AppIdentifierPrefix)uz.pane.ios.shared` (Info.plist's
+`PaneKeychainGroup`): upstream's App Group isn't available to Pane's free team. The app takes the
+links each time it becomes active (`SharedLinks.swift`). An unsigned Simulator build, which may not
+use the group, keeps the item in its own. A test can put a link in the inbox as the extension would
+with `-CraFakeShare <url>` (and `-CraFakeShareTo favorites`).
 
 ## Looking at the widgets
 
 A UI test can open the simulator's widget gallery: `XCUIDevice.shared.press(.home)`, then on
 `XCUIApplication(bundleIdentifier: "com.apple.springboard")` long-press an empty spot, tap Edit,
-Add Widget, type "Cra" into the gallery's search field, tap the result and take screenshots
+Add Widget, type "Pane" into the gallery's search field, tap the result and take screenshots
 (swipe left for the medium one). Keep such a test out of the suite: it leaves the home screen in
 edit mode.
 

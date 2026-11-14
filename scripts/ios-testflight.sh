@@ -1,6 +1,8 @@
 #!/bin/bash
-# Archives the iPhone app (Release, signed for team 673A7J2J54) and uploads it to App Store
+# Archives the iPhone app (Release, signed for team GWSB8L799B) and uploads it to App Store
 # Connect, where it shows up in TestFlight after Apple's processing (10–30 minutes).
+# App Store Connect and TestFlight need the paid Apple Developer Program: on a free team (Pane's,
+# 14 Nov 2026) the archive's signing fails; `scripts/ios.sh device` puts the app on a phone instead.
 #
 #   scripts/ios-testflight.sh            # archive and upload
 #   scripts/ios-testflight.sh --no-upload  # archive and export an .ipa into build/ios-export only
@@ -9,12 +11,12 @@
 # when these are set, an App Store Connect API key (Users and Access ▸ Integrations ▸ Keys,
 # role App Manager or Admin):
 #   ASC_KEY_PATH=~/.appstoreconnect/private_keys/AuthKey_XXXX.p8 ASC_KEY_ID=XXXX ASC_ISSUER_ID=…
-# The app record (bundle id dk.kildahl.cra) has to exist in App Store Connect first.
+# The app record (bundle id uz.pane.ios) has to exist in App Store Connect first.
 # The build number is the commit count, so every upload from a newer commit is accepted.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-TEAM="673A7J2J54"
+TEAM="GWSB8L799B"
 ARCHIVE="build/ios-archive/Cra.xcarchive"
 EXPORT="build/ios-export"
 BUILD_NUMBER="$(git rev-list --count HEAD)"

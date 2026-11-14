@@ -144,13 +144,25 @@ everyone.
 
 <p align="center"><a href="https://crabrowser.app/support">Where the money goes</a></p>
 
+### Pane for iPhone
+
+Pane for iPhone, the open-source take on Arc Search (from Cra's iPhone app), shows your Mac's
+Spaces, pinned tabs and folders on the phone: on the Mac, Settings ▸ General ▸ Sync ▸ Use a Folder…
+in iCloud Drive; on the iPhone, Sync with Pane for Mac ▸ Choose the Folder… picks the same folder.
+It needs iOS 17; Browse for Me and Summarize run on the iPhone's own Apple Intelligence. There is
+no TestFlight build of it: `scripts/ios.sh device` installs it from source onto a connected iPhone
+(a free Apple team's install lasts 7 days). Its code is in [`iOS/`](iOS), how it's built and signed
+in [docs/ios.md](docs/ios.md), and its status in [docs/ios-parity.md](docs/ios-parity.md).
+
 ## Build from source
 
-    scripts/build.sh          # fetches CEF on first run, builds build/Cra.app
+    scripts/build.sh          # fetches CEF on first run, builds build/Pane.app
     scripts/run.sh            # build if needed, then open
-    scripts/dev.sh            # dev loop: debug CraDev.app, rebuilds + relaunches on save
+    scripts/dev.sh            # dev loop: debug PaneDev.app, rebuilds + relaunches on save
+    scripts/ios.sh build      # the iPhone app, for the iOS Simulator
 
-Needs Xcode 16+ and CMake (`brew install cmake`). [CONTRIBUTING.md](CONTRIBUTING.md)
+Needs Xcode 16+ and CMake (`brew install cmake`). The iPhone app builds with
+`scripts/ios.sh build` (Xcode with the iOS platform, no Chromium). [CONTRIBUTING.md](CONTRIBUTING.md)
 covers sending a change, and [docs/development.md](docs/development.md) covers the code
 layout, scripting hooks and test instances.
 

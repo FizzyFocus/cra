@@ -1,5 +1,9 @@
 # Arc Search parity (iPhone app)
 
+> Pane: this table is upstream Cra's, ported on 14 Nov 2026. Where it says Cra, Pane's app says Pane;
+> the iCloud container and App Group it names are a folder in iCloud Drive and a Keychain group in
+> Pane ([ios.md](ios.md), "Identity and signing").
+
 Arc Search 1.49.0 feature by feature, against Cra for iPhone on the `ios-app` branch. The
 feature list comes from [arc-search-reference.md](arc-search-reference.md) (sections B and C);
 [ios.md](ios.md) says how a screen is measured and compared.

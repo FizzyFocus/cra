@@ -9,17 +9,19 @@
 #   scripts/ios.sh test [only…]       # the UI tests (iOS/CraUITests); `only` as CraUITests/Class/test.
 #                                     # Their screenshots land in build/ios/test-screens
 #   scripts/ios.sh open               # show the Simulator window
+#   scripts/ios.sh device             # build for the connected iPhone, install and launch it
+#                                     # (CRA_IOS_DEVICE=<udid> picks one; Xcode signs it)
 #
-# CRA_IOS_SIM names the simulator (default "Cra iPhone 17"); it is created on the newest
+# CRA_IOS_SIM names the simulator (default "Pane iPhone 17"); it is created on the newest
 # installed iOS runtime when missing. Xcode needs the iOS platform that matches its SDK:
 # `xcodebuild -downloadPlatform iOS` fetches it.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-SIM_NAME="${CRA_IOS_SIM:-Cra iPhone 17}"
+SIM_NAME="${CRA_IOS_SIM:-Pane iPhone 17}"
 DERIVED="build/ios"
 APP="$DERIVED/Build/Products/Debug-iphonesimulator/Cra.app"
-BUNDLE_ID="dk.kildahl.cra"
+BUNDLE_ID="uz.pane.ios"
 
 device() {
   local udid
@@ -49,6 +51,40 @@ build() {
 
 command="${1:-run}"
 shift || true
+
+# Pane's iPhone (14 Nov 2026): signed by the Mac's team, GWSB8L799B, a free Apple team, so Xcode
+# makes a 7-day profile for the phone (-allowProvisioningUpdates registers the app ids). The phone
+# has to be connected and unlocked, trust this Mac, and have Developer Mode on.
+if [ "$command" = device ]; then
+  phone="${CRA_IOS_DEVICE:-}"
+  if [ -z "$phone" ]; then
+    json="$(mktemp)"
+    xcrun devicectl list devices --json-output "$json" >/dev/null 2>&1 || true
+    phone="$(python3 -I - "$json" <<'PY'
+import json, sys
+try:
+    devices = json.load(open(sys.argv[1]))["result"]["devices"]
+except Exception:
+    devices = []
+for d in devices:
+    hw, conn = d.get("hardwareProperties", {}), d.get("connectionProperties", {})
+    if hw.get("platform") == "iOS" and conn.get("tunnelState") == "connected":
+        print(hw.get("udid", ""))
+        break
+PY
+)"
+    rm -f "$json"
+  fi
+  [ -n "$phone" ] || { echo "no iPhone connected: plug it in or put it on this Mac's Wi-Fi, unlock it, trust this Mac, turn on Developer Mode" >&2; exit 1; }
+  xcodebuild -project iOS/Cra.xcodeproj -scheme Cra -configuration Debug -destination "platform=iOS,id=$phone" \
+    -derivedDataPath "$DERIVED" -allowProvisioningUpdates build 2>&1 | grep -E "error|warning: [^M]|BUILD (SUCCEEDED|FAILED)" || true
+  device_app="$DERIVED/Build/Products/Debug-iphoneos/Cra.app"
+  [ -d "$device_app" ] || { echo "build failed" >&2; exit 1; }
+  xcrun devicectl device install app --device "$phone" "$device_app"
+  xcrun devicectl device process launch --device "$phone" "$BUNDLE_ID" || true
+  exit 0
+fi
+
 UDID="$(device)"
 
 case "$command" in

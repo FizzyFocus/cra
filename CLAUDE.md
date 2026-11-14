@@ -14,11 +14,18 @@ SwiftUI, tests that fail without the fix) and how. This file holds the layer rul
 | App | `Sources/Cra` | CraCore, AppKit, SwiftUI, CraCEF |
 | Bridge | `Sources/CraCEF` | CEF (Objective-C++, seen by Swift through `include/`) |
 | Helper | `Sources/CraHelper` | CEF (the Chromium subprocess) |
+| iPhone | `iOS/Cra` (+ `iOS/CraWidgets`, `iOS/CraShare`) | CraCore, UIKit, SwiftUI, WebKit |
 
 CraCore never imports AppKit, Cocoa, SwiftUI, UIKit or CraCEF. `scripts/lint.py`
 (`core-platform-import`) fails the build when it does. CraCore is a package of its own, so
 `swift test --package-path Packages/CraCore` runs without `vendor/cef`. Every app file sees it
 through `Sources/Cra/App/CraCoreExports.swift`.
+
+The iPhone app matches Arc Search the way the Mac app matches Arc, and its decisions live in
+`Packages/CraCore/Sources/CraCore/Mobile/` under the same rules. [docs/ios.md](docs/ios.md) has
+its layout and `scripts/ios.sh` (build, run, screenshots, UI tests); its status is
+[docs/ios-parity.md](docs/ios-parity.md). Its UI suite takes over ten minutes and loads the Mac:
+run the classes a change touches, and the whole suite in halves.
 
 1. **Decisions go in CraCore.** Code that decides something without a window or a page (a
    model, a file format, a layout rule, a policy) goes in CraCore, with a test. Its API is
@@ -62,6 +69,8 @@ touches it anyway, not as a side errand.
   imports AppKit for `Shortcut`'s event matching.
 - `Services/Import/`: the parsers for other browsers' files. Tested on `Tests/Fixtures` by
   `scripts/test-store.sh`.
+- `Mobile/MobileShareInbox.swift` imports Security, on iOS only (`#if os(iOS)`): the share inbox
+  is a Keychain item there, since Pane's free Apple team has no App Groups (14 Nov 2026).
 - `UI/Windows/ExtensionLaunch.swift`, `Services/DevToolsToggle.swift` and
   `UI/Windows/FloatingSidebarGeometry.swift`: policies, tested by
   `scripts/test-policies.sh` and `scripts/test-floating-sidebar.sh`.
@@ -78,6 +87,10 @@ them. Chromium's Keychain item is Pane's, "Pane Safe Storage" (13 Nov 2026):
 `scripts/cef-keychain-item.py` renames upstream's "Cra Safe Storage" in the fetched CEF, and
 `SafeStorage` copies a profile's secret from Cra's item once.
 `LegacyDataMigration` copies Cra's data folder, defaults and WebKit stores on Pane's first launch.
+The iPhone app (since 14 Nov 2026) is the same: `iOS/Cra.xcodeproj` and its Cra, CraShare and
+CraWidgets targets keep Cra's names, while the bundle ids are `uz.pane.ios(.share|.widgets)` on team
+GWSB8L799B, its links `pane://`, and what it says Pane; [docs/ios.md](docs/ios.md) has why it syncs
+through a folder in iCloud Drive rather than an iCloud container.
 
 ## Upstream sync
 
