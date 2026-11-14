@@ -591,6 +591,9 @@ struct MobileSpacesTests {
     /// a second, empty space.
     static func sidebar() -> (SidebarDocument, folder: UUID) {
         var document = SidebarDocument.fresh()
+        // Pane starts a new space unthemed (no colours); this Mac's space has upstream's first preset,
+        // so the colours the phone takes from it are there to check.
+        document.spaces[0].theme = SpaceTheme.presets[0]
         let space = document.spaces[0]
         var pinned = SidebarItem.tab("https://mail.example/inbox", title: "Mail", parent: space.pinnedContainerID)
         pinned.title = "Inbox"
