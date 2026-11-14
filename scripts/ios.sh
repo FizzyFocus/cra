@@ -58,6 +58,8 @@ shift || true
 if [ "$command" = device ]; then
   phone="${CRA_IOS_DEVICE:-}"
   if [ -z "$phone" ]; then
+    # devicectl's "available (paired)": paired, with a tunnel Xcode opens on demand ("disconnected")
+    # or open already ("connected"); "unavailable" is a phone it can't reach. A connected one first.
     json="$(mktemp)"
     xcrun devicectl list devices --json-output "$json" >/dev/null 2>&1 || true
     phone="$(python3 -I - "$json" <<'PY'
@@ -66,21 +68,41 @@ try:
     devices = json.load(open(sys.argv[1]))["result"]["devices"]
 except Exception:
     devices = []
+found = []
 for d in devices:
     hw, conn = d.get("hardwareProperties", {}), d.get("connectionProperties", {})
-    if hw.get("platform") == "iOS" and conn.get("tunnelState") == "connected":
-        print(hw.get("udid", ""))
-        break
+    if hw.get("platform") != "iOS" or conn.get("pairingState") != "paired" or not hw.get("udid"):
+        continue
+    tunnel = conn.get("tunnelState")
+    if tunnel == "connected":
+        found.append((0, hw["udid"]))
+    elif tunnel == "disconnected" and conn.get("transportType"):
+        found.append((1, hw["udid"]))
+print(sorted(found)[0][1] if found else "")
 PY
 )"
     rm -f "$json"
   fi
+  if [ -z "$phone" ]; then
+    # What Xcode itself can build for: "{ platform:iOS, arch:arm64, id:<udid>, name:<phone> }" (the
+    # generic "Any iOS Device" has no arch).
+    phone="$(xcodebuild -project iOS/Cra.xcodeproj -scheme Cra -showdestinations 2>/dev/null |
+      sed -n 's/.*{ platform:iOS, arch:[^,]*, id:\([0-9A-Fa-f-]*\), name:.*/\1/p' | head -1)"
+  fi
   [ -n "$phone" ] || { echo "no iPhone connected: plug it in or put it on this Mac's Wi-Fi, unlock it, trust this Mac, turn on Developer Mode" >&2; exit 1; }
-  xcodebuild -project iOS/Cra.xcodeproj -scheme Cra -configuration Debug -destination "platform=iOS,id=$phone" \
-    -derivedDataPath "$DERIVED" -allowProvisioningUpdates build 2>&1 | grep -E "error|warning: [^M]|BUILD (SUCCEEDED|FAILED)" || true
+  echo "building for iPhone $phone"
+  mkdir -p "$DERIVED"
+  log="$DERIVED/device-build.log"
+  # Built for any iPhone (the team's profile lists this one already): Xcode would otherwise wait for
+  # the phone to be unlocked before it builds at all. The install below is what needs it.
+  xcodebuild -project iOS/Cra.xcodeproj -scheme Cra -configuration Debug -destination "generic/platform=iOS" \
+    -derivedDataPath "$DERIVED" -allowProvisioningUpdates build >"$log" 2>&1 || true
+  grep -E "error|warning: [^M]|BUILD (SUCCEEDED|FAILED)" "$log" || true
+  # This build's own app, not one an earlier build left behind.
+  grep -q "BUILD SUCCEEDED" "$log" || { echo "build failed (all of it: $log)" >&2; exit 1; }
   device_app="$DERIVED/Build/Products/Debug-iphoneos/Cra.app"
-  [ -d "$device_app" ] || { echo "build failed" >&2; exit 1; }
-  xcrun devicectl device install app --device "$phone" "$device_app"
+  xcrun devicectl device install app --device "$phone" "$device_app" ||
+    { echo "install failed: unlock the iPhone (and keep it unlocked), then run this again" >&2; exit 1; }
   xcrun devicectl device process launch --device "$phone" "$BUNDLE_ID" || true
   exit 0
 fi
