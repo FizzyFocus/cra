@@ -186,14 +186,16 @@ on stdout; `&label=` tells checks apart).
 update feed or URL registrations. The script runs it on `build/dev-data` (set `CRA_DATA_DIR`
 for another profile); opened directly from Finder, CraDev uses `~/Library/Application
 Support/CraDev`, never the installed Cra's profile. Ad-hoc development builds use a mock
-encryption key for fresh profiles; use test data and do not copy a daily browser profile
-or real credentials into them.
+encryption key for fresh profiles (signed ones the Keychain secret, below); use test data
+and do not copy a daily browser profile or real credentials into them.
 
-`scripts/build.sh` (and so `just install`) signs with the Mac's Apple Development identity
-when it has one, else ad hoc; `CRA_SIGN_IDENTITY=-` forces ad hoc. That signature's
-designated requirement (bundle id and certificate) stays the same across rebuilds, so the
-Keychain's "Always Allow" for "Pane Safe Storage" holds after each install. A fresh profile
-of such a build (a scenario's) uses the Keychain item too, but never makes it while Cra's
+`scripts/build.sh` (so `just build`, `just install` and `just run`) and `scripts/dev.sh`
+(`just dev`, PaneDev) sign with the Mac's Apple Development identity when it has one, else
+ad hoc; `CRA_SIGN_IDENTITY=-` forces ad hoc (`scripts/sign-identity.sh` picks it). That
+signature's designated requirement (bundle id and certificate) stays the same across
+rebuilds, so the Keychain's "Always Allow" for "Pane Safe Storage" holds after each one.
+PaneDev is another bundle id, so macOS asks once for it too. A fresh profile of such a build
+(a scenario's, PaneDev's) uses the Keychain item as well, but never makes it while Cra's
 older item still holds the real profile's secret (`SafeStorageStep`).
 
 The dev bundle records the CEF download source and Sparkle version. Changing either

@@ -135,12 +135,14 @@ done
 # entitlements). Its designated requirement (bundle id and certificate) stays the same across
 # rebuilds, so the Keychain's "Always Allow" for Pane Safe Storage holds; an ad-hoc signature
 # is a new one each build, and macOS asks again after every install.
+# scripts/sign-identity.sh picks it; scripts/dev.sh signs PaneDev the same way.
 IDENTITY="${CRA_SIGN_IDENTITY:--}"
 LOCAL_IDENTITY=""
 if [ -z "${CRA_SIGN_IDENTITY:-}" ]; then
-  LOCAL_IDENTITY="$( (security find-identity -v -p codesigning 2>/dev/null || true) \
-    | sed -n 's/^ *[0-9][0-9]*) \([0-9A-F]\{40\}\) "Apple Development: .*"$/\1/p' | head -1)"
-  if [ -n "$LOCAL_IDENTITY" ]; then
+  LOCAL_IDENTITY="$(scripts/sign-identity.sh)"
+  if [ "$LOCAL_IDENTITY" = "-" ]; then
+    LOCAL_IDENTITY=""
+  else
     echo "Signing with the Apple Development identity $LOCAL_IDENTITY (CRA_SIGN_IDENTITY=- for ad-hoc)"
   fi
 fi

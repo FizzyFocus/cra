@@ -8,6 +8,9 @@
 # installed Pane, `killall Pane` elsewhere leaves it alone, and it never claims pane:// or
 # http links. CEF is copied and signed when its pinned source changes; ordinary rebuilds swap the Pane binaries,
 # in a separate SwiftPM scratch dir so parallel `scripts/build.sh` runs don't collide.
+# It is signed as scripts/build.sh signs Pane (scripts/sign-identity.sh): with the Mac's Apple Development
+# identity when it has one, so the Keychain's "Always Allow" holds across rebuilds; CRA_SIGN_IDENTITY=-
+# for ad-hoc.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 ROOT="$PWD"
@@ -18,6 +21,8 @@ STAMP="$SCRATCH/.dev-stamp"
 export CRA_DATA_DIR="${CRA_DATA_DIR:-$ROOT/build/dev-data}"
 PB=/usr/libexec/PlistBuddy
 PID=""
+SIGN="$(scripts/sign-identity.sh)"
+sign() { codesign --force --sign "$SIGN" --timestamp=none "$@"; }
 
 # "<name suffix>|<plist suffix>", as in scripts/build.sh.
 HELPERS=("|" " (Alerts)|.alerts" " (GPU)|.gpu" " (Plugin)|.plugin" " (Renderer)|.renderer")
@@ -39,14 +44,14 @@ bootstrap() {
   [ -f resources/AppIcon.icns ] && cp resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
   local fw="$APP/Contents/Frameworks/Chromium Embedded Framework.framework"
   cp -R "$ROOT/vendor/cef/Release/Chromium Embedded Framework.framework" "$APP/Contents/Frameworks/" || return 1
-  find "$fw/Libraries" -name '*.dylib' -exec codesign --force --sign - {} \; 2>/dev/null || return 1
-  codesign --force --sign - "$fw" || return 1
+  find "$fw/Libraries" -name '*.dylib' -exec codesign --force --sign "$SIGN" --timestamp=none {} \; 2>/dev/null || return 1
+  sign "$fw" || return 1
   ditto "$ROOT/vendor/sparkle/Sparkle.framework" "$APP/Contents/Frameworks/Sparkle.framework" || return 1
   local sparkle="$APP/Contents/Frameworks/Sparkle.framework"
   rm -rf "$sparkle/Versions/B/XPCServices" "$sparkle/XPCServices"
-  codesign --force --sign - "$sparkle/Versions/B/Autoupdate" || return 1
-  codesign --force --sign - "$sparkle/Versions/B/Updater.app" || return 1
-  codesign --force --sign - "$sparkle" || return 1
+  sign "$sparkle/Versions/B/Autoupdate" || return 1
+  sign "$sparkle/Versions/B/Updater.app" || return 1
+  sign "$sparkle" || return 1
   for entry in "${HELPERS[@]}"; do
     local ns="${entry%%|*}" ps="${entry#*|}"
     local helper="$APP/Contents/Frameworks/$NAME Helper$ns.app"
@@ -58,6 +63,7 @@ bootstrap() {
   done
   cp "$ROOT/vendor/cef/.cra-source" "$APP/Contents/Resources/cef-source" || return 1
   cp "$ROOT/vendor/cef/.cra-keychain-item" "$APP/Contents/Resources/cef-keychain-item" 2>/dev/null || true
+  echo "$SIGN" > "$APP/Contents/Resources/sign-identity"
   cp "$ROOT/vendor/sparkle/VERSION" "$APP/Contents/Resources/sparkle-version" || return 1
 }
 
@@ -88,6 +94,7 @@ build() {
      [ ! -d "$APP/Contents/Frameworks/Sparkle.framework" ] || \
      ! cmp -s "$ROOT/vendor/cef/.cra-source" "$APP/Contents/Resources/cef-source" || \
      [ "$(cat "$ROOT/vendor/cef/.cra-keychain-item" 2>/dev/null)" != "$(cat "$APP/Contents/Resources/cef-keychain-item" 2>/dev/null)" ] || \
+     [ "$SIGN" != "$(cat "$APP/Contents/Resources/sign-identity" 2>/dev/null)" ] || \
      ! cmp -s "$ROOT/vendor/sparkle/VERSION" "$APP/Contents/Resources/sparkle-version"; then
     bootstrap || return 1
   fi
@@ -96,18 +103,18 @@ build() {
     local helper="$APP/Contents/Frameworks/$NAME Helper$ns.app"
     if ! cmp -s "$bin/CraHelper" "$helper/Contents/MacOS/$NAME Helper$ns"; then
       cp "$bin/CraHelper" "$helper/Contents/MacOS/$NAME Helper$ns" || return 1
-      codesign --force --sign - --entitlements resources/CraHelper.entitlements "$helper" || return 1
+      sign --entitlements resources/CraHelper.entitlements "$helper" || return 1
     fi
   done
   cp "$bin/Cra" "$APP/Contents/MacOS/$NAME" || return 1
   cp "$bin/CraPluginHost" "$APP/Contents/MacOS/CraPluginHost" || return 1
-  codesign --force --sign - "$APP/Contents/MacOS/CraPluginHost" || return 1
+  sign "$APP/Contents/MacOS/CraPluginHost" || return 1
   for d in web brand blocklist browsers app-icons licenses fonts live-folder-plugins; do
     if [ -d "resources/$d" ]; then
       rsync -a --delete "resources/$d/" "$APP/Contents/Resources/$d/" || return 1
     fi
   done
-  codesign --force --sign - --entitlements resources/Cra.entitlements "$APP"
+  sign --entitlements resources/Cra.entitlements "$APP"
 }
 
 stop() {
