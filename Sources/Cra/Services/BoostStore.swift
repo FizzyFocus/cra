@@ -52,6 +52,7 @@ final class BoostStore {
         boosts[i] = boost
         file.save(boosts)
         BoostStore.changed?(boost.host)
+        NotificationCenter.default.post(name: .craBoostSaved, object: boost.id)
     }
 
     func delete(_ id: UUID) {
@@ -59,8 +60,14 @@ final class BoostStore {
         boosts.removeAll { $0.id == id }
         file.save(boosts)
         if let host { BoostStore.changed?(host) }
+        NotificationCenter.default.post(name: .craBoostSaved, object: id)
     }
 
     /// The pages on a host get their boost again (set by the app: BrowserManager re-applies).
     @ObservationIgnored static var changed: ((String) -> Void)?
+}
+
+extension Notification.Name {
+    /// A boost saved or deleted (object: its id), wherever from: the editor shows what Library ▸ Boosts did.
+    static let craBoostSaved = Notification.Name("craBoostSaved")
 }

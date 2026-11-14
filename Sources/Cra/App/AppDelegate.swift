@@ -1295,6 +1295,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             // boostMenu=<name>|new|toggle: the editor's name menu: another of the site's boosts, New Boost for
             // the site, Turn Off/On; boostsFor=<host>: that site's boosts, in the order they apply (13 Nov 2026).
             if let row = dict["boostMenu"] { BoostEditorController.shared.debugMenu(row); return }
+            // boostEditorClick=Power: a click posted on the editor header's power button; boostFlip=<host>: the
+            // site's boost turned off or on as Library ▸ Boosts' switch does it, past the editor (13 Nov 2026).
+            if let t = dict["boostEditorClick"] { CraLog.note("boost editor click: \(BoostEditorController.shared.debugClick(t))"); return }
+            if let host = dict["boostFlip"] {
+                guard var b = BoostStore.shared.boost(forHost: host) else { CraLog.note("boost flip: no boost for \(host)"); return }
+                b.enabled.toggle()
+                BoostStore.shared.update(b)
+                CraLog.note("boost flip: \(b.name) \(b.enabled ? "on" : "off")")
+                return
+            }
             if let host = dict["boostsFor"] {
                 let list = BoostStore.shared.boosts(forHost: host).map { "\($0.name)(\($0.enabled ? "on" : "off"), \($0.zapped.count) zapped)" }
                 CraLog.note("boosts for \(host): \(list.joined(separator: " | "))")

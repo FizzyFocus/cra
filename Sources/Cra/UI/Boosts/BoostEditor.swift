@@ -15,6 +15,24 @@ final class BoostEditorController {
     private var panel: NSPanel?
     private var model: BoostEditorModel?
 
+    private init() {
+        // Library ▸ Boosts turning the open boost off or on, or deleting it (13 Nov 2026).
+        NotificationCenter.default.addObserver(forName: .craBoostSaved, object: nil, queue: .main) { note in
+            guard let id = note.object as? UUID else { return }
+            MainActor.assumeIsolated { BoostEditorController.shared.saved(id) }
+        }
+    }
+
+    private func saved(_ id: UUID) {
+        guard let model, model.boost.id == id else { return }
+        guard let b = BoostStore.shared.boost(id) else {
+            close()
+            CraLog.note("boost editor closed: its boost was deleted")
+            return
+        }
+        model.adopt(b)
+    }
+
     /// What the editor does to the page beside it.
     struct PageActions {
         var zap: (Bool) -> Void
@@ -127,7 +145,7 @@ final class BoostEditorController {
     /// Scenario hooks: what the editor shows, and its zap menu's "Show All Zapped Elements".
     var debugState: String {
         guard let model else { return "closed" }
-        return "open \(model.boost.name) zapped=\(model.boost.zapped.count) zapping=\(model.zapping ? 1 : 0)"
+        return "open \(model.boost.name) zapped=\(model.boost.zapped.count) zapping=\(model.zapping ? 1 : 0) on=\(model.boost.enabled ? 1 : 0)"
     }
 
     func debugShowAllZapped() { model?.change { $0.zapped = [] } }
@@ -159,12 +177,21 @@ final class BoostEditorController {
         return anchor.debugClick(title) ?? "clicked \(title)"
     }
 
+    /// A click posted on the editor's own button of that title (Power), where it is.
+    func debugClick(_ title: String) -> String {
+        guard let panel, let host = panel.contentView else { return "no editor" }
+        guard let f = model?.buttonFrames[title] else { return "no button \(title)" }
+        let inView = NSPoint(x: f.midX, y: host.isFlipped ? f.midY : host.bounds.height - f.midY)
+        TestGesture.click(at: host.convert(inView, to: nil), in: panel)
+        return "clicked \(title)"
+    }
+
     /// Its name menu's rows: another of the site's boosts by name, New Boost for the site, Turn Off/On.
     func debugMenu(_ row: String) {
         guard let model else { return }
         switch row {
         case "new": model.onNewBoost()
-        case "toggle": model.change { $0.enabled.toggle() }
+        case "toggle": model.toggleEnabled()
         default:
             if let b = BoostStore.shared.boosts(forHost: model.boost.host).first(where: { $0.name == row }) { model.onSwitch(b.id) }
         }
@@ -228,7 +255,8 @@ final class BoostEditorController {
 @MainActor
 @Observable
 final class BoostEditorModel {
-    var boost: Boost { didSet { if boost != oldValue { BoostStore.shared.update(boost) } } }
+    var boost: Boost { didSet { if boost != oldValue, !adopting { BoostStore.shared.update(boost) } } }
+    @ObservationIgnored private var adopting = false
     var history: [Boost] = []
     var showingCode = false
     var codeIsJS = false
@@ -240,8 +268,9 @@ final class BoostEditorModel {
     var zapFacts: [String: ZapFacts] = [:]
     /// The zap list is open (the count beside Zap).
     var showingZaps = false
-    /// Where the list's Restore All and first Restore are, in its window (scenario hook clicks).
-    @ObservationIgnored var zapButtonFrames: [String: CGRect] = [:]
+    /// Where the zap list's Restore All and first Restore, and the header's Power, are in their
+    /// hosting views (scenario hook clicks).
+    @ObservationIgnored var buttonFrames: [String: CGRect] = [:]
     /// The zap whose ghost shows on the page.
     var ghosted: String?
 
@@ -284,6 +313,28 @@ final class BoostEditorModel {
     }
 
     func undo() { if let last = history.popLast() { boost = last } }
+
+    /// The header's power button and the name menu's Turn Off/On: the boost leaves the page or comes
+    /// back, one undoable step (13 Nov 2026). Zapping and picking end with it.
+    func toggleEnabled() {
+        if boost.enabled {
+            ghost(nil)
+            finishZap()
+            finishPicking()
+            showingZaps = false
+        }
+        change { $0.enabled.toggle() }
+        CraLog.note("boost power: \(boost.name) \(boost.enabled ? "on" : "off")")
+    }
+
+    /// The boost as it was saved elsewhere (Library ▸ Boosts turned it off), shown here too, so the
+    /// editor's next change doesn't put back what it had.
+    func adopt(_ saved: Boost) {
+        guard saved.id == boost.id, saved != boost else { return }
+        adopting = true
+        boost = saved
+        adopting = false
+    }
 
     func shuffle() {
         change {
@@ -344,7 +395,13 @@ private struct BoostEditorView: View {
         VStack(spacing: 0) {
             header
             Divider().opacity(0.4)
-            if model.showingCode { code } else { controls }
+            if model.showingCode {
+                code
+            } else {
+                // Off: the controls dim and rest until the power button turns it on again.
+                controls.opacity(model.boost.enabled ? 1 : 0.38).allowsHitTesting(model.boost.enabled)
+                    .animation(.easeOut(duration: 0.15), value: model.boost.enabled)
+            }
         }
         // Arc lays the panel out at its final width and keeps it centred while the window
         // widens or narrows, so both sides are clipped meanwhile.
@@ -382,7 +439,7 @@ private struct BoostEditorView: View {
         HStack(spacing: 0) {
             Button { model.onClose() } label: {
                 Image(systemName: "xmark.circle.fill").font(.system(size: 18)).foregroundStyle(Color(white: 0.6))
-                    .frame(width: 40, height: 40)
+                    .frame(width: 36, height: 40)
             }
             .buttonStyle(.plain).help("Done")
             Spacer(minLength: 0)
@@ -397,7 +454,7 @@ private struct BoostEditorView: View {
                         }
                     }
                 }
-                Button(model.boost.enabled ? "Turn Off This Boost" : "Turn On This Boost") { model.change { $0.enabled.toggle() } }
+                Button(model.boost.enabled ? "Turn Off This Boost" : "Turn On This Boost") { model.toggleEnabled() }
                 Button("New Boost for \(model.boost.host)") { model.onNewBoost() }
                 Divider()
                 Button("Rename this Boost…") { rename() }
@@ -408,18 +465,37 @@ private struct BoostEditorView: View {
                 Button("All Boosts…") { NotificationCenter.default.post(name: .craShowBoostsLibrary, object: nil) }
             } label: {
                 HStack(spacing: 4) {
-                    Text(model.boost.name).font(.system(size: 14, weight: .semibold)).foregroundStyle(BoostStyle.ink).lineLimit(1)
-                    Image(systemName: "chevron.down").font(.system(size: 10, weight: .semibold)).foregroundStyle(BoostStyle.ink)
+                    Text(model.boost.name).font(.system(size: 14, weight: .semibold)).lineLimit(1)
+                    Image(systemName: "chevron.down").font(.system(size: 10, weight: .semibold))
                 }
+                .foregroundStyle(model.boost.enabled ? BoostStyle.ink : BoostStyle.secondary)
             }
             .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
             Spacer(minLength: 0)
+            power.padding(.leading, 4)
             Button { model.undo() } label: {
-                Image(systemName: "arrow.counterclockwise").font(.system(size: 14, weight: .semibold)).frame(width: 40, height: 40)
+                Image(systemName: "arrow.counterclockwise").font(.system(size: 14, weight: .semibold)).frame(width: 32, height: 40)
             }
             .buttonStyle(.plain).foregroundStyle(model.history.isEmpty ? Color(white: 0.75) : BoostStyle.ink).disabled(model.history.isEmpty).help("Undo")
         }
         .frame(height: 40)
+    }
+
+    /// On and off in one click, beside Undo (13 Nov 2026): filled while the boost is on.
+    private var power: some View {
+        let on = model.boost.enabled
+        return Button { model.toggleEnabled() } label: {
+            Image(systemName: "power").font(.system(size: 11, weight: .bold))
+                .foregroundStyle(on ? Color.white : BoostStyle.secondary)
+                .frame(width: 22, height: 22)
+                .background(Circle().fill(on ? Color.accentColor : BoostStyle.button))
+                .frame(width: 28, height: 40)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .background(ButtonFrame(model: model, title: "Power"))
+        .help(on ? "Turn Off This Boost" : "Turn On This Boost")
+        .accessibilityLabel(on ? "Turn Off This Boost" : "Turn On This Boost")
     }
 
     private var controls: some View {
@@ -803,7 +879,7 @@ final class ZapListAnchorView: NSView {
     /// pointer would press it. Nil once posted, else why not.
     func debugClick(_ title: String) -> String? {
         guard let host, let w = panel else { return "no list" }
-        guard let f = model?.zapButtonFrames[title] else { return "no button \(title)" }
+        guard let f = model?.buttonFrames[title] else { return "no button \(title)" }
         // SwiftUI's global space runs from the hosting view's top; the window's from its bottom.
         let inView = NSPoint(x: f.midX, y: host.isFlipped ? f.midY : host.bounds.height - f.midY)
         TestGesture.click(at: host.convert(inView, to: nil), in: w)
@@ -832,7 +908,7 @@ private struct ZapList: View {
                     .buttonStyle(.plain)
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(Color.accentColor)
-                    .background(ZapButtonFrame(model: model, title: "Restore All"))
+                    .background(ButtonFrame(model: model, title: "Restore All"))
             }
             .padding(.horizontal, 14)
             .padding(.top, 12)
@@ -880,7 +956,7 @@ private struct ZapRow: View {
                 .padding(.horizontal, 9)
                 .padding(.vertical, 4)
                 .background(Capsule().fill(Color.primary.opacity(hovering ? 0.1 : 0.06)))
-                .background(first ? ZapButtonFrame(model: model, title: "Restore") : nil)
+                .background(first ? ButtonFrame(model: model, title: "Restore") : nil)
                 .help("Show it on the page again")
         }
         .padding(.horizontal, 8)
@@ -898,15 +974,15 @@ private struct ZapRow: View {
 
 /// Where a zap-list button is drawn, in its window's coordinates from the top, for the scenario hook
 /// that clicks it (ZapListAnchorView.debugClick).
-private struct ZapButtonFrame: View {
+private struct ButtonFrame: View {
     let model: BoostEditorModel
     let title: String
 
     var body: some View {
         GeometryReader { g in
             Color.clear
-                .onAppear { model.zapButtonFrames[title] = g.frame(in: .global) }
-                .onChange(of: g.frame(in: .global)) { _, f in model.zapButtonFrames[title] = f }
+                .onAppear { model.buttonFrames[title] = g.frame(in: .global) }
+                .onChange(of: g.frame(in: .global)) { _, f in model.buttonFrames[title] = f }
         }
     }
 }

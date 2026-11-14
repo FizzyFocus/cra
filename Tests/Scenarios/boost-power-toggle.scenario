@@ -1,0 +1,45 @@
+# The Boost editor's power button (13 Nov 2026, the owner's call): one click beside Undo turns the boost
+# off or on, its controls dimmed and resting while it is off. The editor follows Library ▸ Boosts' switch,
+# so its next change keeps what the Library did (it put back the state it opened with).
+budget rss=800 stalls50=20
+seed settings.json {"hasSeenImportPrompt": true, "toolbarDefaultMigrated": true}
+seed boosts.json [{"id":"0E5B6E0A-5C3B-4F8D-9C55-4A7C5F2B9E21","host":"127.0.0.1","name":"My Boost","enabled":true,"hue":0,"strength":0,"invert":false,"contrast":50,"brightness":50,"saturation":50,"textScale":1,"textCase":"none","zapped":["aside.promo"],"css":"body { background: rgb(1, 2, 3) !important; }","js":""}]
+cra://open?url=${ORIGIN}/zap-deep.html
+expect-log loaded 127\.0\.0\.1 \(HTTP 200\)
+wait 1
+cra://debug?editBoost=127.0.0.1
+expect-log boost editor opens My Boost
+wait 0.8
+cra://debug?boostEditorClick=Power
+expect-log boost editor click: clicked Power$
+expect-log boost power: My Boost off$
+wait 0.8
+cra://debug?cdp=Runtime.evaluate&params={"expression":"['off',getComputedStyle(document.body).backgroundColor=='rgb(1, 2, 3)'?'boosted':'plain',getComputedStyle(document.querySelector('aside.promo')).display].join('-')"}
+expect-log Cra cdp Runtime.evaluate .*"value":"off-plain-block"
+cra://debug?boostsFor=127.0.0.1
+expect-log boosts for 127\.0\.0\.1: My Boost\(off, 1 zapped\)$
+cra://debug?boostEditor=off
+expect-log boost editor off: open My Boost zapped=1 zapping=0 on=0$
+# Library ▸ Boosts turns it on past the editor: the editor shows it on, and its next change keeps it on.
+cra://debug?boostFlip=127.0.0.1
+expect-log boost flip: My Boost on$
+cra://debug?boostEditor=flipped
+expect-log boost editor flipped: open My Boost zapped=1 zapping=0 on=1$
+cra://debug?zapRestore=0
+wait 0.8
+cra://debug?boostsFor=127.0.0.1
+expect-log boosts for 127\.0\.0\.1: My Boost\(on, 0 zapped\)$
+cra://debug?cdp=Runtime.evaluate&params={"expression":"['kept',getComputedStyle(document.body).backgroundColor=='rgb(1, 2, 3)'?'boosted':'plain',getComputedStyle(document.querySelector('aside.promo')).display].join('-')"}
+expect-log Cra cdp Runtime.evaluate .*"value":"kept-boosted-block"
+# The power button again: off, and on once more.
+cra://debug?boostEditorClick=Power
+wait 0.3
+cra://debug?boostEditor=second
+expect-log boost editor second: open My Boost zapped=0 zapping=0 on=0$
+cra://debug?boostEditorClick=Power
+wait 0.3
+cra://debug?boostEditor=third
+expect-log boost editor third: open My Boost zapped=0 zapping=0 on=1$
+wait 0.5
+cra://debug?cdp=Runtime.evaluate&params={"expression":"['again',getComputedStyle(document.body).backgroundColor=='rgb(1, 2, 3)'?'boosted':'plain'].join('-')"}
+expect-log Cra cdp Runtime.evaluate .*"value":"again-boosted"
