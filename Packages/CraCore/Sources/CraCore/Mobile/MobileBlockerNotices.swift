@@ -5,7 +5,7 @@ import Foundation
 /// 3:20): a one-time tip card when blocking first stops something, and after "Problems? Tap to
 /// restore original page" a pill asking whether that fixed it.
 public enum MobileBlockerNotices {
-    // MARK: The tip card ("TIP 1/7" in Arc Search; Cra has only this tip, so its tab says "TIP")
+    // MARK: The tip card ("TIP 1/7" in Arc Search; Pane has only this tip, so its tab says "TIP")
 
     /// The card shows once ever: on the first page that finished loading with something stopped,
     /// never in an incognito tab.
@@ -13,10 +13,10 @@ public enum MobileBlockerNotices {
         blocked > 0 && !alreadyShown && !isIncognito
     }
 
-    /// "Cra just blocked 14 trackers": the text, and the number Arc Search draws in blue.
+    /// "Pane just blocked 14 trackers": the text, and the number Arc Search draws in blue.
     public static func tipTitle(_ count: Int) -> (text: String, number: String) {
         let number = String(max(count, 0))
-        return ("Cra just blocked \(number) \(count == 1 ? "tracker" : "trackers")", number)
+        return ("\(Brand.name) just blocked \(number) \(count == 1 ? "tracker" : "trackers")", number)
     }
 
     /// Before and after the ⌃ glyph (drawn as the bar's chevron).

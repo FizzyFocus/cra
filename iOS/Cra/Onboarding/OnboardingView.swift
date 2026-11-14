@@ -230,7 +230,7 @@ private struct WelcomeStep: View {
 }
 
 /// "How to change your default browser": a white card inset from the screen's edges, the three
-/// steps in Settings, "Open Cra in Settings" and "Maybe later" (the recording, 1:14).
+/// steps in Settings, "Open Pane in Settings" and "Maybe later" (the recording, 1:14).
 private struct HowToSheet: View {
     let icon: MobileAppIcon
     let open: () -> Void

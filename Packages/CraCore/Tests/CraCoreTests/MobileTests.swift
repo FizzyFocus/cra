@@ -380,8 +380,8 @@ struct MobilePageMenuTests {
     /// "Arc scrubbed 22 trackers / Problems? Tap to restore original page" in the recording.
     @Test func theFooterCountsWhatWasScrubbed() {
         #expect(MobilePageMenu.scrubbedLabel(0) == nil)
-        #expect(MobilePageMenu.scrubbedLabel(22)?.text == "Cra scrubbed 22 trackers")
-        #expect(MobilePageMenu.scrubbedLabel(1)?.text == "Cra scrubbed 1 tracker")
+        #expect(MobilePageMenu.scrubbedLabel(22)?.text == "Pane scrubbed 22 trackers")
+        #expect(MobilePageMenu.scrubbedLabel(1)?.text == "Pane scrubbed 1 tracker")
         #expect(MobilePageMenu.restoreHint == "Problems? Tap to restore original page")
     }
 }
@@ -703,8 +703,8 @@ struct MobileOnboardingTests {
         #expect(MobileOnboarding.steps(canUseAI: true) == [.welcome, .meet, .browseForMe, .pinch, .icon, .blocking, .defaultBrowser])
         #expect(MobileOnboarding.steps(canUseAI: false) == [.welcome, .meet, .icon, .blocking, .defaultBrowser])
         #expect(MobileOnboarding.buttonTitle(for: .defaultBrowser) == "Set as Default Browser")
-        #expect(MobileOnboarding.defaultBrowserSteps == ["1. Open Cra in Settings", "2. Tap on \u{201C}Default Browser App\u{201D}", "3. Select Cra"])
-        #expect(MobileOnboarding.plain(MobileOnboarding.browseTitle) == "Let Cra search and summarize for you")
+        #expect(MobileOnboarding.defaultBrowserSteps == ["1. Open Pane in Settings", "2. Tap on \u{201C}Default Browser App\u{201D}", "3. Select Pane"])
+        #expect(MobileOnboarding.plain(MobileOnboarding.browseTitle) == "Let Pane search and summarize for you")
         #expect(MobileOnboarding.plain(MobileOnboarding.welcomeTitle) == "Get what you want twice as fast.")
         #expect(!MobileOnboarding.showsNext(.pinch, tried: false) && MobileOnboarding.showsSkip(.pinch, tried: false))
         #expect(MobileOnboarding.showsNext(.browseForMe, tried: true) && !MobileOnboarding.showsSkip(.browseForMe, tried: true))
@@ -976,7 +976,7 @@ struct MobileSummaryTextTests {
     @Test func theSummaryReadsAsTextWithItsSource() {
         let answer = MobileSummary.Answer(overview: "A guide to the stars.", sections: [.init(title: "Seeing", body: "Go somewhere dark.")])
         #expect(answer.plainText(title: " Night sky ", address: "https://example.com/stars?utm_source=x") ==
-            "Night sky\n\nA guide to the stars.\n\nSeeing\nGo somewhere dark.\n\nSummarized for you by Cra\nhttps://example.com/stars")
+            "Night sky\n\nA guide to the stars.\n\nSeeing\nGo somewhere dark.\n\nSummarized for you by Pane\nhttps://example.com/stars")
         #expect(answer.plainText(title: "", address: nil).hasPrefix("A guide to the stars."))
     }
 }
@@ -1050,8 +1050,8 @@ struct MobileBlockerNoticesTests {
     }
 
     @Test func theTipCountsLikeArcSearch() {
-        #expect(MobileBlockerNotices.tipTitle(14) == ("Cra just blocked 14 trackers", "14"))
-        #expect(MobileBlockerNotices.tipTitle(1) == ("Cra just blocked 1 tracker", "1"))
+        #expect(MobileBlockerNotices.tipTitle(14) == ("Pane just blocked 14 trackers", "14"))
+        #expect(MobileBlockerNotices.tipTitle(1) == ("Pane just blocked 1 tracker", "1"))
     }
 
     @Test func theTipIsRememberedInSettingsAndOlderFilesHaveNotSeenIt() throws {
@@ -1099,6 +1099,15 @@ struct MobileSyncIntroTests {
     @Test func theWayToSyncMentionsICloudOnlyWhenItIsOff() {
         #expect(!MobileSyncIntro.haveMacBody(iCloud: true).contains("Sign in to iCloud"))
         #expect(MobileSyncIntro.haveMacBody(iCloud: false).hasSuffix("Sign in to iCloud on this iPhone too."))
+    }
+
+    /// Pane: the phone reads the folder the Mac's Sync uses; the step names the Mac's own button
+    /// (resources/web/settings/settings.js, "Use a Folder…") and the brand.
+    @Test func theWayToSyncIsTheMacsFolderInICloudDrive() {
+        #expect(MobileSyncIntro.haveMacBody(iCloud: true).contains("Use a Folder\u{2026}"))
+        #expect(MobileSyncIntro.haveMacBody(iCloud: true).contains("iCloud Drive"))
+        #expect(MobileSyncIntro.title == "Sync with Pane for Mac" && MobileSyncIntro.cardDetail == MobileSyncIntro.title)
+        #expect(MobileSyncIntro.nothingIn("Pane Sync").contains("\u{201C}Pane Sync\u{201D}"))
     }
 
     @Test func closingTheCardIsKeptAndOlderFilesHaveNotClosedIt() throws {

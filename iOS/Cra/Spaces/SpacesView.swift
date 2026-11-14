@@ -31,6 +31,13 @@ final class SpacesModel: ObservableObject {
             }
         }
     }
+
+    /// The folder picked in Files to read the Mac's Spaces from (Pane: the Mac syncs into iCloud Drive).
+    func choose(_ folder: URL) {
+        guard SyncedSidebar.choose(folder) else { return }
+        state = .loading
+        load()
+    }
 }
 
 /// Arc Search's Spaces view: the desktop's Spaces, one a page, each tinted with its colour: the
@@ -151,7 +158,10 @@ struct SpacesView: View {
         if case .loading = model.state {
             ProgressView().accessibilityIdentifier("spaces-loading")
         } else {
-            SyncIntroView(iCloud: { if case .unavailable = model.state { return false } else { return true } }())
+            // Signed in or not, iCloud Drive is the folder's business: the hint goes (Pane).
+            SyncIntroView(iCloud: true, folder: SyncedSidebar.chosenName,
+                          empty: { if case .nothingSynced = model.state { return true } else { return false } }(),
+                          choose: model.choose)
         }
     }
 
@@ -182,12 +192,18 @@ extension UIColor {
     }
 }
 
-/// Before anything has synced: Cra's version of Arc Search's "Sync with Arc Desktop" sheet
+/// Before anything has synced: Pane's version of Arc Search's "Sync with Arc Desktop" sheet
 /// (`MobileSyncIntro`), pale with a coral and blue glow at the top, the logo, the title in
-/// Arc's blue and two buttons; each leads to a page with a drawn smile and "Go back".
+/// Arc's blue and two buttons; each leads to a page with a drawn smile and "Go back". The Mac one
+/// ends in Pane's "Choose the Folder…", which opens Files on the folder the Mac syncs into.
 struct SyncIntroView: View {
     let iCloud: Bool
+    /// The folder picked already, and whether it holds no Spaces yet.
+    var folder: String? = nil
+    var empty = false
+    var choose: (URL) -> Void = { _ in }
     @State private var page: MobileSyncIntro.Page = .intro
+    @State private var picking = false
 
     private let blue = Color(red: 0.208, green: 0.31, blue: 1)
 
@@ -207,7 +223,7 @@ struct SyncIntroView: View {
             Group {
                 switch page {
                 case .intro: intro
-                case .haveMac: detail(MobileSyncIntro.haveMacTitle, MobileSyncIntro.haveMacBody(iCloud: iCloud))
+                case .haveMac: detail(MobileSyncIntro.haveMacTitle, MobileSyncIntro.haveMacBody(iCloud: iCloud), picksFolder: true)
                 case .noMac: detail(MobileSyncIntro.noMacTitle, MobileSyncIntro.noMacBody)
                 }
             }
@@ -218,6 +234,11 @@ struct SyncIntroView: View {
         // A container, so the identifier isn't copied onto every text inside.
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("spaces-empty")
+        .fileImporter(isPresented: $picking, allowedContentTypes: [.folder]) { result in
+            if case .success(let url) = result { choose(url) }
+        }
+        // A folder picked that holds nothing yet: straight to where another one is picked.
+        .onAppear { if empty { page = .haveMac } }
     }
 
     private var intro: some View {
@@ -235,13 +256,21 @@ struct SyncIntroView: View {
         .padding(.horizontal, 22)
     }
 
-    private func detail(_ title: String, _ body: String) -> some View {
+    private func detail(_ title: String, _ body: String, picksFolder: Bool = false) -> some View {
         VStack(spacing: 18) {
             Spacer()
             Smile().stroke(blue, style: StrokeStyle(lineWidth: 6, lineCap: .round)).frame(width: 64, height: 56).accessibilityHidden(true)
             Text(title).font(.system(size: 30, weight: .heavy)).foregroundStyle(blue).multilineTextAlignment(.center)
                 .accessibilityIdentifier("sync-detail-title")
             Text(body).font(.system(size: 16)).foregroundStyle(Color(white: 0.3)).multilineTextAlignment(.center)
+            if picksFolder {
+                if let folder, empty {
+                    Text(MobileSyncIntro.nothingIn(folder)).font(.system(size: 14)).foregroundStyle(Color(white: 0.4)).multilineTextAlignment(.center)
+                        .accessibilityIdentifier("sync-folder-empty")
+                }
+                button(folder == nil ? MobileSyncIntro.chooseFolder : MobileSyncIntro.chooseAnotherFolder, id: "sync-choose-folder") { picking = true }
+                    .padding(.top, 6)
+            }
             Spacer()
             Spacer()
             Button { page = .intro } label: {

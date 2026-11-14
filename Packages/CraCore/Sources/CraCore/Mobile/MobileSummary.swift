@@ -88,7 +88,7 @@ public enum MobileSummary {
     }
 
     /// The footer under every summary.
-    public static let credit = "Summarized for you by Cra"
+    public static let credit = "Summarized for you by \(Brand.name)"
 
     /// A stand-in answer for tests, built from the page's own first sentences.
     public static func fakeAnswer(title: String, text: String) -> Answer {

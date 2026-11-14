@@ -1,50 +1,65 @@
 import CraCore
 import Foundation
 
-/// The Mac's sidebar, as it arrives through sync. The Mac app writes `sidebar.json` into a `Cra`
-/// folder in its iCloud Documents container (Settings ▸ General ▸ Sync there); the phone reads
-/// it from the same container. `-CraSyncDir <folder>` points a test at a folder instead.
+/// The Mac's sidebar, as it arrives through sync. Upstream's phone reads the Mac's iCloud
+/// container; Pane's free Apple team has none (14 Nov 2026), so the Mac syncs into a folder in
+/// iCloud Drive (Settings ▸ General ▸ Sync ▸ Use a Folder…) and the phone reads that folder, which
+/// the user picks once in Files (kept as a security-scoped bookmark). `-CraSyncDir <folder>` points
+/// a test at a folder instead.
 enum SyncedSidebar {
     enum State {
         case spaces(SidebarDocument)
-        /// iCloud is there but the Mac has not synced anything into it yet.
+        /// A folder is picked, but no Mac has synced into it yet (or iCloud Drive is still bringing it).
         case nothingSynced
-        /// No iCloud on this phone, or this build may not use it.
+        /// No folder picked yet, or the picked one can't be reached any more.
         case unavailable
     }
 
-    private static var folder: URL? {
-        if let path = LaunchOptions.value("CraSyncDir") {
-            return URL(fileURLWithPath: path, isDirectory: true)
-        }
-        return FileManager.default.url(forUbiquityContainerIdentifier: nil)?
-            .appendingPathComponent("Documents", isDirectory: true)
-            .appendingPathComponent(SettingsSync.folderName, isDirectory: true)
+    private static let bookmarkKey = "PaneSyncFolderBookmark"
+
+    /// Keeps `url`, a folder picked in Files, as the place to read from. False when iOS gives no
+    /// lasting way back to it.
+    @discardableResult
+    static func choose(_ url: URL) -> Bool {
+        let scoped = url.startAccessingSecurityScopedResource()
+        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+        guard let data = try? url.bookmarkData(options: [], includingResourceValuesForKeys: nil, relativeTo: nil) else { return false }
+        UserDefaults.standard.set(data, forKey: bookmarkKey)
+        return true
     }
 
-    /// Reads the synced sidebar off the main thread (finding the iCloud container can take a moment).
-    /// When the Mac's file isn't on the phone yet, iCloud is asked for it (a metadata query finds
-    /// it, then it is downloaded) and it is read once it arrives, giving up after 30 seconds:
-    /// iOS doesn't fetch another device's files until an app asks.
-    static func load(_ done: @escaping (State) -> Void) {
+    /// The picked folder's name, for the sync sheet.
+    static var chosenName: String? { picked()?.lastPathComponent }
+
+    private static func picked() -> URL? {
+        guard let data = UserDefaults.standard.data(forKey: bookmarkKey) else { return nil }
+        var stale = false
+        guard let url = try? URL(resolvingBookmarkData: data, options: [], relativeTo: nil, bookmarkDataIsStale: &stale) else { return nil }
+        if stale { choose(url) }
+        return url
+    }
+
+    /// Reads the synced sidebar off the main thread. A file another device wrote may still be on its
+    /// way down from iCloud Drive (reading it asks for it), so an empty answer is looked at again a few
+    /// times, two seconds apart, before it stands.
+    static func load(_ done: @escaping (State) -> Void) { load(tries: 4, done) }
+
+    private static func load(tries: Int, _ done: @escaping (State) -> Void) {
         DispatchQueue.global(qos: .userInitiated).async {
             let state = read()
             DispatchQueue.main.async {
-                guard case .nothingSynced = state, LaunchOptions.value("CraSyncDir") == nil else { return done(state) }
-                ICloudFetch.shared.fetch(SettingsSync.sidebarName, timeout: 30) {
-                    DispatchQueue.global(qos: .userInitiated).async {
-                        let again = read()
-                        DispatchQueue.main.async { done(again) }
-                    }
+                if case .nothingSynced = state, tries > 1, LaunchOptions.value("CraSyncDir") == nil {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) { load(tries: tries - 1, done) }
+                    return
                 }
+                done(state)
             }
         }
     }
 
-    /// Whether the Mac's Spaces are on the phone already, without asking iCloud for them.
+    /// Whether the Mac's Spaces are on the phone already.
     static func hasSpaces(_ done: @escaping (Bool) -> Void) {
-        // Signed out of iCloud there is nothing to find, and finding the container can take seconds.
-        if LaunchOptions.value("CraSyncDir") == nil, FileManager.default.ubiquityIdentityToken == nil { return done(false) }
+        if LaunchOptions.value("CraSyncDir") == nil, UserDefaults.standard.data(forKey: bookmarkKey) == nil { return done(false) }
         DispatchQueue.global(qos: .utility).async {
             let state = read()
             DispatchQueue.main.async {
@@ -80,70 +95,21 @@ enum SyncedSidebar {
 
     private static func read() -> State {
         if LaunchOptions.value("CraSyncDir") == "demo" { return .spaces(demo()) }
-        guard let folder else { return .unavailable }
-        let file = folder.appendingPathComponent(SettingsSync.sidebarName)
+        let testFolder = LaunchOptions.value("CraSyncDir").map { URL(fileURLWithPath: $0, isDirectory: true) }
+        guard let pickedFolder = testFolder ?? picked() else { return .unavailable }
+        let scoped = pickedFolder.startAccessingSecurityScopedResource()
+        defer { if scoped { pickedFolder.stopAccessingSecurityScopedResource() } }
         let manager = FileManager.default
-        // Not downloaded yet: ask for it; the next look finds it.
-        let placeholder = folder.appendingPathComponent(SettingsSync.placeholderName(for: SettingsSync.sidebarName))
-        if !manager.fileExists(atPath: file.path), manager.fileExists(atPath: placeholder.path) {
-            try? manager.startDownloadingUbiquitousItem(at: file)
-        }
+        // The Mac writes into a "Pane" folder inside the one it was given (SettingsSync): the user may
+        // have picked either.
+        let folder = SettingsSync.bundleFolder(in: pickedFolder) { manager.fileExists(atPath: $0.path) }
+        let file = folder.appendingPathComponent(SettingsSync.sidebarName)
+        // iCloud Drive keeps another device's file in the cloud until it is asked for.
+        try? manager.startDownloadingUbiquitousItem(at: file)
         var data: Data?
         var error: NSError?
         NSFileCoordinator().coordinate(readingItemAt: file, options: [], error: &error) { url in data = try? Data(contentsOf: url) }
         guard let data, let document = MobileSpaces.document(from: data) else { return .nothingSynced }
         return .spaces(document)
-    }
-}
-
-/// Asks iCloud for a file in Cra's container that another device wrote: finds it with a
-/// metadata query (which also makes iCloud fetch the folder's listing), starts its download, and
-/// calls back once it is on the phone, or when time is up.
-final class ICloudFetch: NSObject {
-    static let shared = ICloudFetch()
-    private var query: NSMetadataQuery?
-    private var waiting: [() -> Void] = []
-    private var deadline: DispatchWorkItem?
-
-    func fetch(_ name: String, timeout: TimeInterval, done: @escaping () -> Void) {
-        waiting.append(done)
-        guard query == nil else { return }
-        let query = NSMetadataQuery()
-        query.searchScopes = [NSMetadataQueryUbiquitousDocumentsScope]
-        query.predicate = NSPredicate(format: "%K == %@", NSMetadataItemFSNameKey, name)
-        NotificationCenter.default.addObserver(self, selector: #selector(changed), name: .NSMetadataQueryDidFinishGathering, object: query)
-        NotificationCenter.default.addObserver(self, selector: #selector(changed), name: .NSMetadataQueryDidUpdate, object: query)
-        self.query = query
-        query.start()
-        let deadline = DispatchWorkItem { [weak self] in self?.finish() }
-        self.deadline = deadline
-        DispatchQueue.main.asyncAfter(deadline: .now() + timeout, execute: deadline)
-    }
-
-    @objc private func changed() {
-        guard let query else { return }
-        query.disableUpdates()
-        defer { query.enableUpdates() }
-        for case let item as NSMetadataItem in query.results {
-            guard let url = item.value(forAttribute: NSMetadataItemURLKey) as? URL else { continue }
-            let status = item.value(forAttribute: NSMetadataUbiquitousItemDownloadingStatusKey) as? String
-            if status == NSMetadataUbiquitousItemDownloadingStatusCurrent {
-                return finish()
-            }
-            try? FileManager.default.startDownloadingUbiquitousItem(at: url)
-        }
-    }
-
-    private func finish() {
-        deadline?.cancel()
-        deadline = nil
-        if let query {
-            query.stop()
-            NotificationCenter.default.removeObserver(self, name: nil, object: query)
-        }
-        query = nil
-        let callbacks = waiting
-        waiting = []
-        callbacks.forEach { $0() }
     }
 }

@@ -100,6 +100,6 @@ public struct MobileCertificateExceptions: Equatable {
     public static func warningTitle(host: String) -> String { "This connection is not private" }
 
     public static func warningMessage(host: String) -> String {
-        "Cra can't verify the identity of \(host). Someone may be pretending to be this site. Go on only if you know why its certificate can't be checked."
+        "\(Brand.name) can't verify the identity of \(host). Someone may be pretending to be this site. Go on only if you know why its certificate can't be checked."
     }
 }

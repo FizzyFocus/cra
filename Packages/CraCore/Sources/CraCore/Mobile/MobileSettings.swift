@@ -84,7 +84,7 @@ public enum MobileAppLinks: String, Codable, CaseIterable, Identifiable {
 
     public var label: String {
         switch self {
-        case .browser: return "Cra"
+        case .browser: return Brand.name
         case .nativeApp: return "Native App"
         }
     }
@@ -129,7 +129,7 @@ public struct MobileSettings: Codable, Equatable {
     public var searchesWithCustom = false
     /// A first search has been made: the starter questions under the empty field go away.
     public var hasSearched = false
-    /// The "Cra just blocked N trackers" tip card has been shown (it shows once).
+    /// The "Pane just blocked N trackers" tip card has been shown (it shows once).
     public var hasSeenBlockTip = false
     /// The tab row's "Every tab, anywhere." card was closed.
     public var hasDismissedSyncCard = false

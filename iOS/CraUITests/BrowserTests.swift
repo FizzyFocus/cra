@@ -258,7 +258,7 @@ final class BlockingTests: BrowserTestCase {
         app.buttons["bar-menu"].tap()
         let footer = app.buttons["menu-reload-without-blockers"]
         XCTAssertTrue(footer.waitForExistence(timeout: 10))
-        XCTAssertEqual(footer.value as? String, "Cra scrubbed 1 tracker")
+        XCTAssertEqual(footer.value as? String, "Pane scrubbed 1 tracker")
         keep("blocked-count")
         // The page has no site of its own, so its Site Settings are the global ones.
         app.buttons["menu-row-siteSettings"].tap()
@@ -291,7 +291,7 @@ final class BlockingTests: BrowserTestCase {
         // The tip itself says the page loaded (the page's own text reaches the test unreliably).
         let title = app.staticTexts["block-tip-title"]
         XCTAssertTrue(title.waitForExistence(timeout: 20))
-        XCTAssertEqual(title.label, "Cra just blocked 1 tracker")
+        XCTAssertEqual(title.label, "Pane just blocked 1 tracker")
         sleep(1)
         keep("block-tip")
         app.buttons["block-tip-close"].tap()
@@ -442,7 +442,7 @@ final class ReadingTests: BrowserTestCase {
         XCTAssertTrue(overview.waitForExistence(timeout: 10))
         // The canned model answers with the article's own opening lines: its heading, then its sentences.
         XCTAssertEqual(overview.label, "About Pizza.")
-        XCTAssertTrue(app.staticTexts["Summarized for you by Cra"].exists)
+        XCTAssertTrue(app.staticTexts["Summarized for you by Pane"].exists)
         XCTAssertTrue(app.staticTexts["Point 1"].exists)
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Pizza is a dish of Italian origin'")).firstMatch.exists)
         // Copy and Share once it is written.
@@ -636,15 +636,15 @@ final class SpacesTests: BrowserTestCase {
         keep("sync-card")
         card.tap()
         XCTAssertTrue(app.staticTexts["sync-title"].waitForExistence(timeout: 10))
-        XCTAssertEqual(app.staticTexts["sync-title"].label, "Sync with Cra for Mac")
+        XCTAssertEqual(app.staticTexts["sync-title"].label, "Sync with Pane for Mac")
         sleep(1)
         keep("sync-intro")
         app.buttons["sync-have-mac"].tap()
         XCTAssertTrue(app.staticTexts["sync-detail-title"].waitForExistence(timeout: 3))
-        XCTAssertEqual(app.staticTexts["sync-detail-title"].label, "Turn on Sync on your Mac")
+        XCTAssertEqual(app.staticTexts["sync-detail-title"].label, "Sync through iCloud Drive")
         app.buttons["sync-go-back"].tap()
         app.buttons["sync-no-mac"].tap()
-        XCTAssertTrue(app.staticTexts["Get Cra on your computer first"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Get Pane on your computer first"].waitForExistence(timeout: 3))
         keep("sync-no-mac")
         app.buttons["spaces-close"].tap()
         // Closed, the card stays away.
@@ -728,7 +728,7 @@ final class OnboardingTests: BrowserTestCase {
         next.tap()
         // The device can answer (the canned model), so Browse for Me gets its step: tried on a
         // phone first ("Try it!"), and Next comes once it has run.
-        XCTAssertTrue(app.staticTexts["Let Cra search and summarize for you"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Let Pane search and summarize for you"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.staticTexts["things to do in paris"].exists)
         XCTAssertFalse(next.isHittable, "Next waits for the try")
         sleep(1)
@@ -981,7 +981,8 @@ final class ShareExtensionTests: BrowserTestCase {
         XCTAssertTrue(app.buttons["bar-menu"].waitForExistence(timeout: 10))
         sleep(6)
         app.buttons["bar-menu"].press(forDuration: 1.2)
-        let cra = app.collectionViews.cells.matching(NSPredicate(format: "label == 'Cra'")).firstMatch
+        // The share extension, by the name the share sheet shows (Pane's display name).
+        let cra = app.collectionViews.cells.matching(NSPredicate(format: "label == 'Pane'")).firstMatch
         if !cra.waitForExistence(timeout: 8) {
             keep("share-sheet")
             XCTFail(app.debugDescription)
@@ -1083,7 +1084,7 @@ final class WidgetGuideTests: BrowserTestCase {
         row.tap()
         let title = app.staticTexts["widget-guide-title"]
         XCTAssertTrue(title.waitForExistence(timeout: 5))
-        XCTAssertEqual(title.label, "Bring Cra to your home screen")
+        XCTAssertEqual(title.label, "Bring Pane to your home screen")
         sleep(1)
         keep("widget-guide-1")
         app.buttons["widget-guide-next"].tap()

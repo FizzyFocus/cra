@@ -55,12 +55,12 @@ public enum MobileOnboarding {
     public static let welcomeTitle = "Get what you want *twice* as fast."
     public static let meetTitle = "Meet your new favorite browser"
     public static let cards = [
-        Card(title: "Protect your privacy", detail: "Cra blocks all creepy trackers", symbol: "hand.raised.fill"),
+        Card(title: "Protect your privacy", detail: "\(Brand.name) blocks all creepy trackers", symbol: "hand.raised.fill"),
         Card(title: "Auto-archives old tabs", detail: "No more virtual dust bunnies", symbol: "archivebox.fill"),
         Card(title: "Keep your logins", detail: "Passwords carry over from Safari", symbol: "key.fill"),
         Card(title: "Navigate faster", detail: "Swipe anywhere to go back", symbol: "hand.point.up.left.fill"),
     ]
-    public static let browseTitle = "Let Cra *search* and *summarize for you*"
+    public static let browseTitle = "Let \(Brand.name) *search* and *summarize for you*"
     /// What the phone in the Browse for Me step says over its search sheet, arrow to the first chip.
     public static let browseTryIt = "Try it!"
     /// Arc Search's sample queries, in the order of its step (the recording, 0:12).
@@ -73,13 +73,13 @@ public enum MobileOnboarding {
     /// The last step (the recording, 1:06): a pale page, the app's icon, these words, "Set as
     /// Default Browser" and "Skip".
     public static let defaultBrowserTitle = "Never see another ad."
-    public static let defaultBrowserBody = "Make sure links from messages and other apps also open in Cra, with adblock, every time."
+    public static let defaultBrowserBody = "Make sure links from messages and other apps also open in \(Brand.name), with adblock, every time."
     public static let defaultBrowserSkip = "Skip"
     /// "Set as Default Browser" brings up an inset sheet with the way there.
     public static let howToTitle = "How to change your default browser"
-    public static let howToBody = "Set Cra as your default to automatically open links from other apps."
-    public static let defaultBrowserSteps = ["1. Open Cra in Settings", "2. Tap on \u{201C}Default Browser App\u{201D}", "3. Select Cra"]
-    public static let howToOpen = "Open Cra in Settings"
+    public static let howToBody = "Set \(Brand.name) as your default to automatically open links from other apps."
+    public static let defaultBrowserSteps = ["1. Open \(Brand.name) in Settings", "2. Tap on \u{201C}Default Browser App\u{201D}", "3. Select \(Brand.name)"]
+    public static let howToOpen = "Open \(Brand.name) in Settings"
     public static let howToLater = "Maybe later"
 
     /// The words of a title without its emphasis marks.

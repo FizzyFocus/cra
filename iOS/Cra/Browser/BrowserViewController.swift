@@ -696,7 +696,7 @@ final class BrowserViewController: UIViewController, SearchSheetDelegate, WebPag
         model.showDownloads = { [weak self] in self?.showDownloads() }
         model.showSpaces = { [weak self] in self?.showSpaces() }
         model.shareCra = { [weak self] in
-            guard let self, let link = URL(string: "https://crabrowser.app") else { return }
+            guard let self, let link = URL(string: Brand.site) else { return }
             let share = UIActivityViewController(activityItems: [link], applicationActivities: nil)
             share.popoverPresentationController?.sourceView = self.bar
             self.topPresenter.present(share, animated: true)

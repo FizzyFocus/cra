@@ -102,11 +102,11 @@ public enum MobilePageMenu {
         return percent == 100 ? nil : "\(percent)%"
     }
 
-    /// The footer card's first line, "Cra scrubbed 22 trackers" (the number in bold), or nil
+    /// The footer card's first line, "Pane scrubbed 22 trackers" (the number in bold), or nil
     /// when nothing was blocked.
     public static func scrubbedLabel(_ count: Int) -> (text: String, number: String)? {
         guard count > 0 else { return nil }
-        return ("Cra scrubbed \(count) tracker\(count == 1 ? "" : "s")", "\(count)")
+        return ("\(Brand.name) scrubbed \(count) tracker\(count == 1 ? "" : "s")", "\(count)")
     }
 
     /// The footer card's second line: a tap reloads the page without blockers.

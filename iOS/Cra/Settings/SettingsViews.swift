@@ -231,7 +231,7 @@ struct AppSettingsList: View {
 
     private var version: String {
         let info = Bundle.main.infoDictionary
-        return "Cra \(info?["CFBundleShortVersionString"] as? String ?? "") (\(info?["CFBundleVersion"] as? String ?? ""))"
+        return "\(Brand.name) \(info?["CFBundleShortVersionString"] as? String ?? "") (\(info?["CFBundleVersion"] as? String ?? ""))"
     }
 
     var body: some View {
@@ -254,7 +254,7 @@ struct AppSettingsList: View {
             .settingsRow()
             // Arc Search keeps these three in one group.
             Section {
-                ActionRow(label: SettingLabel(title: "Set Cra as Default Browser", symbol: "safari.fill", color: .indigo)) {
+                ActionRow(label: SettingLabel(title: "Set \(Brand.name) as Default Browser", symbol: "safari.fill", color: .indigo)) {
                     if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
                 }
                 .accessibilityIdentifier("setting-default-browser")
@@ -305,17 +305,17 @@ struct AppSettingsList: View {
             .settingsRow()
             // Arc Search's "Sync with Arc Desktop / Sign in": Cra's Mac shares its Spaces through iCloud.
             Section {
-                ActionRow(label: SettingLabel(title: "Sync with Cra for Mac", symbol: "arrow.triangle.2.circlepath", color: Color(red: 0.55, green: 0.1, blue: 0.5),
+                ActionRow(label: SettingLabel(title: MobileSyncIntro.title, symbol: "arrow.triangle.2.circlepath", color: Color(red: 0.55, green: 0.1, blue: 0.5),
                                               subtitle: FileManager.default.ubiquityIdentityToken == nil ? "Sign in to iCloud" : "Through iCloud")) { model.showSpaces() }
                     .accessibilityIdentifier("setting-sync")
             }
             .settingsRow()
-            // Arc Search's "Gift Arc to a friend" capsule; Cra has nothing to gift, so it shares the app.
+            // Arc Search's "Gift Arc to a friend" capsule; Pane has nothing to gift, so it shares the app.
             Section {
                 Button { model.shareCra() } label: {
                     HStack(spacing: 14) {
                         Image(systemName: "gift.fill").font(.system(size: 19, weight: .semibold))
-                        Text("Share Cra with a friend").font(.body.weight(.semibold))
+                        Text("Share \(Brand.name) with a friend").font(.body.weight(.semibold))
                         Spacer()
                     }
                     .foregroundStyle(.white)
@@ -332,13 +332,13 @@ struct AppSettingsList: View {
             }
             Section {
                 ActionRow(label: SettingLabel(title: "Contact the Team", symbol: "envelope.fill", color: .gray), chevron: false) {
-                    UIApplication.shared.open(URL(string: "https://github.com/VictorKildahl/cra/issues")!)
+                    UIApplication.shared.open(URL(string: "https://github.com/FizzyFocus/cra/issues")!)
                 }
                 .accessibilityIdentifier("setting-contact")
                 ActionRow(label: SettingLabel(title: "Show Onboarding", symbol: "hand.wave.fill", color: .gray), chevron: false) { model.showOnboarding() }
                     .accessibilityIdentifier("setting-show-onboarding")
                 ActionRow(label: SettingLabel(title: "Privacy Policy", symbol: "doc.text.fill", color: .gray), chevron: false) {
-                    UIApplication.shared.open(URL(string: "https://crabrowser.app/privacy")!)
+                    UIApplication.shared.open(URL(string: Brand.site + "/privacy")!)
                 }
                 .accessibilityIdentifier("setting-privacy")
                 NavigationLink { LicensesView().toolbarRole(.editor) } label: {
@@ -421,7 +421,7 @@ struct LicensesView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                Text("Cra is open source under the MIT License, © 2026 Victor Kildahl. Its code is at github.com/VictorKildahl/cra.")
+                Text("\(Brand.name) is open source under the MIT License. It is based on Cra by Victor Kildahl (MIT License, © 2026). Its code is at github.com/FizzyFocus/cra.")
                 Text(Self.text("NOTICE", "txt")).font(.system(.footnote, design: .monospaced)).foregroundStyle(.secondary)
                     .accessibilityIdentifier("licenses-notice")
             }

@@ -1,3 +1,4 @@
+import CraCore
 import SwiftUI
 
 /// Arc Search's "Bring Arc to your home screen" walkthrough, from 60fps.design's "Add Widget"
@@ -65,7 +66,7 @@ struct WidgetGuideView: View {
         let font = Font.system(size: 28, weight: .bold, design: .rounded)
         Group {
             switch step {
-            case 0: Text("Bring Cra to your home screen")
+            case 0: Text("Bring \(Brand.name) to your home screen")
             case 1: Text("Start by holding \(Text("anywhere").italic()) on your home screen")
             default: Text("Tap \(Image(systemName: "hand.point.up.left")) Edit and select \(Text("Add Widget").italic())")
             }
@@ -111,7 +112,7 @@ struct WidgetPreviewCard: View {
             .clipShape(RoundedRectangle(cornerRadius: side * 0.15, style: .continuous))
         }
         .accessibilityElement()
-        .accessibilityLabel("Cra widget")
+        .accessibilityLabel("\(Brand.name) widget")
     }
 }
 

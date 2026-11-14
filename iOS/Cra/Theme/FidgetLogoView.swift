@@ -20,7 +20,7 @@ final class FidgetLogoView: UIImageView {
         addGestureRecognizer(UIPanGestureRecognizer(target: self, action: #selector(dragged(_:))))
         accessibilityIdentifier = "logo"
         isAccessibilityElement = true
-        accessibilityLabel = "Cra"
+        accessibilityLabel = Brand.name
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
