@@ -907,7 +907,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         }
         // No key window while the app is inactive (e.g. during a cra:// handoff from a
         // second launch): the frontmost window stands in for it.
-        guard let front = NSApp.orderedWindows.first(where: { $0.isVisible && !($0 is NSPanel) }) else { return nil }
+        // Never a window no one can see: Chrome's own on the Chromium engine (a page's DevTools window before Cra
+        // takes its frontend, the window holding a profile's pages) stays on screen at alpha 0.
+        guard let front = NSApp.orderedWindows.first(where: { $0.isVisible && $0.alphaValue > 0 && !($0 is NSPanel) }) else { return nil }
         return littleWindows.first { !$0.isParked && ($0.window === front || $0.window === front.parent) }
     }
 
