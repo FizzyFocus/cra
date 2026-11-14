@@ -231,6 +231,55 @@ public extension SidebarDocument {
     }
 }
 
+/// What the Mac's sidebar shows open and shut, sent with the synced sidebar so the iPhone draws
+/// each Space as the Mac has it (14 Nov 2026): folders opened, sections (Tidy Tabs' groups)
+/// collapsed under their header, Spaces whose pinned area is collapsed. Sorted lists of ids
+/// rather than sets, so the same sidebar always writes the same bytes and an unchanged one is
+/// never written again (`SettingsSyncService` compares hashes).
+public struct SidebarLayout: Codable, Equatable, Sendable {
+    public var expandedFolders: [UUID]
+    public var collapsedSections: [UUID]
+    public var collapsedPinnedSpaces: [UUID]
+
+    public init(expandedFolders: [UUID] = [], collapsedSections: [UUID] = [], collapsedPinnedSpaces: [UUID] = []) {
+        self.expandedFolders = expandedFolders
+        self.collapsedSections = collapsedSections
+        self.collapsedPinnedSpaces = collapsedPinnedSpaces
+    }
+
+    /// A newer Mac may add lists: each one is optional to read, so an older phone still opens it.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        expandedFolders = (try? c.decodeIfPresent([UUID].self, forKey: .expandedFolders)) ?? []
+        collapsedSections = (try? c.decodeIfPresent([UUID].self, forKey: .collapsedSections)) ?? []
+        collapsedPinnedSpaces = (try? c.decodeIfPresent([UUID].self, forKey: .collapsedPinnedSpaces)) ?? []
+    }
+
+    private enum CodingKeys: String, CodingKey { case expandedFolders, collapsedSections, collapsedPinnedSpaces }
+
+    /// The window state's open folders, collapsed sections and collapsed pinned areas, kept to the
+    /// folders, sections and Spaces in `document` (an id left over from a deleted folder, or from
+    /// an incognito window's, stays on the Mac).
+    public init(prefs: WindowPrefs, in document: SidebarDocument) {
+        let folders = Set(document.items.filter { $0.isFolder && !$0.isTabGroup }.map(\.id))
+        let sections = Set(document.items.filter(\.isTabGroup).map(\.id))
+        let spaces = Set(document.spaces.map(\.id))
+        func sorted(_ ids: Set<UUID>) -> [UUID] { ids.sorted { $0.uuidString < $1.uuidString } }
+        self.init(expandedFolders: sorted(prefs.expandedFolders.intersection(folders)),
+                  collapsedSections: sorted((prefs.collapsedTabGroups ?? []).intersection(sections)),
+                  collapsedPinnedSpaces: sorted(prefs.collapsedPinnedSpaces.intersection(spaces)))
+    }
+}
+
+public extension SidebarDocument {
+    /// The synced copy with what the sidebar shows open (`SidebarLayout`).
+    func withLayout(from prefs: WindowPrefs) -> SidebarDocument {
+        var doc = self
+        doc.layout = SidebarLayout(prefs: prefs, in: self)
+        return doc
+    }
+}
+
 public extension AppSettings {
     /// The settings as written to the sync folder: what is the same on every Mac. Download
     /// folders, the engine choice (a restart), the performance recorder and the one-time prompts

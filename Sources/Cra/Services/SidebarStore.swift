@@ -37,9 +37,21 @@ final class SidebarStore {
         didSet {
             prefsStore.save(prefs.withoutIncognito)
             notifyItemReaders(of: oldValue)
+            // What the sidebar shows open goes to the iPhone with the synced sidebar (SidebarLayout).
+            if prefs.expandedFolders != oldValue.expandedFolders || prefs.collapsedPinnedSpaces != oldValue.collapsedPinnedSpaces
+                || prefs.collapsedTabGroups != oldValue.collapsedTabGroups { onSyncableChange?() }
         }
     }
-    var settings = AppSettings() { didSet { settingsStore.save(settings) } }
+    var settings = AppSettings() {
+        didSet {
+            settingsStore.save(settings)
+            if settings != oldValue { onSyncableChange?() }
+        }
+    }
+    /// Called after a change to what the sync bundle holds: the sidebar's tree, what it shows open,
+    /// the settings. SettingsSyncService writes the bundle a moment later (`writeSoon`), so the
+    /// iPhone and other Macs get it without waiting for the 30-second look.
+    @ObservationIgnored var onSyncableChange: (@MainActor () -> Void)?
     private(set) var history: [String: HistoryEntry] = [:]
     private(set) var ranking = RankingData()
     /// Bumped on every structural change; cheap way for AppKit code to observe.
@@ -233,6 +245,7 @@ final class SidebarStore {
         pruneEmptyGroups()
         revision &+= 1
         save()
+        onSyncableChange?()
     }
 
     // MARK: Windows

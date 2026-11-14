@@ -64,6 +64,10 @@ final class SettingsSyncService {
     /// How often the folder is looked at besides when a watcher fires: a provider may change
     /// a file without a directory event, and the timer is what a test host drives.
     static let pollInterval: TimeInterval = 30
+    /// How soon after a change here (a space, a favorite, a pin, a folder or section, what the
+    /// sidebar shows open, a setting) the bundle goes to the folder (14 Nov 2026): the iPhone and the
+    /// other Macs get it in seconds, and a burst of changes (a drag, Tidy Tabs) goes up once.
+    static let writeDelay: TimeInterval = 0.3
 
     /// This Mac's computer name, which the question on another Mac shows.
     let device: String
@@ -87,6 +91,7 @@ final class SettingsSyncService {
     private var identityObserver: NSObjectProtocol?
     private var queryObservers: [NSObjectProtocol] = []
     private var watcherDebounce: ScheduledWork?
+    private var changeDebounce: ScheduledWork?
 
     init(store: SidebarStore, clock: Scheduler, device: String? = nil, deviceID: String? = nil) {
         self.store = store
@@ -372,7 +377,8 @@ final class SettingsSyncService {
     }()
 
     private func localBundle() -> Bundle {
-        var doc = store.document.forSync()
+        // With what the sidebar shows open, for the iPhone (SidebarLayout).
+        var doc = store.document.forSync().withLayout(from: store.prefs)
         // The store keeps items in a dictionary: the same sidebar must encode to the same bytes.
         doc.items.sort { $0.id.uuidString < $1.id.uuidString }
         let keys = (try? Data(contentsOf: AppPaths.file(SettingsSync.keybindingsName))) ?? Data("{}".utf8)
@@ -519,6 +525,7 @@ final class SettingsSyncService {
     private func startWatching() {
         stopWatching()
         guard let folder else { return }
+        store.onSyncableChange = { [weak self] in self?.writeSoon() }
         poller = clock.every(Self.pollInterval) { [weak self] in self?.poll() }
         let fd = open(folder.path, O_EVTONLY)
         if fd >= 0 {
@@ -544,6 +551,15 @@ final class SettingsSyncService {
         }
     }
 
+    /// Something the bundle holds changed here: a look `writeDelay` later, the last change of a
+    /// burst counting. A look, not a bare write: a newer bundle from another Mac is applied first,
+    /// as on every look, and what changed here then goes up when it still differs.
+    private func writeSoon() {
+        guard folder != nil, pendingChoice == nil else { return }
+        changeDebounce?.cancel()
+        changeDebounce = clock.after(Self.writeDelay) { [weak self] in self?.poll() }
+    }
+
     /// A provider writes a bundle file by file; one look after the last of them.
     private func lookSoon() {
         watcherDebounce?.cancel()
@@ -555,6 +571,8 @@ final class SettingsSyncService {
         poller = nil
         watcherDebounce?.cancel()
         watcherDebounce = nil
+        changeDebounce?.cancel()
+        changeDebounce = nil
         watcher?.cancel()
         watcher = nil
         metadataQuery?.stop()

@@ -8,40 +8,130 @@ final class SpacesModel: ObservableObject {
     }
 
     @Published var state: State = .loading
-    @Published var closedFolders = Set<UUID>()
+    /// What the phone opened or shut itself, by row id; everything else is as the Mac has it.
+    @Published var toggled: [UUID: Bool] = [:]
     @Published var selected: UUID?
+    /// When the Mac wrote the Spaces shown, for "Updated just now".
+    @Published var writtenAt: Date?
+    /// What a refresh is waiting for, while it waits.
+    @Published var activity: SyncedSidebar.Activity?
     var open: (String) -> Void = { _ in }
     var favicon: (String) -> UIImage? = { _ in nil }
     var close: () -> Void = {}
+    private var watcher: SyncedSidebar.Watcher?
+    private var foreground: NSObjectProtocol?
+    private var refreshing = false
+    private var refreshAgain = false
+    private var finished: [() -> Void] = []
+    private var watcherDebounce: DispatchWorkItem?
 
     var spaces: [MobileSpaces.SpaceView] {
         guard case .spaces(let document) = state else { return [] }
-        return MobileSpaces.spaces(in: document, closedFolders: closedFolders)
+        return MobileSpaces.spaces(in: document, toggled: toggled)
     }
 
-    func load() {
-        SyncedSidebar.load { [weak self] result in
+    /// The sheet opened: the Spaces on the phone at once, then the Mac's newest from iCloud Drive;
+    /// again whenever the app comes back to the front, and whenever iCloud Drive brings a newer
+    /// file down while the sheet is open.
+    func appear() {
+        if watcher == nil {
+            watcher = SyncedSidebar.Watcher { [weak self] in self?.folderChanged() }
+        }
+        if foreground == nil {
+            foreground = NotificationCenter.default.addObserver(forName: UIApplication.willEnterForegroundNotification, object: nil,
+                                                                queue: .main) { [weak self] _ in self?.refresh() }
+        }
+        refresh()
+    }
+
+    func disappear() {
+        watcher?.stop()
+        watcher = nil
+        if let foreground { NotificationCenter.default.removeObserver(foreground) }
+        foreground = nil
+    }
+
+    deinit { watcher?.stop() }
+
+    /// A presenter's note comes for every file of a bundle: one refresh after the last of them.
+    private func folderChanged() {
+        watcherDebounce?.cancel()
+        let work = DispatchWorkItem { [weak self] in self?.refresh() }
+        watcherDebounce = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4, execute: work)
+    }
+
+    /// Asks iCloud Drive for the newest Spaces and shows them; `done` once it has them, or has
+    /// waited long enough. A refresh asked for while one runs runs again after it.
+    func refresh(_ done: @escaping () -> Void = {}) {
+        finished.append(done)
+        guard !refreshing else { refreshAgain = true; return }
+        refreshing = true
+        SyncedSidebar.refresh { [weak self] progress in
             guard let self else { return }
-            switch result {
-            case .spaces(let document):
-                self.state = .spaces(document)
-                if self.selected == nil { self.selected = self.spaces.first?.id }
-            case .nothingSynced: self.state = .nothingSynced
-            case .unavailable: self.state = .unavailable
+            switch progress {
+            case .read(let result): self.show(result)
+            case .waiting(let activity): self.activity = activity
+            case .finished(let result):
+                self.show(result)
+                self.activity = nil
+                self.refreshing = false
+                if self.refreshAgain {
+                    self.refreshAgain = false
+                    self.refresh()
+                } else {
+                    let callbacks = self.finished
+                    self.finished = []
+                    callbacks.forEach { $0() }
+                }
             }
         }
+    }
+
+    /// Pull to refresh.
+    @MainActor func pullToRefresh() async {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            refresh { continuation.resume() }
+        }
+    }
+
+    private func show(_ result: SyncedSidebar.State) {
+        switch result {
+        case .spaces(let document, let written):
+            let old: SidebarDocument? = { if case .spaces(let d) = state { return d } else { return nil } }()
+            guard old != document || written != writtenAt else { return }
+            // The phone's own choices stay unless the Mac opened or shut that row since.
+            toggled = MobileSpaces.keptToggles(toggled, from: old, to: document)
+            state = .spaces(document)
+            writtenAt = written
+            if selected == nil || !spaces.contains(where: { $0.id == selected }) { selected = spaces.first?.id }
+        case .nothingSynced:
+            if case .spaces = state { return }
+            state = .nothingSynced
+        case .unavailable:
+            state = .unavailable
+        }
+    }
+
+    func isOpen(_ row: MobileSpaces.Row) -> Bool { row.isOpen ?? true }
+
+    func toggle(_ row: MobileSpaces.Row) {
+        guard let open = row.isOpen else { return }
+        toggled[row.id] = !open
     }
 
     /// The folder picked in Files to read the Mac's Spaces from (Pane: the Mac syncs into iCloud Drive).
     func choose(_ folder: URL) {
         guard SyncedSidebar.choose(folder) else { return }
         state = .loading
-        load()
+        disappear()
+        appear()
     }
 }
 
 /// Arc Search's Spaces view: the desktop's Spaces, one a page, each tinted with its colour: the
-/// Space's name, its pinned tabs and folders, then Today; the Spaces' icons along the bottom.
+/// Space's name, its Favorites, the Pinned header over its pinned tabs and folders, then Today with
+/// its sections; the Spaces' icons along the bottom, and over it all a line saying how fresh they are.
 struct SpacesView: View {
     @ObservedObject var model: SpacesModel
 
@@ -53,6 +143,7 @@ struct SpacesView: View {
                 empty
             } else {
                 VStack(spacing: 0) {
+                    statusLine.padding(.top, 24).padding(.horizontal, 26).frame(maxWidth: .infinity, alignment: .leading)
                     TabView(selection: $model.selected) {
                         ForEach(spaces) { space in
                             page(space).tag(Optional(space.id))
@@ -80,7 +171,30 @@ struct SpacesView: View {
         // White text on a dark Space, as Arc Search draws it (`MobileSpaces.sheetStyle`).
         .environment(\.colorScheme, style(for: spaces.first { $0.id == model.selected })?.lightText == true ? .dark : .light)
         .animation(.easeInOut(duration: 0.25), value: model.selected)
-        .onAppear { model.load() }
+        .onAppear { model.appear() }
+        .onDisappear { model.disappear() }
+    }
+
+    /// "Updated just now" with a dot, or what a refresh is waiting for with a spinner.
+    private var statusLine: some View {
+        TimelineView(.periodic(from: .now, by: 20)) { context in
+            HStack(spacing: 7) {
+                if let activity = model.activity {
+                    ProgressView().controlSize(.mini)
+                    Text(activity == .downloading ? MobileSpaces.downloadingLabel : MobileSpaces.checkingLabel)
+                } else if let written = model.writtenAt {
+                    let fresh = context.date.timeIntervalSince(written) < 60
+                    Circle().fill(fresh ? Color.green : Color.primary.opacity(0.35)).frame(width: 6, height: 6)
+                    Text(MobileSpaces.updatedLabel(writtenAt: written, now: context.date))
+                }
+            }
+            .font(.system(size: 12, weight: .medium))
+            .foregroundStyle(.primary.opacity(0.55))
+            .frame(height: 26)
+            .animation(.easeInOut(duration: 0.2), value: model.activity)
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("spaces-sync-status")
+        }
     }
 
     private func page(_ space: MobileSpaces.SpaceView) -> some View {
@@ -89,44 +203,102 @@ struct SpacesView: View {
                 Text(space.title)
                     .font(.system(size: 24, weight: .semibold))
                     .foregroundStyle(.primary.opacity(0.9))
-                    .padding(.top, 22)
+                    .padding(.top, 6)
                     .padding(.bottom, 10)
                     .accessibilityIdentifier("space-title")
+                if !space.favorites.isEmpty { favorites(space.favorites) }
                 ForEach(space.rows) { row in
-                    rowView(row)
+                    rowView(row).transition(.opacity)
                 }
             }
             .padding(.horizontal, 26)
+            .padding(.bottom, 20)
             .frame(maxWidth: .infinity, alignment: .leading)
+            .animation(.easeInOut(duration: 0.22), value: space.rows)
         }
+        .refreshable { await model.pullToRefresh() }
+    }
+
+    /// The Space's Favorites as the Mac's tiles, four to a row.
+    private func favorites(_ favorites: [MobileSpaces.Favorite]) -> some View {
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 4), spacing: 10) {
+            ForEach(favorites) { favorite in
+                Button { model.open(favorite.url) } label: {
+                    FaviconView(image: model.favicon(favorite.url))
+                        .scaleEffect(1.2)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 52)
+                        .background(Color.primary.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(favorite.title)
+                .accessibilityIdentifier("space-favorite-\(favorite.title)")
+            }
+        }
+        .padding(.bottom, 12)
     }
 
     @ViewBuilder private func rowView(_ row: MobileSpaces.Row) -> some View {
         switch row.kind {
         case .todayHeader:
             Rectangle().fill(Color.primary.opacity(0.15)).frame(height: 1).padding(.vertical, 12)
-        case .folder:
+        case .pinnedHeader(let open):
+            header(row, open: open, id: "space-pinned")
+        case .section(let open):
+            header(row, open: open, id: "space-section-\(row.title)")
+        case .folder(let open):
             Button {
-                if model.closedFolders.contains(row.id) { model.closedFolders.remove(row.id) } else { model.closedFolders.insert(row.id) }
+                withAnimation(.easeInOut(duration: 0.22)) { model.toggle(row) }
             } label: {
-                label(row, icon: Image(systemName: model.closedFolders.contains(row.id) ? "folder.fill" : "folder").foregroundStyle(.primary.opacity(0.55)))
+                label(row, icon: Image(systemName: open ? "folder" : "folder.fill").foregroundStyle(.primary.opacity(0.55)),
+                      trailing: open ? nil : row.count)
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("space-folder-\(row.title)")
+            .accessibilityValue(open ? "Open" : "Closed")
         case .tab(let url):
             Button { model.open(url) } label: {
-                label(row, icon: FaviconView(image: model.favicon(url)))
+                label(row, icon: FaviconView(image: model.favicon(url)), trailing: nil)
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("space-tab-\(row.title)")
         }
     }
 
-    private func label(_ row: MobileSpaces.Row, icon: some View) -> some View {
+    /// The Pinned header and a section's: small caps-height text with a chevron that turns, and the
+    /// count of what a closed one holds.
+    private func header(_ row: MobileSpaces.Row, open: Bool, id: String) -> some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.22)) { model.toggle(row) }
+        } label: {
+            HStack(spacing: 6) {
+                Text(row.title).font(.system(size: 13, weight: .semibold)).lineLimit(1)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 10, weight: .bold))
+                    .rotationEffect(.degrees(open ? 90 : 0))
+                Spacer(minLength: 0)
+                if !open, row.count > 0 { Text("\(row.count)").font(.system(size: 13, weight: .medium)).monospacedDigit() }
+            }
+            .foregroundStyle(.primary.opacity(0.5))
+            .frame(height: 38)
+            .padding(.leading, CGFloat(row.depth) * 22)
+            .padding(.top, row.kind == .pinnedHeader(open: open) ? 0 : 6)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(id)
+        .accessibilityValue(open ? "Open" : "Closed")
+    }
+
+    private func label(_ row: MobileSpaces.Row, icon: some View, trailing count: Int?) -> some View {
         HStack(spacing: 12) {
             icon.frame(width: 22, height: 22)
             Text(row.title).font(.system(size: 17, weight: .medium)).lineLimit(1).foregroundStyle(.primary.opacity(0.85))
             Spacer(minLength: 0)
+            if let count, count > 0 {
+                Text("\(count)").font(.system(size: 14, weight: .medium)).monospacedDigit().foregroundStyle(.primary.opacity(0.4))
+            }
         }
         .frame(height: 56)
         .padding(.leading, CGFloat(row.depth) * 22)

@@ -62,7 +62,12 @@ Settings ▸ General ▸ Sync keeps `sidebar.json`, `settings.json` (minus each 
 (`Documents/Cra` in the app's iCloud Documents container; docs/release.md says how the signed
 build gets the entitlement) or through a folder a file provider syncs: `SettingsSyncService`
 writes them with a `manifest.json` into a `Cra` folder there and applies a newer bundle another
-Mac wrote (`SettingsSync` in CraCore decides). A file still downloading is waited for; files
+Mac wrote (`SettingsSync` in CraCore decides). A change here (a space, a favorite, a pin, a
+folder or section, what the sidebar shows open, a setting: `SidebarStore.onSyncableChange`) is
+written 0.3 s after it (`SettingsSyncService.writeDelay`), a look first; page titles and addresses
+wait for the 30-second look. The synced `sidebar.json` also carries `layout` (`SidebarLayout`: open
+folders, collapsed sections and pinned areas) for the iPhone; the data folder's never does. A file
+still downloading is waited for; files
 from different writes (hashes that don't match the manifest, #378) are waited for one to two
 minutes (`SyncMixWait`), then the Mac writes a whole bundle again; a file the manifest names that
 is gone with no placeholder is put right the same way, after one minute on the Mac that wrote the

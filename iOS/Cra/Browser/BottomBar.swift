@@ -16,6 +16,10 @@ final class BottomBar: UIView {
     var mode: Mode = .page { didSet { applyMode() } }
     private let blur = UIVisualEffectView(effect: UIBlurEffect(style: .systemThinMaterial))
     private let hairline = UIView()
+    /// The page-loading line along the bar's top edge, over the hairline.
+    let progress = LoadingProgressView()
+    /// Holds `progress`, so the switcher and the search sheet can hide it without touching its own fade.
+    private let progressHolder = UIView()
     /// The white ring Arc Search draws round the menu button while its blocker tip points at it.
     private let menuRing = UIView()
     var ringsMenu = false {
@@ -52,6 +56,9 @@ final class BottomBar: UIView {
         menuRing.alpha = 0
         menuRing.accessibilityIdentifier = "bar-menu-ring"
         addSubview(menuRing)
+        progressHolder.isUserInteractionEnabled = false
+        progressHolder.addSubview(progress)
+        addSubview(progressHolder)
         applyMode()
     }
 
@@ -66,6 +73,7 @@ final class BottomBar: UIView {
         // Over the switcher the bar has no slab of its own: the buttons float on the backdrop,
         // tinted with its lavender (Arc Search: pill #dfddf2, circles #f0effd on #fcfafd).
         blur.alpha = tabs ? 0 : visible
+        progressHolder.alpha = tabs ? 0 : visible
         pill.backgroundColor = tabs ? Palette.switcherPillFill : Palette.barControlFill
         spacesButton.backgroundColor = Palette.switcherButtonFill
         settingsButton.backgroundColor = Palette.switcherButtonFill
@@ -85,6 +93,8 @@ final class BottomBar: UIView {
         super.layoutSubviews()
         blur.frame = bounds
         hairline.frame = CGRect(x: 0, y: 0, width: bounds.width, height: 1 / UIScreen.main.scale)
+        progressHolder.frame = CGRect(x: 0, y: 0, width: bounds.width, height: MobileLoadingProgress.height)
+        progress.frame = progressHolder.bounds
         // The bar's frames are worked out for a view that ends at the screen's bottom edge.
         let frames = MobileBottomBar.frames(in: bounds.size, safeBottom: bounds.height - MobileBottomBar.height)
         let transforms = [tabsButton, menuButton, spacesButton, settingsButton].map(\.transform)

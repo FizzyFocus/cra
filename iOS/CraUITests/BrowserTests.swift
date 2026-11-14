@@ -601,8 +601,9 @@ final class IncognitoTests: BrowserTestCase {
 }
 
 final class SpacesTests: BrowserTestCase {
-    /// The tab row's left button shows the Mac's Spaces: the pinned tabs and folders of each, a
-    /// folder that folds shut, and a tap on a tab that opens it here.
+    /// The tab row's left button shows the Mac's Spaces as its sidebar has them: Favorites, a
+    /// Pinned header that folds the pinned area, folders open or shut as on the Mac, Today's
+    /// sections, a line saying how fresh they are, and a tap on a tab that opens it here.
     func testTheMacsSpacesOpenFromTheTabRow() {
         launch(["-CraOpenURL", Self.page("First"), "-CraSearch", "NO", "-CraSyncDir", "demo"])
         waitForPage("First")
@@ -611,12 +612,25 @@ final class SpacesTests: BrowserTestCase {
         app.buttons["bar-spaces"].tap()
         XCTAssertTrue(app.buttons["space-tab-Inbox"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.staticTexts["space-title"].firstMatch.label, "Personal")
+        XCTAssertTrue(app.otherElements["spaces-sync-status"].label.contains("Updated just now"))
+        XCTAssertTrue(app.buttons["space-favorite-Calendar"].exists)
         XCTAssertTrue(app.buttons["space-tab-Docs"].exists)
+        XCTAssertTrue(app.buttons["space-folder-Specs"].exists)
+        XCTAssertFalse(app.buttons["space-tab-Spec"].exists, "a folder the Mac keeps shut is shut")
         XCTAssertTrue(app.buttons["space-tab-A Story"].exists)
+        XCTAssertTrue(app.buttons["space-section-Reading"].exists)
+        XCTAssertTrue(app.buttons["space-tab-A Paper"].exists)
         sleep(1)
         keep("spaces")
+        app.buttons["space-folder-Specs"].tap()
+        XCTAssertTrue(app.buttons["space-tab-Spec"].waitForExistence(timeout: 2))
+        app.buttons["space-section-Reading"].tap()
+        XCTAssertFalse(app.buttons["space-tab-A Paper"].waitForExistence(timeout: 1))
         app.buttons["space-folder-Work"].tap()
         XCTAssertFalse(app.buttons["space-tab-Docs"].waitForExistence(timeout: 1))
+        app.buttons["space-pinned"].tap()
+        XCTAssertFalse(app.buttons["space-tab-Inbox"].waitForExistence(timeout: 1))
+        app.buttons["space-pinned"].tap()
         app.buttons["space-icon-Play"].tap()
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label == 'Play'")).firstMatch.waitForExistence(timeout: 3))
         app.buttons["space-icon-Personal"].tap()

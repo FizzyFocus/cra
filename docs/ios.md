@@ -40,7 +40,11 @@ ID and its iCloud container `iCloud.dk.kildahl.cra`):
 - **Spaces from the Mac** come through a folder in iCloud Drive. On the Mac, Settings ▸ General ▸
   Sync ▸ Use a Folder… picks a folder there; on the phone, Sync with Pane for Mac ▸ I have Pane on
   my Mac ▸ Choose the Folder… picks the same one in Files, kept as a security-scoped bookmark
-  (`SyncedSidebar`). The Mac app needs no new entitlement for this.
+  (`SyncedSidebar`). The Mac app needs no new entitlement for this. The Mac writes a change within
+  a second; the phone asks iCloud Drive for the newest files when it comes to the front, when the
+  Spaces sheet opens and on pull-to-refresh (`SyncedSidebar.refresh`), and a file presenter
+  (`SyncedSidebar.Watcher`) re-reads them while the sheet is open. The line over the Spaces says
+  when the Mac wrote what it shows ("Updated just now", `MobileSpaces.updatedLabel`).
 - **The share inbox** is a Keychain item in an access group the app and its share extension both
   claim (`$(AppIdentifierPrefix)uz.pane.ios.shared`; see Share extension below).
 

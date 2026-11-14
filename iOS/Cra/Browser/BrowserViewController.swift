@@ -22,7 +22,15 @@ final class BrowserViewController: UIViewController, SearchSheetDelegate, WebPag
     let bar = BottomBar()
     let sheet = SearchSheet()
 
-    var shownPage: WebPage?
+    var shownPage: WebPage? {
+        didSet {
+            guard shownPage == nil else { return }
+            pageCover.setVisible(false, animated: false)
+            bar.progress.follow(progress: 0, isLoading: false)
+        }
+    }
+    /// What stands in for a page until it first paints.
+    let pageCover = PageLoadingCover()
     var switcher: TabSwitcherView?
     var menuHost: SheetHost?
     var menuView: PageMenuView?
@@ -77,6 +85,8 @@ final class BrowserViewController: UIViewController, SearchSheetDelegate, WebPag
         pageDim.alpha = 0
         pageDim.isUserInteractionEnabled = false
         pageContainer.addSubview(pageDim)
+        pageCover.setVisible(false, animated: false)
+        pageContainer.insertSubview(pageCover, belowSubview: pageDim)
         pageContainer.layer.cornerCurve = .continuous
         pageContainer.layer.maskedCorners = [.layerMinXMinYCorner, .layerMaxXMinYCorner]
 
@@ -192,6 +202,7 @@ final class BrowserViewController: UIViewController, SearchSheetDelegate, WebPag
         pageContainer.center = CGPoint(x: bounds.midX, y: bounds.midY)
         switcher?.frame = bounds
         shownPage?.webView.frame = pageContainer.bounds
+        pageCover.frame = pageContainer.bounds
         pageDim.frame = pageContainer.bounds
         let logoSide: CGFloat = 132
         logo.bounds = CGRect(x: 0, y: 0, width: logoSide, height: logoSide)
@@ -279,6 +290,8 @@ final class BrowserViewController: UIViewController, SearchSheetDelegate, WebPag
 
     @objc func appDidBecomeActive() {
         takeSharedLinks()
+        // The Mac's newest Spaces start down from iCloud Drive now, for when the Spaces sheet opens.
+        SyncedSidebar.requestDownload()
     }
 
     @objc func appWillResignActive() {
@@ -439,6 +452,8 @@ final class BrowserViewController: UIViewController, SearchSheetDelegate, WebPag
         page.webView.allowsBackForwardNavigationGestures = false
         page.webView.frame = pageContainer.bounds
         pageContainer.insertSubview(page.webView, belowSubview: pageDim)
+        pageContainer.insertSubview(pageCover, aboveSubview: page.webView)
+        pageCover.configure(spaceColors: page.coverColors, incognito: tab.isIncognito)
         if page.webView.url == nil, !page.isBrowsing {
             if let query = MobileBrowseForMe.query(fromTabAddress: tab.url) {
                 browse(for: query, in: page)
@@ -453,6 +468,13 @@ final class BrowserViewController: UIViewController, SearchSheetDelegate, WebPag
         barHiddenByScroll = false
         scrollTravel = 0
         updateBrowseToggle()
+        followLoading(of: page)
+    }
+
+    /// The page-loading line and the cover take up the shown page's load as it is, without animating.
+    func followLoading(of page: WebPage) {
+        bar.progress.follow(progress: page.progress, isLoading: page.isLoading)
+        pageCover.setVisible(!page.hasPainted, animated: false)
     }
 
     func refreshTabStack() {
@@ -632,11 +654,17 @@ final class BrowserViewController: UIViewController, SearchSheetDelegate, WebPag
         let model = SpacesModel()
         model.favicon = { [weak self] in self?.favicons.icon(for: $0) }
         model.close = { [weak self] in self?.dismiss(animated: true) }
-        model.open = { [weak self] address in
+        model.open = { [weak self, weak model] address in
             guard let self else { return }
+            // The page waits on the Space's colour until it paints.
+            let colors = model.flatMap { m in m.spaces.first { $0.id == m.selected }?.colors }
             self.dismiss(animated: true)
             self.incognitoSearch = false
             self.open(address)
+            if let page = self.shownPage, !page.hasPainted {
+                page.coverColors = colors
+                self.pageCover.configure(spaceColors: colors, incognito: false)
+            }
         }
         let sheet = UIHostingController(rootView: SpacesView(model: model))
         sheet.sheetPresentationController?.detents = [.large()]
@@ -949,6 +977,8 @@ final class BrowserViewController: UIViewController, SearchSheetDelegate, WebPag
 
     func webPageDidChange(_ page: WebPage) {
         if page === shownPage {
+            bar.progress.update(progress: page.progress, isLoading: page.isLoading)
+            pageCover.setVisible(!page.hasPainted, animated: true)
             refreshMenu()
             // Reader belongs to the page it was opened on.
             if page.isLoading { closeReader() }

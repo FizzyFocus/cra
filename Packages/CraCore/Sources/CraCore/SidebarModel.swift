@@ -403,9 +403,15 @@ public struct SidebarDocument: Codable, Equatable {
     public var profileFavorites: [ProfileFavorites]?
     /// The Default profile's badge look (it has no BrowserProfile entry); missing until chosen.
     public var defaultProfileLook: ProfileLook?
+    /// Which folders, sections and pinned areas the sidebar shows open: only in the copy written
+    /// to the sync folder (`withLayout(from:)`, 14 Nov 2026), for the iPhone. The data folder's
+    /// sidebar.json never has it (that state is the window's, in windows.json), and an older Pane
+    /// or Cra reads past the key.
+    public var layout: SidebarLayout?
 
     public init(version: Int = 1, spaceOrder: [UUID], spaces: [Space], favoritesContainerID: UUID? = nil, items: [SidebarItem],
-                profiles: [BrowserProfile]? = nil, profileFavorites: [ProfileFavorites]? = nil, defaultProfileLook: ProfileLook? = nil) {
+                profiles: [BrowserProfile]? = nil, profileFavorites: [ProfileFavorites]? = nil, defaultProfileLook: ProfileLook? = nil,
+                layout: SidebarLayout? = nil) {
         self.version = version
         self.spaceOrder = spaceOrder
         self.spaces = spaces
@@ -414,6 +420,7 @@ public struct SidebarDocument: Codable, Equatable {
         self.profiles = profiles
         self.profileFavorites = profileFavorites
         self.defaultProfileLook = defaultProfileLook
+        self.layout = layout
     }
 
     public static func fresh() -> SidebarDocument {

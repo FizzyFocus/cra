@@ -27,6 +27,11 @@ final class WebPage: NSObject, WKNavigationDelegate, WKUIDelegate, UIScrollViewD
     var isBrowsing = false
     private(set) var isLoading = false
     private(set) var progress: Double = 0
+    /// The page has drawn since this tab's web view was made. Until then the browser shows a
+    /// backdrop in its place (`PageLoadingCover`) rather than WebKit's empty canvas.
+    private(set) var hasPainted = false
+    /// The theme of the Space the tab was opened from (Spaces sheet), for that backdrop.
+    var coverColors: [String]?
     /// "Request Desktop Site": applied to every navigation of this tab while it is on.
     var wantsDesktopSite = false
     /// App Settings ▸ Open App Links in...
@@ -66,7 +71,9 @@ final class WebPage: NSObject, WKNavigationDelegate, WKUIDelegate, UIScrollViewD
         webView.scrollView.addSubview(pullIndicator)
         let controller = webView.configuration.userContentController
         controller.add(WeakScriptHandler(self), name: "craBlocked")
+        controller.add(WeakScriptHandler(self), name: "craPainted")
         controller.addUserScript(WKUserScript(source: Self.failedRequestScript, injectionTime: .atDocumentStart, forMainFrameOnly: false))
+        controller.addUserScript(WKUserScript(source: Self.paintedScript, injectionTime: .atDocumentStart, forMainFrameOnly: true))
         observations = [
             webView.observe(\.title) { [weak self] _, _ in self?.changed() },
             webView.observe(\.url) { [weak self] _, _ in self?.changed() },
@@ -123,7 +130,24 @@ final class WebPage: NSObject, WKNavigationDelegate, WKUIDelegate, UIScrollViewD
     })();
     """
 
+    /// Tells the app the page has drawn: two frames after its HTML is in, its stylesheets applied.
+    private static let paintedScript = """
+    (() => {
+      const post = () => requestAnimationFrame(() => requestAnimationFrame(() => {
+        try { window.webkit.messageHandlers.craPainted.postMessage(1); } catch (e) {}
+      }));
+      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', post, { once: true }); else post();
+    })();
+    """
+
+    private func painted() {
+        guard !hasPainted else { return }
+        hasPainted = true
+        changed()
+    }
+
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        if message.name == "craPainted" { return painted() }
         guard unblockedSite == nil, let address = message.body as? String, let host = URL(string: address)?.host,
               ContentBlocker.shared.list.stops(host: host, with: siteOptions(webView.url?.host)),
               countedHosts.insert(address).inserted else { return }
@@ -205,10 +229,13 @@ final class WebPage: NSObject, WKNavigationDelegate, WKUIDelegate, UIScrollViewD
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        painted()
         delegate?.webPage(self, didFinishLoading: true)
     }
 
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+        // Committed, then failed: whatever came is on the page.
+        painted()
         delegate?.webPage(self, didFinishLoading: false)
     }
 

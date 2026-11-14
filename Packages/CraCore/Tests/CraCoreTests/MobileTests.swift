@@ -619,14 +619,118 @@ struct MobileSpacesTests {
         let (document, folder) = Self.sidebar()
         let spaces = MobileSpaces.spaces(in: document)
         #expect(spaces.map(\.title) == ["Personal", "Play"])
-        #expect(spaces[0].rows.map(\.title) == ["Inbox", "Work", "Docs", "Today", "news.example"])
-        #expect(spaces[0].rows.map(\.depth) == [0, 0, 1, 0, 0])
-        #expect(spaces[0].rows[0].kind == .tab(url: "https://mail.example/inbox"))
-        #expect(spaces[0].rows[3].kind == .todayHeader)
-        #expect(spaces[1].rows.isEmpty)
+        // A Mac that sends no layout (before 14 Nov 2026): every folder open, as the phone had them.
+        #expect(spaces[0].rows.map(\.title) == ["Pinned", "Inbox", "Work", "Docs", "Today", "news.example"])
+        #expect(spaces[0].rows.map(\.depth) == [0, 0, 0, 1, 0, 0])
+        #expect(spaces[0].rows[0].kind == .pinnedHeader(open: true) && spaces[0].rows[0].count == 2)
+        #expect(spaces[0].rows[1].kind == .tab(url: "https://mail.example/inbox"))
+        #expect(spaces[0].rows[2].kind == .folder(open: true) && spaces[0].rows[2].count == 1)
+        #expect(spaces[0].rows[4].kind == .todayHeader)
+        #expect(spaces[1].rows.isEmpty && spaces[1].favorites.isEmpty)
         #expect(spaces[0].colors == SpaceTheme.presets[0].colors)
-        let closed = MobileSpaces.spaces(in: document, closedFolders: [folder])
-        #expect(closed[0].rows.map(\.title) == ["Inbox", "Work", "Today", "news.example"])
+        let closed = MobileSpaces.spaces(in: document, toggled: [folder: false])
+        #expect(closed[0].rows.map(\.title) == ["Pinned", "Inbox", "Work", "Today", "news.example"])
+        #expect(closed[0].rows[2].kind == .folder(open: false) && closed[0].rows[2].isOpen == false)
+        let folded = MobileSpaces.spaces(in: document, toggled: [document.spaces[0].pinnedContainerID: false])
+        #expect(folded[0].rows.map(\.title) == ["Pinned", "Today", "news.example"], "the Pinned header folds the pinned area away")
+    }
+
+    /// The Mac's whole sidebar (14 Nov 2026): Favorites as tiles, nested folders open as the Mac
+    /// has them, Today's sections under their headers, collapsed where the Mac collapsed them.
+    @Test func aSpaceShowsTheMacsFoldersAndSectionsAsTheMacHasThem() {
+        var (document, folder) = Self.sidebar()
+        let space = document.spaces[0]
+        let favorite = SidebarItem.tab("https://calendar.example/", title: "Calendar", parent: space.favoritesContainerID)
+        var inner = SidebarItem.folder("Specs", parent: folder)
+        let spec = SidebarItem.tab("https://specs.example/", title: "Spec", parent: inner.id)
+        inner.children = [spec.id]
+        var section = SidebarItem.tabGroup("Research", parent: space.todayContainerID)
+        let paper = SidebarItem.tab("https://papers.example/", title: "Paper", parent: section.id)
+        section.children = [paper.id]
+        document.items += [favorite, inner, spec, section, paper]
+        func append(_ child: UUID, to parent: UUID) {
+            document.items[document.items.firstIndex { $0.id == parent }!].children.append(child)
+        }
+        append(favorite.id, to: space.favoritesContainerID)
+        append(inner.id, to: folder)
+        append(section.id, to: space.todayContainerID)
+
+        var prefs = WindowPrefs()
+        prefs.expandedFolders = [folder, UUID()]
+        prefs.collapsedTabGroups = [section.id]
+        let synced = document.withLayout(from: prefs)
+        #expect(synced.layout == SidebarLayout(expandedFolders: [folder], collapsedSections: [section.id]),
+                "only the folders and sections in the sidebar go into the layout")
+
+        let shown = MobileSpaces.spaces(in: synced)[0]
+        #expect(shown.favorites.map(\.title) == ["Calendar"] && shown.favorites[0].url == "https://calendar.example/")
+        #expect(shown.rows.map(\.title) == ["Pinned", "Inbox", "Work", "Docs", "Specs", "Today", "news.example", "Research"])
+        #expect(shown.rows.map(\.depth) == [0, 0, 0, 1, 1, 0, 0, 0])
+        #expect(shown.rows[2].count == 2, "a folder counts the tabs in its folders too")
+        #expect(shown.rows[4].kind == .folder(open: false), "a folder the Mac keeps shut is shut")
+        #expect(shown.rows[7].kind == .section(open: false) && shown.rows[7].count == 1)
+
+        let opened = MobileSpaces.spaces(in: synced, toggled: [inner.id: true, section.id: true])[0]
+        #expect(opened.rows.map(\.title) == ["Pinned", "Inbox", "Work", "Docs", "Specs", "Spec", "Today", "news.example", "Research", "Paper"])
+        #expect(opened.rows.last?.depth == 0, "a section's tabs line up under its header")
+
+        // Pinned collapsed on the Mac: the phone shows it collapsed.
+        prefs.collapsedPinnedSpaces = [space.id]
+        let collapsed = MobileSpaces.spaces(in: document.withLayout(from: prefs))[0]
+        #expect(collapsed.rows.first?.kind == .pinnedHeader(open: false) && collapsed.rows[1].kind == .todayHeader)
+        #expect(MobileSpaces.isOpenOnMac(space.pinnedContainerID, in: document.withLayout(from: prefs)) == false)
+        #expect(MobileSpaces.isOpenOnMac(paper.id, in: synced) == nil)
+    }
+
+    /// What the phone opened or shut stays when a newer sidebar comes, unless the Mac opened or
+    /// shut that row itself since.
+    @Test func thePhonesChoicesGiveWayToTheMacsNewerOnes() {
+        let (document, folder) = Self.sidebar()
+        let other = UUID()
+        let before = document.withLayout(from: WindowPrefs())
+        let unchanged = MobileSpaces.keptToggles([folder: true, other: true], from: before, to: before)
+        #expect(unchanged == [folder: true], "a choice stands while the Mac shows that row as before; a gone row's goes")
+        var prefs = WindowPrefs()
+        prefs.expandedFolders = [folder]
+        #expect(MobileSpaces.keptToggles([folder: false], from: before, to: document.withLayout(from: prefs)).isEmpty,
+                "the Mac opened the folder since: its newer state wins")
+        #expect(MobileSpaces.keptToggles([folder: false], from: nil, to: before).isEmpty)
+    }
+
+    /// The synced sidebar's layout is read by a phone that knows it and passed over by one that
+    /// doesn't; a sidebar.json without it reads as before.
+    @Test func theLayoutTravelsInTheSyncedFileOnly() throws {
+        let (document, folder) = Self.sidebar()
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        encoder.outputFormatting = [.sortedKeys]
+        let plain = String(decoding: try encoder.encode(document), as: UTF8.self)
+        #expect(!plain.contains("\"layout\""), "the data folder's sidebar.json is unchanged")
+        var prefs = WindowPrefs()
+        prefs.expandedFolders = [folder]
+        let synced = try encoder.encode(document.withLayout(from: prefs))
+        #expect(MobileSpaces.document(from: synced)?.layout?.expandedFolders == [folder])
+        // A newer Mac's extra list, or a list this phone can't read, leaves the rest.
+        let newer = Data(#"{"expandedFolders":["\#(folder.uuidString)"],"collapsedSections":7,"later":[1]}"#.utf8)
+        let layout = try JSONDecoder().decode(SidebarLayout.self, from: newer)
+        #expect(layout.expandedFolders == [folder] && layout.collapsedSections.isEmpty)
+    }
+
+    /// The line over the Spaces: when the Mac wrote what the phone shows.
+    @Test func theSyncLineSaysHowFreshTheSpacesAre() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        #expect(MobileSpaces.updatedLabel(writtenAt: now.addingTimeInterval(-5), now: now) == "Updated just now")
+        #expect(MobileSpaces.updatedLabel(writtenAt: now.addingTimeInterval(20), now: now) == "Updated just now", "a Mac clock a little ahead")
+        #expect(MobileSpaces.updatedLabel(writtenAt: now.addingTimeInterval(-61), now: now) == "Updated 1 min ago")
+        #expect(MobileSpaces.updatedLabel(writtenAt: now.addingTimeInterval(-59 * 60), now: now) == "Updated 59 min ago")
+        #expect(MobileSpaces.updatedLabel(writtenAt: now.addingTimeInterval(-3 * 3600), now: now) == "Updated 3 hr ago")
+        #expect(MobileSpaces.updatedLabel(writtenAt: now.addingTimeInterval(-30 * 3600), now: now) == "Updated yesterday")
+        #expect(MobileSpaces.updatedLabel(writtenAt: now.addingTimeInterval(-5 * 86400), now: now) == "Updated 5 days ago")
+        let manifest = SyncManifest(device: "Studio", deviceID: "studio", writtenAt: now, files: [:])
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        #expect(MobileSpaces.writtenAt(manifest: try! encoder.encode(manifest)) == now)
+        #expect(MobileSpaces.writtenAt(manifest: Data("{}".utf8)) == nil)
     }
 
     @Test func theSyncedFileReadsBack() throws {
@@ -645,6 +749,29 @@ struct MobileSpacesTests {
         let document = try #require(MobileSpaces.document(from: Data(contentsOf: url)))
         #expect(!document.spaces.isEmpty)
         #expect(!MobileSpaces.spaces(in: document).isEmpty)
+    }
+}
+
+/// The page-loading bar along the top of the bar under the page (14 Nov 2026).
+struct MobileLoadingProgressTests {
+    @Test func theBarAnswersATapAtOnceAndNeverRunsBackwards() {
+        var bar = MobileLoadingProgress()
+        #expect(bar.update(progress: 0, isLoading: false) == .hidden)
+        #expect(bar.update(progress: 0, isLoading: true) == .show(fraction: MobileLoadingProgress.minimum, restart: true))
+        #expect(bar.update(progress: 0.5, isLoading: true) == .show(fraction: 0.5, restart: false))
+        #expect(bar.update(progress: 0.4, isLoading: true) == .show(fraction: 0.5, restart: false), "a wobble doesn't shrink it")
+        #expect(bar.update(progress: 0.1, isLoading: true) == .show(fraction: 0.1, restart: true), "a new navigation starts it again")
+        #expect(bar.update(progress: 2, isLoading: true) == .show(fraction: 1, restart: false))
+        #expect(bar.update(progress: 1, isLoading: false) == .finish)
+        #expect(!bar.isShowing && bar.update(progress: 1, isLoading: false) == .hidden, "it finishes once")
+    }
+
+    @Test func anotherTabsLoadIsTakenUpWhereItIs() {
+        var bar = MobileLoadingProgress()
+        _ = bar.update(progress: 0.9, isLoading: true)
+        #expect(bar.follow(progress: 0.3, isLoading: true) == .show(fraction: 0.3, restart: true))
+        #expect(bar.follow(progress: 1, isLoading: false) == .hidden && !bar.isShowing)
+        #expect(bar.update(progress: .nan, isLoading: true) == .show(fraction: MobileLoadingProgress.minimum, restart: true))
     }
 }
 
@@ -1006,6 +1133,16 @@ struct MobileSpacesSheetTests {
         #expect(MobileSpaces.sheetStyle(colors: ["#8A57B5"])?.lightText == true, "a purple like Arc Search's")
         #expect(MobileSpaces.sheetStyle(colors: ["#C7CAFF", "#FFE5E5"])?.lightText == false)
         #expect(MobileSpaces.sheetStyle(colors: []) == nil)
+    }
+
+    /// A page opened from a Space waits on the Space's colour, dark on a dark phone.
+    @Test func aPageFromASpaceWaitsOnItsColour() {
+        #expect(MobileSpaces.coverColor(colors: ["#8A57B5"], dark: false) == MobileSpaces.sheetStyle(colors: ["#8A57B5"])?.fill)
+        let dark = MobileSpaces.coverColor(colors: ["#8A57B5"], dark: true)
+        #expect(dark == "#342842")
+        #expect((HexColor.luminance(dark!) ?? 1) < 0.2, "never a pale flash in dark mode")
+        #expect(MobileSpaces.coverColor(colors: ["#FFFFFF"], dark: true).flatMap(HexColor.luminance) ?? 1 < 0.35, "a white Space a dim grey")
+        #expect(MobileSpaces.coverColor(colors: [], dark: false) == nil && MobileSpaces.coverColor(colors: [], dark: true) == nil)
     }
 }
 

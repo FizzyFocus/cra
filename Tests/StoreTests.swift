@@ -2034,6 +2034,55 @@ enum StoreTests {
         syncPutsAMixedBundleRight()
         syncPutsAFileThatNeverArrivesRight()
         syncLeavesAMixToItsWriterOnANewMac()
+        syncWritesAChangeAtOnce()
+    }
+
+    /// A change here reaches the folder `writeDelay` after it, without waiting for the 30-second
+    /// look, and a burst of changes goes up once (14 Nov 2026). The synced sidebar carries what the
+    /// sidebar shows open (SidebarLayout) for the iPhone; the data folder's sidebar.json doesn't.
+    @MainActor
+    private static func syncWritesAChangeAtOnce() {
+        let folder = SyncFolder()
+        try? FileManager.default.createDirectory(at: folder.root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder.root) }
+        let clock = ManualScheduler()
+        let store = SidebarStore(clock: clock)
+        let sync = SettingsSyncService(store: store, clock: clock, device: "Studio", deviceID: "studio")
+        expect(sync.enable(folder: folder.root) == .synced, "the Mac syncs through a folder")
+        clock.advance(by: 1)
+        let written = folder.manifest?.writtenAt
+        let space = store.focusedSpaceID(window: nil)
+        let pinned = store.space(space)!.pinnedContainerID
+        let made = store.createFolder(named: "Quick", in: pinned)
+        let tab = store.createTab(url: "https://example.com/quick", in: space, pinned: true, select: false, parent: made.id)
+        clock.advance(by: SettingsSyncService.writeDelay / 2)
+        expect(!folder.sidebarHas(made.id), "a burst is written once it is over, not change by change")
+        clock.advance(by: SettingsSyncService.writeDelay)
+        expect(folder.sidebarHas(made.id) && folder.sidebarHas(tab.id) && folder.whole,
+               "a new folder and its pinned tab are in the folder a moment later, as a whole bundle")
+        expect(folder.manifest?.writtenAt != written, "dated when they went up")
+        expect(syncedLayout(folder)?.expandedFolders.contains(made.id) == true, "with the folder open, as the sidebar shows it")
+
+        store.setExpanded(made.id, false)
+        store.togglePinnedCollapsed(space)
+        clock.advance(by: SettingsSyncService.writeDelay + 0.01)
+        let layout = syncedLayout(folder)
+        expect(layout?.expandedFolders.contains(made.id) == false && layout?.collapsedPinnedSpaces.contains(space) == true,
+               "closing the folder and collapsing Pinned reach the iPhone too")
+        expect(store.document.layout == nil, "the data folder's sidebar.json has no layout")
+
+        let manifest = folder.data(SettingsSync.manifestName)
+        clock.advance(by: 5)
+        expect(folder.data(SettingsSync.manifestName) == manifest, "nothing changed, nothing written")
+        sync.disable()
+        _ = store.createFolder(named: "After", in: pinned)
+        clock.advance(by: 1)
+        expect(folder.data(SettingsSync.manifestName) == manifest, "with sync off a change stays on the Mac")
+    }
+
+    private static func syncedLayout(_ folder: SyncFolder) -> SidebarLayout? {
+        let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .iso8601
+        return folder.data(SettingsSync.sidebarName).flatMap { try? decoder.decode(SidebarDocument.self, from: $0) }?.layout
     }
 
     /// iCloud is the same bundle in the app's container, with two differences a test folder can
