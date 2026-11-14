@@ -2276,7 +2276,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             // space's list, below the last row, or on the top or the middle of the row whose tab's URL
             // holds the text (#419).
             if let url = dict["dropLink"] {
-                main.testDropLink(url, name: dict["name"], row: dict["before"] ?? dict["onto"], onto: dict["onto"] != nil)
+                // endOf=<section>: let go on that section's end line (Pane's sections).
+                main.testDropLink(url, name: dict["name"], row: dict["before"] ?? dict["onto"] ?? dict["endOf"], onto: dict["onto"] != nil,
+                                  sectionEnd: dict["endOf"] != nil)
                 return
             }
             if dict["windows"] != nil {

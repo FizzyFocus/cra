@@ -707,7 +707,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
     /// `cra://debug?dropLink`: a link from a page or another app let go on the focused space's list
     /// (#419), from a pasteboard holding what Mail or a page's link drag holds: its address and,
     /// with `name`, its text. It goes through the drop's own pasteboard read, placement and tab.
-    func testDropLink(_ url: String, name: String?, row text: String?, onto: Bool) {
+    func testDropLink(_ url: String, name: String?, row text: String?, onto: Bool, sectionEnd: Bool = false) {
         func list(in v: NSView) -> SpaceListView? {
             if let l = v as? SpaceListView, l.spaceID == focusedSpaceID { return l }
             return v.subviews.lazy.compactMap { list(in: $0) }.first
@@ -721,7 +721,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
         if let name { item.setString(name, forType: .urlName) }
         pb.writeObjects([item])
         guard let link = SpaceListView.link(on: pb) else { CraLog.note("dropLink: refused \(url)"); return }
-        guard let point = l.testDropPoint(row: text, onto: onto) else { CraLog.note("dropLink: no row with \(text ?? "")"); return }
+        guard let point = l.testDropPoint(row: text, onto: onto, sectionEnd: sectionEnd) else { CraLog.note("dropLink: no row with \(text ?? "")"); return }
         let drop = l.resolve(dragged: SidebarListDrop.link, at: point)
         CraLog.note("dropLink: line \(l.testLineInsets(drop))")
         // Where the tab landed, read back from the store: its folder's name, or its section, and its place there.

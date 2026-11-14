@@ -1311,7 +1311,15 @@ final class SpaceListView: NSView, NSDraggingSource {
     /// `cra://debug?dropLink`: where a link is let go, in the list's coordinates: on the upper
     /// part of the row whose tab's address holds `text` (or the folder named `text`), on its middle
     /// (`onto`), or below the last row.
-    func testDropPoint(row text: String?, onto: Bool) -> CGPoint? {
+    func testDropPoint(row text: String?, onto: Bool, sectionEnd: Bool = false) -> CGPoint? {
+        // Pane: the end line (┄) of the section named `text`.
+        if sectionEnd, let text {
+            guard let r = rows.first(where: { r in
+                if case .sectionEnd(let id) = r.key { return store.item(id)?.title == text }
+                return false
+            }) else { return nil }
+            return CGPoint(x: r.frame.midX, y: r.frame.midY)
+        }
         if let text {
             guard let r = rows.first(where: { $0.itemID.flatMap(store.item).map { $0.tab?.url.contains(text) ?? ($0.isFolder && $0.title == text) } == true })
             else { return nil }

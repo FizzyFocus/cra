@@ -1,0 +1,38 @@
+# Pane's sections and links dragged in (#419, the owner's spec, 13 Nov 2026): a link let go on a tab
+# inside a section, or on a section's header, goes into that section; one let go on the section's end
+# line (┄) goes right after it, ungrouped, and one by a loose tab stays loose. Dragging the section
+# itself still moves only it and its own tabs.
+budget rss=800 stalls50=30
+pace 0.5
+seed settings.json {"hasSeenImportPrompt": true, "toolbarDefaultMigrated": true, "showToolbar": false}
+
+cra://open?url=${PAGE}?n=1
+expect-log loaded 127\.0\.0\.1 \(HTTP 200\)
+cra://open?url=${PAGE}?n=2
+cra://open?url=${PAGE}?n=3
+cra://open?url=${PAGE}?n=4
+wait 2
+cra://debug?newSection=Mine&tabs=2
+wait 0.5
+cra://debug?listRows=made
+expect-log list rows made: §Mine \| n=4 \| n=3 \| ┄ \| n=2 \| n=1$
+# On a tab inside the section (its top quarter): into the section, before that tab.
+cra://debug?dropLink=${PAGE}?n=inside&before=n=3
+expect-log dropLink: opened \S*n=inside in Mine at 1$
+# On the section's header: into it, at the top.
+cra://debug?dropLink=${PAGE}?n=header&onto=Mine
+expect-log dropLink: opened \S*n=header in Mine at 0$
+# On its end line: right after the section, ungrouped.
+cra://debug?dropLink=${PAGE}?n=after&endOf=Mine
+expect-log dropLink: opened \S*n=after in Today at 1$
+# By a loose tab: loose, before it.
+cra://debug?dropLink=${PAGE}?n=loose&before=n=1
+wait 1
+cra://debug?todayRows=dropped
+expect-log today rows dropped: §Mine\[n=header,n=4,n=inside,n=3\] \| n=after \| n=2 \| n=loose \| n=1$
+# The section dragged to the end: it and its own tabs move, the links it took in with them.
+cra://debug?dragRow=0&onto=8&at=0.9
+wait 0.5
+cra://debug?todayRows=sectionMoved
+expect-log today rows sectionMoved: n=after \| n=2 \| n=loose \| n=1 \| §Mine\[n=header,n=4,n=inside,n=3\]$
+reject-log fault:
