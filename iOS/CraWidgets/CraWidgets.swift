@@ -2,10 +2,10 @@ import AppIntents
 import SwiftUI
 import WidgetKit
 
-/// Cra's widgets, after Arc Search's: a small one that opens the app ready to search, a medium
+/// Pane's widgets, after Arc Search's: a small one that opens the app ready to search, a medium
 /// one with a search field and Voice and Spaces buttons, and one for the Lock Screen. They show
 /// nothing that changes, so one timeline entry is all there is; each part is a link into the app
-/// (`cra://search`, `cra://voice`, `cra://spaces`).
+/// (`pane://search`, `pane://voice`, `pane://spaces`).
 @main
 struct CraWidgetBundle: WidgetBundle {
     var body: some Widget {
@@ -15,11 +15,11 @@ struct CraWidgetBundle: WidgetBundle {
 
 struct SearchWidget: Widget {
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: "dk.kildahl.cra.search", provider: StillProvider()) { _ in
+        StaticConfiguration(kind: "uz.pane.ios.search", provider: StillProvider()) { _ in
             SearchWidgetView()
         }
-        .configurationDisplayName("Cra")
-        .description("Open Cra")
+        .configurationDisplayName("Pane")
+        .description("Open Pane")
         .supportedFamilies([.systemSmall, .systemMedium, .accessoryCircular, .accessoryRectangular])
         // The capsule runs off the right edge: the widget lays itself out edge to edge.
         .contentMarginsDisabled()
@@ -39,9 +39,9 @@ struct StillProvider: TimelineProvider {
 }
 
 enum WidgetLink {
-    static let search = URL(string: "cra://search")!
-    static let voice = URL(string: "cra://voice")!
-    static let spaces = URL(string: "cra://spaces")!
+    static let search = URL(string: "pane://search")!
+    static let voice = URL(string: "pane://voice")!
+    static let spaces = URL(string: "pane://spaces")!
 }
 
 struct SearchWidgetView: View {

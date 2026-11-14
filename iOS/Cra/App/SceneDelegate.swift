@@ -39,11 +39,11 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
         guard let context = URLContexts.first else { return }
         let url = context.url
-        if url.scheme == "cra" {
+        if url.scheme == "pane" {
             guard var action = LaunchAction(link: url) else { return }
             // Another app may bring the search sheet up, but not start the microphone: only
-            // Cra's own widget does that.
-            let fromElsewhere = context.options.sourceApplication.map { !$0.hasPrefix("dk.kildahl.cra") } ?? false
+            // Pane's own widget does that.
+            let fromElsewhere = context.options.sourceApplication.map { !$0.hasPrefix("uz.pane.ios") } ?? false
             if fromElsewhere, action == .voiceSearch { action = .search(nil) }
             LaunchAction.perform(action)
             return

@@ -20,10 +20,10 @@ enum LaunchAction: Equatable {
         NotificationCenter.default.post(name: notification, object: nil)
     }
 
-    /// A widget's link: `cra://search`, `cra://voice`, `cra://spaces`. Nothing else in the `cra`
+    /// A widget's link: `pane://search`, `pane://voice`, `pane://spaces`. Nothing else in the `pane`
     /// scheme does anything, so a page or another app can't steer the browser through it.
     init?(link: URL) {
-        guard link.scheme == "cra" else { return nil }
+        guard link.scheme == "pane" else { return nil }
         switch link.host {
         case "search": self = .search(nil)
         case "voice": self = .voiceSearch
@@ -45,7 +45,7 @@ enum LaunchAction: Equatable {
 
 struct SearchIntent: AppIntent {
     static let title: LocalizedStringResource = "Search"
-    static let description = IntentDescription("Opens Cra ready to search, or searches for what you give it.")
+    static let description = IntentDescription("Opens Pane ready to search, or searches for what you give it.")
     static let openAppWhenRun = true
 
     @Parameter(title: "Search for")
@@ -76,7 +76,7 @@ struct BrowseForMeIntent: AppIntent {
 
 struct VoiceSearchIntent: AppIntent {
     static let title: LocalizedStringResource = "Voice Search"
-    static let description = IntentDescription("Opens Cra listening for what to search for.")
+    static let description = IntentDescription("Opens Pane listening for what to search for.")
     static let openAppWhenRun = true
 
     @MainActor

@@ -2,9 +2,9 @@ import CraCore
 import UIKit
 import UniformTypeIdentifiers
 
-/// "Cra" in other apps' share sheets: Arc Search's "Saved" screen, measured from TidBITS'
+/// "Pane" in other apps' share sheets: Arc Search's "Saved" screen, measured from TidBITS'
 /// April 2024 screenshot. A heart with a check, "Saved", a picker of where the link goes (it
-/// remembers the last place), and Done. Done keeps the link in the App Group's inbox for the app;
+/// remembers the last place), and Done. Done keeps the link in the inbox for the app (a Keychain item both claim, MobileShareInbox);
 /// swiping the sheet down leaves without saving, as in Arc Search.
 final class ShareViewController: UIViewController, UIAdaptivePresentationControllerDelegate {
     private let backdrop = SavedBackdropView()
@@ -18,9 +18,6 @@ final class ShareViewController: UIViewController, UIAdaptivePresentationControl
     private var linkTitle = ""
     private var destination: MobileShareInbox.Destination = .tabs
 
-    private var inboxFolder: URL? {
-        FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: MobileShareInbox.appGroup)
-    }
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -57,9 +54,7 @@ final class ShareViewController: UIViewController, UIAdaptivePresentationControl
         doneButton.addTarget(self, action: #selector(doneTapped), for: .touchUpInside)
         view.addSubview(doneButton)
 
-        if let folder = inboxFolder {
-            destination = MobileShareInbox.update(in: folder) { (inbox: inout MobileShareInbox) in inbox.lastDestination } ?? .tabs
-        }
+        destination = MobileShareInbox.updateInKeychain { (inbox: inout MobileShareInbox) in inbox.lastDestination }
         updatePicker()
         loadLink()
     }
@@ -129,10 +124,10 @@ final class ShareViewController: UIViewController, UIAdaptivePresentationControl
     }
 
     @objc private func doneTapped() {
-        if let link, let folder = inboxFolder {
+        if let link {
             let title = linkTitle
             let place = destination
-            MobileShareInbox.update(in: folder) { (inbox: inout MobileShareInbox) in
+            MobileShareInbox.updateInKeychain { (inbox: inout MobileShareInbox) in
                 inbox.save(url: link.absoluteString, title: title, to: place, at: Date())
             }
         }

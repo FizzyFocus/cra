@@ -4,8 +4,10 @@
 <dict>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
+	<key>PaneKeychainGroup</key>
+	<string>$(AppIdentifierPrefix)uz.pane.ios.shared</string>
 	<key>CFBundleDisplayName</key>
-	<string>Cra</string>
+	<string>Pane</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>

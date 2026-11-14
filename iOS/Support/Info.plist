@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-	<string>Cra</string>
+	<string>Pane</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -35,12 +35,12 @@
 		</dict>
 		<dict>
 			<key>CFBundleURLName</key>
-			<string>dk.kildahl.cra</string>
+			<string>uz.pane.ios</string>
 			<key>CFBundleTypeRole</key>
 			<string>Viewer</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>cra</string>
+				<string>pane</string>
 			</array>
 		</dict>
 	</array>
@@ -48,14 +48,17 @@
 	<true/>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>
+	<!-- The Keychain group the share inbox lives in (MobileShareInbox), with the team prefix. -->
+	<key>PaneKeychainGroup</key>
+	<string>$(AppIdentifierPrefix)uz.pane.ios.shared</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Cra listens when you search by voice.</string>
+	<string>Pane listens when you search by voice.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>Cra turns what you say into a search, on this device.</string>
+	<string>Pane turns what you say into a search, on this device.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
