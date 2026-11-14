@@ -2343,8 +2343,9 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
     /// screenshot. Answers within `PeekSource.wait` whatever Chromium does: nil without a link (the
     /// Peek then grows from the whole area), no picture when the screenshot is late.
     func peekSource(fromTab tabID: UUID?, completion: @escaping (PeekSource?) -> Void) {
-        guard let tabID, let window, let rt = browsers.runtimes[tabID], let host = rt.hostWindow, host.parent === window,
-              host.isVisible, rt.browser.isCreated, !rt.browser.isClosed else {
+        // The page's frame on screen, not its Chrome window's: the Chromium engine has no window per page.
+        guard let tabID, let window, let rt = browsers.runtimes[tabID], rt.pageWindow === window,
+              let pageFrame = rt.pageScreenFrame, rt.browser.isCreated, !rt.browser.isClosed else {
             CraLog.note("peek: from the click (no page to find the link in)")
             completion(nil)
             return
@@ -2354,7 +2355,6 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
                 ?? "peek: from the click (no link under the pointer or focused)")
             completion(source)
         }
-        let pageFrame = host.frame
         let m = NSEvent.mouseLocation
         let pointer = pageFrame.contains(m)
             ? CGPoint(x: (m.x - pageFrame.minX) / pageFrame.width, y: (pageFrame.maxY - m.y) / pageFrame.height) : nil
@@ -2390,18 +2390,18 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
     /// Where the link a Peek came from is now (the page may have scrolled), in this window's
     /// coordinates; nil when it's gone, off the page or Chromium doesn't answer in time.
     func peekSourceAgain(_ source: PeekSource, completion: @escaping (NSRect?) -> Void) {
-        guard let window, let rt = browsers.runtimes[source.tabID], let host = rt.hostWindow, host.parent === window,
-              host.isVisible, rt.browser.isCreated, !rt.browser.isClosed else { completion(nil); return }
+        guard let window, let rt = browsers.runtimes[source.tabID], rt.pageWindow === window, rt.pageScreenFrame != nil,
+              rt.browser.isCreated, !rt.browser.isClosed else { completion(nil); return }
         var answered = false
         let params = (try? JSONSerialization.data(withJSONObject: ["expression": PeekLayout.sourceAgainScript, "returnByValue": true]))
             .flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
-        rt.browser.evaluate(inIsolatedWorld: PageScript.world, params: params) { [weak window, weak host] result, _ in
+        rt.browser.evaluate(inIsolatedWorld: PageScript.world, params: params) { [weak window, weak rt] result, _ in
             let found = PeekSource.value(result).flatMap(PeekLayout.fraction(fromScript:))
             DispatchQueue.main.async {
                 guard !answered else { return }
                 answered = true
-                guard let window, let host, let found else { completion(nil); return }
-                completion(PeekLayout.source(fraction: found, in: window.convertFromScreen(host.frame)))
+                guard let window, let frame = rt?.pageScreenFrame, let found else { completion(nil); return }
+                completion(PeekLayout.source(fraction: found, in: window.convertFromScreen(frame)))
             }
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + PeekSource.wait) {
