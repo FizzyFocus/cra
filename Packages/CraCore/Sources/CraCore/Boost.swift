@@ -143,6 +143,8 @@ public enum BoostEditorMotion {
     public static let openDuration = 0.28
     public static let widenDuration = 0.35
     public static let narrowDuration = 0.13
+    /// Another boost picked in the editor's name menu: the panel stays and its controls cross-fade (13 Nov 2026).
+    public static let switchDuration = 0.2
     /// The quadratic ease-out as a cubic Bézier's control points (x1, y1, x2, y2).
     public static let easeOut = (0.25, 0.46, 0.45, 0.94)
     /// The panel's anchor while it grows, in its own unit square from the bottom left.

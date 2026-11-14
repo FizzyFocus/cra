@@ -31,13 +31,20 @@ cra://debug?cdp=Runtime.evaluate&params={"expression":"['off',getComputedStyle(d
 expect-log Cra cdp Runtime.evaluate .*"value":"off-rgb\(1, 2, 3\)-block"
 cra://debug?boostMenu=toggle
 wait 0.5
-# The name menu: the first boost, then a third.
+# The name menu: the first boost, then a third, in the same panel where it was (13 Nov 2026: it closed
+# and opened again, jumping mid-animation); only the controls cross-fade.
+cra://debug?boostEditorPanel=before
+expect-log boost editor panel before: 1 made, at
 cra://debug?boostMenu=My Boost
+cra://debug?boostEditorPanel=mid
 expect-log boost editor switched to My Boost
+expect-log boost editor panel mid: 1 made, at .* alpha=1\.0$
 cra://debug?boostEditor=switched
 expect-log boost editor switched: open My Boost zapped=0
 cra://debug?boostMenu=new
 expect-log boost editor made My Boost 3 for 127\.0\.0\.1
+cra://debug?boostEditorPanel=made
+expect-log boost editor panel made: 1 made, at
 cra://debug?boostsFor=127.0.0.1
 expect-log boosts for 127\.0\.0\.1: My Boost\(on, 0 zapped\) \| My Boost 2\(on, 1 zapped\) \| My Boost 3\(on, 0 zapped\)$
 # The page goes to another site: the editor closes.

@@ -1297,6 +1297,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             if let row = dict["boostMenu"] { BoostEditorController.shared.debugMenu(row); return }
             // boostEditorClick=Power: a click posted on the editor header's power button; boostFlip=<host>: the
             // site's boost turned off or on as Library ▸ Boosts' switch does it, past the editor (13 Nov 2026).
+            // boostEditorPanel=<label>: panels made so far and where the open one is (a switch keeps it).
+            if let label = dict["boostEditorPanel"] { CraLog.note("boost editor panel \(label): \(BoostEditorController.shared.debugPanel)"); return }
             if let t = dict["boostEditorClick"] { CraLog.note("boost editor click: \(BoostEditorController.shared.debugClick(t))"); return }
             if let host = dict["boostFlip"] {
                 guard var b = BoostStore.shared.boost(forHost: host) else { CraLog.note("boost flip: no boost for \(host)"); return }

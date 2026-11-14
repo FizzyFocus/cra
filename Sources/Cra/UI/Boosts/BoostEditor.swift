@@ -14,6 +14,10 @@ final class BoostEditorController {
     static let shared = BoostEditorController()
     private var panel: NSPanel?
     private var model: BoostEditorModel?
+    /// What the panel shows: switching boosts swaps its model, not the panel.
+    private var session: BoostEditorSession?
+    /// Panels made since launch (a scenario's proof that a switch keeps the panel).
+    private var panelsMade = 0
 
     private init() {
         // Library ▸ Boosts turning the open boost off or on, or deleting it (13 Nov 2026).
@@ -50,25 +54,8 @@ final class BoostEditorController {
 
     func open(_ boost: Boost, over window: NSWindow, page: PageActions) {
         close()
-        let m = BoostEditorModel(boost: boost)
-        m.page = page
-        m.devToolsOpen = page.devToolsOpen()
-        m.onClose = { [weak self] in self?.close() }
-        // Another of the site's boosts, or a new one for it, in the editor in its place (13 Nov 2026).
-        m.onSwitch = { [weak self, weak window] id in
-            guard let self, let window, let b = BoostStore.shared.boost(id) else { return }
-            BoostStore.shared.noteOpened(b)
-            self.open(b, over: window, page: page)
-            CraLog.note("boost editor switched to \(b.name)")
-        }
-        m.onNewBoost = { [weak self, weak window, weak m] in
-            guard let self, let window, let host = m?.boost.host else { return }
-            let b = BoostStore.shared.newBoost(host: host)
-            BoostStore.shared.noteOpened(b)
-            self.open(b, over: window, page: page)
-            CraLog.note("boost editor made \(b.name) for \(host)")
-        }
-        m.onWidth = { [weak self] w in self?.resize(width: w) }
+        let m = makeModel(boost, over: window, page: page)
+        let s = BoostEditorSession(model: m)
         let p = NSPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         p.isFloatingPanel = true
         p.level = .floating
@@ -76,7 +63,7 @@ final class BoostEditorController {
         p.hasShadow = true
         p.isOpaque = false
         p.becomesKeyOnlyIfNeeded = true
-        let host = FirstClickHostingView(rootView: BoostEditorView(model: m))
+        let host = FirstClickHostingView(rootView: BoostEditorRoot(session: s))
         host.sizingOptions = []
         p.contentView = host
         let f = window.frame
@@ -85,7 +72,53 @@ final class BoostEditorController {
         p.orderFront(nil)
         panel = p
         model = m
+        session = s
+        panelsMade += 1
         growIn(p, host)
+    }
+
+    private func makeModel(_ boost: Boost, over window: NSWindow, page: PageActions) -> BoostEditorModel {
+        let m = BoostEditorModel(boost: boost)
+        m.page = page
+        m.devToolsOpen = page.devToolsOpen()
+        m.onClose = { [weak self] in self?.close() }
+        // Another of the site's boosts, or a new one for it, in the editor in its place (13 Nov 2026).
+        m.onSwitch = { [weak self, weak window] id in
+            guard let self, let window, let b = BoostStore.shared.boost(id) else { return }
+            BoostStore.shared.noteOpened(b)
+            self.show(b, over: window, page: page)
+            CraLog.note("boost editor switched to \(b.name)")
+        }
+        m.onNewBoost = { [weak self, weak window, weak m] in
+            guard let self, let window, let host = m?.boost.host else { return }
+            let b = BoostStore.shared.newBoost(host: host)
+            BoostStore.shared.noteOpened(b)
+            self.show(b, over: window, page: page)
+            CraLog.note("boost editor made \(b.name) for \(host)")
+        }
+        m.onWidth = { [weak self] w in self?.resize(width: w) }
+        return m
+    }
+
+    /// Another boost in the open panel (the name menu): the panel stays where it is, without
+    /// growing in again, and the controls cross-fade to the other boost's (13 Nov 2026; it
+    /// closed and opened again, so it jumped mid-animation).
+    private func show(_ boost: Boost, over window: NSWindow, page: PageActions) {
+        guard let panel, panel.parent === window, let session, let old = model else {
+            open(boost, over: window, page: page)
+            return
+        }
+        old.ghost(nil)
+        old.finishZap()
+        old.finishPicking()
+        let m = makeModel(boost, over: window, page: page)
+        model = m
+        if old.showingCode { resize(width: 183) }
+        if NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+            session.model = m
+        } else {
+            withAnimation(.easeInOut(duration: BoostEditorMotion.switchDuration)) { session.model = m }
+        }
     }
 
     private static var easeOut: CAMediaTimingFunction {
@@ -134,9 +167,17 @@ final class BoostEditorController {
         if let panel { panel.parent?.removeChildWindow(panel); panel.orderOut(nil) }
         panel = nil
         model = nil
+        session = nil
     }
 
     var isOpen: Bool { panel != nil }
+
+    /// Scenario hook: how many panels were made, and where the open one is.
+    var debugPanel: String {
+        guard let panel else { return "\(panelsMade) made, closed" }
+        let f = panel.frame
+        return "\(panelsMade) made, at \(Int(f.minX)),\(Int(f.minY)) size \(Int(f.width))x\(Int(f.height)) alpha=\(panel.alphaValue)"
+    }
     /// The browser window it is open over.
     var window: NSWindow? { panel?.parent }
     /// The boost open in the editor.
@@ -387,6 +428,31 @@ private enum BoostStyle {
     static let secondary = Color(white: 0.55)
 }
 
+/// The boost the panel shows (the controller swaps it when the name menu picks another).
+@MainActor
+@Observable
+final class BoostEditorSession {
+    var model: BoostEditorModel
+    init(model: BoostEditorModel) { self.model = model }
+}
+
+/// The panel's card. Its background stays while the boost's controls cross-fade inside it.
+private struct BoostEditorRoot: View {
+    let session: BoostEditorSession
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            BoostEditorView(model: session.model)
+                .id(ObjectIdentifier(session.model))
+                .transition(.opacity)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(BoostStyle.panel))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .environment(\.colorScheme, .light)
+    }
+}
+
 private struct BoostEditorView: View {
     @Bindable var model: BoostEditorModel
     @State private var showColors = false
@@ -407,9 +473,6 @@ private struct BoostEditorView: View {
         // widens or narrows, so both sides are clipped meanwhile.
         .frame(width: model.showingCode ? 480 : 183)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(BoostStyle.panel))
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .environment(\.colorScheme, .light)
     }
 
     /// The code panel's header is only Back and the CSS / JS switch, centred (Arc 1.172.1).
