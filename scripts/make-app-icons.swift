@@ -15,6 +15,12 @@
 // fifth larger than Arc beside it. lint's app-icon-grid rule checks every image.
 // WebKit draws them (SVG filters and blending, as Safari would).
 //   swift scripts/make-app-icons.swift
+// With --ios it draws the iPhone app's instead (14 Nov 2026; upstream's --ios rendered Cra's):
+// 1024 px, square and opaque, the tile edge to edge (iOS cuts the corners itself), into
+// iOS/Cra/Resources/Assets.xcassets as the app icon (Arctic), its alternates (Midnight, Graphite and
+// Rose in the slots upstream named Midnight, Mono and Violet) and the pictures the in-app picker
+// shows; and the mark (the tile with its corners, 256 and 512 px) as LaunchMark and WidgetMark.
+//   swift scripts/make-app-icons.swift --ios
 import AppKit
 import WebKit
 
@@ -85,8 +91,9 @@ let paneMilk = [0.62, 0.82, 1.0]
 /// The orb behind the panes, peeking out past the back pane's top right.
 let orb = (x: 724.0, y: 292.0, r: 156.0)
 
-func iconSVG(_ p: Palette) -> String {
-    let tile = squircle(0, 0, 1024, 1024, 230)
+func iconSVG(_ p: Palette, square: Bool = false) -> String {
+    // Square for iOS, which masks the corners itself (no rim along an edge it cuts off).
+    let tile = square ? "M0 0H1024V1024H0Z" : squircle(0, 0, 1024, 1024, 230)
     var defs = """
     <clipPath id="tile"><path d="\(tile)"/></clipPath>
     <linearGradient id="bg" x1="0.15" y1="0" x2="0.85" y2="1"><stop offset="0" stop-color="\(p.top)"/><stop offset="1" stop-color="\(p.bottom)"/></linearGradient>
@@ -135,7 +142,7 @@ func iconSVG(_ p: Palette) -> String {
         """
         body += pane
     }
-    body += "<path d=\"\(tile)\" fill=\"none\" stroke=\"url(#tileRim)\" stroke-width=\"8\"/>"
+    if !square { body += "<path d=\"\(tile)\" fill=\"none\" stroke=\"url(#tileRim)\" stroke-width=\"8\"/>" }
     return #"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="64" height="64"><defs>"#
         + defs.replacingOccurrences(of: "\n", with: "") + "</defs><g clip-path=\"url(#tile)\">"
         + body.replacingOccurrences(of: "\n", with: "") + "</g></svg>"
@@ -284,14 +291,69 @@ func writeSource(_ svg: String, _ name: String) {
 }
 
 let bundled = iconSVG(palettes[0])
-writeSource(bundled, "pane-icon")
-writeSource(monoSVG(color: "currentColor"), "pane-mark-mono")
-// Icons left from Cra (Segments, Mono, Violet) go: the picker lists only Pane's.
-for old in ["segments", "mono", "violet"] {
-    try? FileManager.default.removeItem(at: root.appendingPathComponent("resources/app-icons/\(old).png"))
+let forIOS = CommandLine.arguments.contains("--ios")
+if !forIOS {
+    writeSource(bundled, "pane-icon")
+    writeSource(monoSVG(color: "currentColor"), "pane-mark-mono")
+    // Icons left from Cra (Segments, Mono, Violet) go: the picker lists only Pane's.
+    for old in ["segments", "mono", "violet"] {
+        try? FileManager.default.removeItem(at: root.appendingPathComponent("resources/app-icons/\(old).png"))
+    }
 }
 
-let jobs = [Job(id: "AppIcon", svg: bundled, pixels: 1024, write: writeICNS)]
+// MARK: iPhone (--ios)
+
+let iosCatalog = root.appendingPathComponent("iOS/Cra/Resources/Assets.xcassets")
+/// The iOS icon set each palette fills: the app's own icon, and the alternates by the names
+/// upstream gave them (MobileAppIcon's cases; their labels are Pane's).
+let iosIcons = [("AppIcon", "arctic"), ("AppIcon-Midnight", "midnight"), ("AppIcon-Mono", "graphite"), ("AppIcon-Violet", "rose")]
+
+/// Redrawn without an alpha channel: iOS (and App Store Connect) wants an opaque icon.
+func opaque(_ rep: NSBitmapImageRep) -> Data {
+    let px = rep.pixelsWide
+    let context = CGContext(data: nil, width: px, height: px, bitsPerComponent: 8, bytesPerRow: 0,
+                            space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)!
+    context.draw(rep.cgImage!, in: CGRect(x: 0, y: 0, width: px, height: px))
+    return NSBitmapImageRep(cgImage: context.makeImage()!).representation(using: .png, properties: [:])!
+}
+
+func writeIOSIcon(_ name: String, _ rep: NSBitmapImageRep) {
+    let png = opaque(rep)
+    // The sets' Contents.json name these files already.
+    for (folder, file) in [("\(name).appiconset", "AppIcon.png"), ("\(name)-Preview.imageset", "icon.png")] {
+        let out = iosCatalog.appendingPathComponent(folder).appendingPathComponent(file)
+        try! png.write(to: out)
+        print("wrote \(out.path) (\(rep.pixelsWide) px)")
+    }
+}
+
+/// The mark (the tile with its corners, clear around them) at 1x or 2x, as the launch screen's and
+/// the widgets' image set.
+func writeIOSMark(_ rep: NSBitmapImageRep, scale: Int) {
+    for set in [iosCatalog.appendingPathComponent("LaunchMark.imageset"),
+                root.appendingPathComponent("iOS/CraWidgets/Assets.xcassets/WidgetMark.imageset")] {
+        for old in ["cra-mark.png", "cra-mark@2x.png"] { try? FileManager.default.removeItem(at: set.appendingPathComponent(old)) }
+        writePNG(rep, to: set.appendingPathComponent(scale == 1 ? "pane-mark.png" : "pane-mark@2x.png"))
+        let info = #"  "info" : { "author" : "xcode", "version" : 1 }"#
+        try! """
+        {
+          "images" : [
+            { "filename" : "pane-mark.png", "idiom" : "universal", "scale" : "1x" },
+            { "filename" : "pane-mark@2x.png", "idiom" : "universal", "scale" : "2x" }
+          ],
+        \(info)
+        }
+
+        """.write(to: set.appendingPathComponent("Contents.json"), atomically: true, encoding: .utf8)
+    }
+}
+
+let iosJobs = iosIcons.map { name, id in
+    Job(id: name, svg: iconSVG(palettes.first { $0.id == id }!, square: true), pixels: 1024, grid: false) { writeIOSIcon(name, $0) }
+} + [Job(id: "mark", svg: bundled, pixels: 256, grid: false) { writeIOSMark($0, scale: 1) },
+     Job(id: "mark@2x", svg: bundled, pixels: 512, grid: false) { writeIOSMark($0, scale: 2) }]
+
+let jobs = forIOS ? iosJobs : [Job(id: "AppIcon", svg: bundled, pixels: 1024, write: writeICNS)]
     + palettes.map { p in
         Job(id: p.id, svg: iconSVG(p), pixels: 512) { writePNG($0, to: root.appendingPathComponent("resources/app-icons/\(p.id).png")) }
     }

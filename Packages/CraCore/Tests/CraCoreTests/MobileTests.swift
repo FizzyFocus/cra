@@ -721,6 +721,8 @@ struct MobileOnboardingTests {
         #expect(MobileAppIcon(alternateName: nil) == .segments)
         #expect(MobileAppIcon(alternateName: "Gone") == .segments)
         #expect(MobileAppIcon.mono.previewName == "AppIcon-Mono-Preview")
+        // Pane's palettes in upstream's four slots (scripts/make-app-icons.swift --ios).
+        #expect(MobileAppIcon.allCases.map(\.label) == ["Arctic", "Midnight", "Graphite", "Rose"])
     }
 }
 

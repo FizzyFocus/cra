@@ -1,6 +1,7 @@
 import Foundation
 
-/// The iPhone app's icons: the Mac app's four.
+/// The iPhone app's icons: Pane's, drawn by scripts/make-app-icons.swift --ios into the slots
+/// upstream named for Cra's four (the cases stay theirs; the labels are Pane's palettes).
 public enum MobileAppIcon: String, CaseIterable, Identifiable {
     case segments, midnight, mono, violet
 
@@ -8,10 +9,10 @@ public enum MobileAppIcon: String, CaseIterable, Identifiable {
 
     public var label: String {
         switch self {
-        case .segments: return "Cra"
+        case .segments: return "Arctic"
         case .midnight: return "Midnight"
-        case .mono: return "Mono"
-        case .violet: return "Violet"
+        case .mono: return "Graphite"
+        case .violet: return "Rose"
         }
     }
 
