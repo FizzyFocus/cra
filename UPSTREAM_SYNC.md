@@ -5,9 +5,9 @@ work **commit by commit and never merges it**: `git merge upstream/main` would w
 (the sidebar, Library drawer, settings tab, themes) and its rebrand. This file is the record of what
 became of every upstream commit, so nothing is ported twice or lost.
 
-- **Decided through:** `935cca1` (13 Nov 2026). Every upstream commit up to it is under Ported or Skipped;
-  after it, up to "Triaged through", each one is Ported, Skipped or Pending.
-- **Triaged through:** `56be95d` (upstream/main on 13 Nov 2026). 11 are Pending (below).
+- **Decided through:** `56be95d` (upstream/main on 13 Nov 2026). Every upstream commit up to it is under
+  Ported or Skipped.
+- **Triaged through:** `56be95d`. Nothing is Pending.
 - **Merge base:** `9927600`.
 
 ## How to sync
@@ -28,7 +28,7 @@ became of every upstream commit, so nothing is ported twice or lost.
 
 ## Ported
 
-### Cherry-picked (107): `git cherry-pick -x`, the trailer names the upstream commit
+### Cherry-picked (118): `git cherry-pick -x`, the trailer names the upstream commit
 
 | Upstream | Pane | What |
 |---|---|---|
@@ -155,6 +155,17 @@ paragraph has the detail:
 | `39aa7bb` | `cc2871fa` | Tab freezing: a page holding a WebSocket is never frozen; tabs past the five used last freeze; closed tabs' memory goes back |
 | `935cca1` | `4757e658` | New tabs: a page made ahead takes the click's 34 ms of window-making off it (spare pages) |
 | `14b921f` | `76b88091` | Player: a notification ding or Web Audio alone makes no sidebar card, as in Arc (#411) |
+| `4ad54a1` | `bfc5f082` | Sidebar: a tab switches on the press, as Arc's does, not on the release |
+| `426c345` | `fc0356b6` | Instant Links: Arc Max's Shift-Return opens the top results, planned by the Mac's Apple Intelligence (#409) |
+| `115a201` | `3ae52cd4` | Sidebar: a link dragged in from a page or another app opens as a tab where it is let go, as in Arc (#419) |
+| `308817d` | `79a1b493` | Sidebar: a link let go on a tab's middle opens nothing, as in Arc (#419) |
+| `c61aab7` | `9a90bb28` | Back and Forward: right-click lists the tab's history, as in Arc (#416) |
+| `3831d67` | `c09fe784` | Air Traffic Control: a URL typed in ⌘T follows a route to a space, as in Arc (#421) |
+| `4e0c10b` | `7547f008` | Sidebar: a link let go on a folder's middle goes in the folder, at the top, as in Arc (#419) |
+| `a4192fe` | `619ba9f2` | Sidebar: the insertion line is Arc's ring and line, from #422 (#419) |
+| `60cf686` | `ea702821` | Split view: drag a sidebar tab or a page's link onto the page to split it, as in Arc (#419) |
+| `20de2af` | `c68b8b97` | Instant Links: a Google /goto result opens its own page, not Google's "verifying your request" first |
+| `2908a25` | `d360d670` | Split view: a tab dragged on to the page's far edge splits on that side, not the region it opened in the middle (#419) |
 
 The 13 Nov 2026 sync (17 picks, branch `upstream-sync-nov13`: the triage's bug fixes and engine/memory
 work, no CEF update) adapted these:
@@ -186,6 +197,26 @@ The CEF pass the same night (3 picks, branch `upstream-cef-codecs7`) took Pane f
   content script sees it as the active tab.
 - `AutofillAiWalletPrivatePasses` is off now (`39aa7bb`); `scenario.sh` has the WebSocket server beside Pane's
   icon-site server; `-ApplePersistenceIgnoreState` stays out with `9d5160d`.
+
+The features pass the same night (11 picks, branch `upstream-group2`; the owner took all of B):
+
+- Tab switch on the press (`4ad54a1`): a press on one of several picked tabs waits for the release
+  (`SidebarRowPress.keepsPicksOnPress`), so a drag from it still carries every pick; scenario `sidebar-press`
+  drives rows through their own mouseDown/mouseUp (`cra://debug?pressRow=`).
+- Instant Links (`426c345`, `20de2af`): the switch sits in `pane://settings` ▸ Max after Tidy Tabs, with its
+  picture and the footer's line about searches; `SettingsBridge.editableKeys` has it; the SwiftUI `MaxPane` and
+  the `Sharing.swift` key list are not in Pane. The command bar keeps Pane's look and tones; only Shift-Return is new.
+- Links dragged into the sidebar (`115a201`…`a4192fe`) follow Pane's sections: into a section on its tabs or
+  header, after it on its end line (┄); `drop-link-sections` checks them and a section drag after
+  (`cra://debug?dropLink` gains `endOf=`). `Easel.webAddress` comes alone in `EaselWebAddress.swift` (upstream has it
+  in `EaselObjects.swift`, from the skipped `e4b7447`).
+- Split by drag (`60cf686`, `2908a25`): a Library bookmark's drag is never a split, so Pane's page drop (new tab,
+  ⇧ this tab) keeps it; `split-drop` checks one at a pane's edge. Each press clears `tabBeforePress`. The drop
+  region is rounded as a split's pane; Pane's toolbar inset replaces upstream's `barInset` (auto-hiding toolbar).
+- `favorite-mute` now expects Pane's shared-favorite menu (Rename…, Mute, …, Remove Favorite), the owner's call.
+- Found while checking this pass, a bug from the CEF pass's spare pages (`935cca1`): making a spare took the keyboard
+  (Chromium makes the window it shows key), so the URL field's dropdown closed when one came while it was open.
+  While a spare is made, Chromium's windows can't become key (`SparePages`, Pane's own commit after `935cca1`).
 
 ### Hand-ported (4): Pane's own code after the upstream commit
 
@@ -339,23 +370,7 @@ sync. `5aa1df1` (CraCore `Package.swift` platforms), `1d15a9a` (`.gitignore`) an
 
 ## Pending
 
-Triaged 13 Nov 2026 and waiting for the owner. New upstream commits go here when triaged, sorted as before: A (bug
-fixes, engine, tests: small, low risk), B (new features) and C (collide with Pane's own UI), each row with the
-files it would conflict in on main (`scripts/upstream-audit.py --conflicts`) and the earlier pending commit it needs.
-`Tests/promises.lock` conflicts are the usual ones (take ours, `scripts/promises.py --update`).
-
-### B: new features (owner's call)
-
-| Upstream | What | Conflicts on main / notes |
-|---|---|---|
-| `4ad54a1` | Sidebar: a tab switches on the press, as Arc's does, not on the release | docs/speed.md only; changes how every click feels, check with picks, drags and sections |
-| `c61aab7` | Back and Forward: right-click lists the tab's history (#416) | promises.lock |
-| `3831d67` | Air Traffic Control: a URL typed in ⌘T follows a route to a space (#421) | promises.lock |
-| `115a201` | Sidebar: a link dragged in from a page or another app opens as a tab where it is let go (#419) | promises.lock |
-| `308817d` | Sidebar: a link let go on a tab's middle opens nothing (#419) | needs `115a201` |
-| `4e0c10b` | Sidebar: a link let go on a folder's middle goes in the folder, at the top (#419) | needs `308817d` |
-| `a4192fe` | Sidebar: the insertion line is Arc's ring and line (#419) | needs `4e0c10b`; restyles Pane's drop line |
-| `60cf686` | Split view: drag a sidebar tab or a page's link onto the page to split it (#419) | AppDelegate, ShellView, SidebarRowViews, promises.lock; collides with Pane's page drop (bookmarks) and docking (C-like) |
-| `2908a25` | Split view: a tab dragged on to the page's far edge splits on that side (#419) | needs `60cf686` |
-| `426c345` | Instant Links: Arc Max's Shift-Return opens the top results, planned on-device (#409) | Sharing.swift (stays out), MaxPane.swift (→ settings.js), SpaceListView, docs; touches the command bar ("never touch") |
-| `20de2af` | Instant Links: a Google /goto result opens its own page | needs `426c345` |
+None: every upstream commit through `56be95d` is Ported or Skipped (13 Nov 2026). New upstream commits go here
+when triaged, sorted as before: A (bug fixes, engine, tests: small, low risk), B (new features) and C (collide
+with Pane's own UI), each row with the files it would conflict in on main (`scripts/upstream-audit.py --conflicts`)
+and the earlier pending commit it needs.
