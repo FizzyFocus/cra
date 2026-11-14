@@ -5,9 +5,9 @@ work **commit by commit and never merges it**: `git merge upstream/main` would w
 (the sidebar, Library drawer, settings tab, themes) and its rebrand. This file is the record of what
 became of every upstream commit, so nothing is ported twice or lost.
 
-- **Decided through:** `dc4ed11` (upstream/main on 12 Nov 2026). Every upstream commit up to it is under
-  Ported or Skipped.
-- **Triaged through:** `dc4ed11`. Nothing is Pending.
+- **Decided through:** `7112b72` (13 Nov 2026). Every upstream commit up to it is under Ported or Skipped;
+  after it, up to "Triaged through", each one is Ported, Skipped or Pending.
+- **Triaged through:** `56be95d` (upstream/main on 13 Nov 2026). 14 are Pending (below).
 - **Merge base:** `9927600`.
 
 ## How to sync
@@ -28,7 +28,7 @@ became of every upstream commit, so nothing is ported twice or lost.
 
 ## Ported
 
-### Cherry-picked (87): `git cherry-pick -x`, the trailer names the upstream commit
+### Cherry-picked (104): `git cherry-pick -x`, the trailer names the upstream commit
 
 | Upstream | Pane | What |
 |---|---|---|
@@ -119,6 +119,23 @@ became of every upstream commit, so nothing is ported twice or lost.
 | `2b39a45` | `8668f71` | Ask on Page: Arc Max's find-or-ask card on ⌘F, answered by the Mac's Apple Intelligence (#393) |
 | `546d50a` | `d1aa626` | Picture in Picture: resize up to the full display, and always rest on one display (#388) |
 | `dc6d118` | `0189ce5` | Ask on Page: the card as Arc drew it, from the reporter's capture (#393) |
+| `4b0ba66` | `082072f1` | Hidden tabs: five keep their last frame instead of ten, 75 MB less GPU memory at 20 tabs (#195) |
+| `21bee29` | `66a9e019` | Background test copies: windows on screen report themselves visible, so their pages keep drawing |
+| `0b0b328` | `0a7f4948` | Window managers: a nil child window no longer crashes Cra (#391) |
+| `f6a8736` | `e6a76afc` | Space switches: the list doesn't ask the window server which window is under the pointer every frame |
+| `3726f65` | `c79d4e8c` | Engine: Google services Cra never offers are off (optimization hints, AI history search, Gemini, Lens) |
+| `b8de1e5` | `3674b710` | Speed: the framework is linked at launch, so each page process is ~14 MB smaller |
+| `8429b73` | `7ad32bab` | Ask on Page: the question reads on a dark card, also in a light space (#408) |
+| `ff83e6e` | `fc766b9e` | Speed: hidden tabs' frames go 2 s after a switch, a few windows at a time |
+| `f586c7f` | `6558dcee` | Today: Clear keeps the tab on screen and tabs playing sound, as in Arc (#406) |
+| `305439a` | `23a1a2d0` | Incognito: the space header's menu offers no Set Profile, Export or other space-only rows (#413) |
+| `272980a` | `5207ce48` | Import: Arc spaces with an Icon-tab glyph keep it, not 🗂️ |
+| `805a3b7` | `78ceffd8` | Ask on Page: a follow-up gets its own answer, not the last one again (#417) |
+| `30afd28` | `6a8da774` | Password managers: extensions see the page Cra has focused as the active tab (#414) |
+| `c9e0134` | `c791dbf9` | App Shortcuts: a ⌃, ⌥ or F-key App Shortcut works while a page has the keyboard (#253) |
+| `fca4564` | `71f3331f` | Sidebar: a space's emoji draws itself, so macOS 27 doesn't cut its bottom off (#399) |
+| `990cae0` | `1eac4345` | Ask on Page: quotes come from the page, follow-ups quote it, long answers stream smoothly (#417) |
+| `9cc14d3` | `3dd76e76` | Ask on Page: an answer that copies the page back is never shown; Cra asks again |
 
 The 12 Nov 2026 sync (34 picks, branch `upstream-sync-nov12`) adapted these to Pane; each commit's "Fork port:"
 paragraph has the detail:
@@ -135,6 +152,21 @@ paragraph has the detail:
 - `Sharing.swift` (usage stats) hunks stayed out; AskOnPageTests checks the settings page instead of UsageStats.
 - ShortcutPriority's titles and lines say `Brand.name` (Prefer Pane); #374's locked test expects Pane's words.
 - `9c566c9` (Pane's own, after `ebce13c`): the sync's newer-version error names Pane.
+The 13 Nov 2026 sync (17 picks, branch `upstream-sync-nov13`: the triage's bug fixes and engine/memory
+work, no CEF update) adapted these:
+
+- Today ▸ Clear (`f586c7f`): Pane's sections are headings, not one row: Clear takes their tabs and splits one
+  by one, so the tab on screen keeps only itself in its section (upstream kept a whole tab group).
+  `StoreTests.clearTodayClearsInsideSections` pins it, ⌘Z included. The Clear button stays `undoable`.
+- Framework linked at launch (`b8de1e5`): `build.sh` checks `Pane Helper.app`; Pane's Apple Development signing
+  is untouched. Its `CRA_PREWARM` early return in the helper stays out with upstream's update warm-up.
+- Hidden frames (`4b0ba66`): `ScalableFrameEviction` is off without `AutofillAiWalletPrivatePasses`, which
+  comes with `39aa7bb` (Pending, CEF codecs5).
+- Password managers (`30afd28`): `Tests/Fixtures/TabsQueryExtension` comes in with it (upstream made it in
+  `935cca1`, Pending); the scenarios install it by path.
+- Incognito space menu (`305439a`): `SpaceMenu` keeps Pane's `asked` point; the profile pill already hid there.
+- `docs/speed.md`, `scripts/perf` and the #407 Instant Links checklist lines stayed out wherever these touched them.
+
 ### Hand-ported (4): Pane's own code after the upstream commit
 
 | Upstream | Pane | What |
@@ -144,7 +176,7 @@ paragraph has the detail:
 | `eda6089` | `77e2fa1` | Copy URL glyph: link → checkmark → link on a click (#361) |
 | — | `f166b35` | Extensions popover and bookmark card follow the space's light or dark (upstream's idea, Pane's SpacePopoverTones; no single upstream commit) |
 
-### Covered by Pane's own work (5): the behaviour is in, by another route
+### Covered by Pane's own work (6): the behaviour is in, by another route
 
 | Upstream | Why it isn't picked |
 |---|---|
@@ -153,6 +185,7 @@ paragraph has the detail:
 | `b58b69d` | Library pushes the page past the window's edge (#340): Pane's Library drawer |
 | `f5751d6` | ⌘W closes Settings (#364): Settings is a tab in Pane, so ⌘W already closes it |
 | `537dc09` | Notes for #364 on SettingsWindowController, which Pane doesn't have |
+| `f3cf96e` | Docked page and DevTools corners square on macOS 27 (#400): Pane's ChromiumWindowCorners re-masks on 27 (11 Nov), scenario devtools-square-corners |
 
 ## Skipped
 
@@ -197,10 +230,123 @@ For good unless the reason changes. "Never touch" areas are the owner's call (11
 | `02d8f9a` | Themes: Dark keeps the picked colour (#392) | Needs `ffd7de6` |
 | `904c9ca` | Themes: Light keeps the picked colour (#392) | Needs `02d8f9a` |
 | `ed26238` | Peek: ⌘S toggles the window's sidebar, the Peek follows the slide (#402) | Collides with ShellView's docking and full-screen sidebar |
+| `f13c956` | Updates: the downloaded update runs once, hidden, so its first launch doesn't wait for ma… | Pane has no update feed (Sparkle's SUFeedURL is removed), so a downloaded update never runs this |
+| `4967f24` | Speed: the bench that measured this round (scripts/perf) and what the next gains need (do… | Upstream's perf bench (scripts/perf, docs/speed.md); Pane measures with scenario budgets |
+| `2165ca1` | Updates: the warm-up runs the helper apps too, so the first launch after an update is as… | Goes with `f13c956`: no update feed in Pane |
+| `ae7afb5` | Speed: journeys on a real sidebar and real sites, and where a tab switch's time goes | Upstream's perf bench and docs/speed.md |
+| `55f5549` | Speed: plain Chromium 156 from the same tree uses more memory than Cra; tonight's results… | docs/speed.md and a plain-Chromium perf patch |
+| `729d671` | Speed: CEF 158 exists as a beta branch (8127); Cra waits for stable | docs/speed.md: CEF 158 beta note |
+| `b309829` | Release notes: sponsors are thanked first, at the top; sponsors.py reads the sponsors fie… | Upstream's release notes and sponsors |
+| `a531a29` | Speed: what the browser process spends per tab, new-window time, no other dirty libraries… | docs/speed.md |
+| `720ede7` | Auto-hiding toolbar: the find bar hangs under the toolbar while it is out, not over its r… | Needs `167c05a` (auto-hiding toolbar), skipped |
+| `2d7e110` | One repo for both apps: the iPhone app in the README, contributor docs, issue forms and CI | Upstream's README, CI and issue forms for both apps; the iPhone app is skipped |
+
+### The iPhone app (65): skipped as a whole
+
+Upstream's Arc Search–style iPhone app (`iOS/`, `Packages/CraCore/Sources/CraCore/Mobile`, `docs/ios*`,
+`scripts/ios*`) and its docs. It is built for upstream's team, iCloud container and TestFlight, and syncs
+with "Cra for Mac"; taking it would be a product of its own (Pane's team, bundle, container and name), not a
+sync. `5aa1df1` (CraCore `Package.swift` platforms), `1d15a9a` (`.gitignore`) and `ae423f9` (upstream's
+`make-app-icons.swift`, which Pane rewrote) are its only changes outside those folders.
+
+| Upstream | What |
+|---|---|
+| `5aa1df1` | iPhone app, first pieces: search sheet, bottom bar and tabs to Arc Search's measurements |
+| `1d15a9a` | iPhone app: tab switcher, page menu, Site and App Settings, Archive, with UI tests |
+| `38239b7` | iPhone app: ads, trackers and cookie banners are blocked, per site, and counted |
+| `72f95e7` | iPhone app: Arc Search's swipes |
+| `b9d19d9` | iPhone app: Reader, and Summarize by tile or pinch on the device's own model |
+| `082be90` | iPhone app: Browse for Me, made on the phone |
+| `076a66e` | iPhone app: incognito looks and behaves as Arc Search's |
+| `5d185ef` | iPhone app: the Mac's Spaces, and favorites under the search field |
+| `65f6e16` | iPhone app: the tab row moves at Arc Search's speed, and a drag up from the bar opens it |
+| `85a0d46` | iPhone app: voice search by holding the pill |
+| `ae423f9` | iPhone app: onboarding, the four app icons, quick actions and App Shortcuts |
+| `7112b72` | iPhone app: downloads, page dialogs, widgets, the empty home screen; where the work stopped |
+| `b06bd87` | iPhone app: pages the phone knows come up as you type, long suggestions take two lines |
+| `9580594` | iPhone app: signed for the team, iPhone only, and a script that uploads to TestFlight |
+| `9c30c32` | iPhone app: the TestFlight script's messages no longer break bash 3.2 on "…" |
+| `8d6f453` | iPhone app: the iCloud container the Mac syncs into, so a real phone sees the Mac's Spaces |
+| `3e476b6` | iPhone app: the floating switch between Browse for Me and the search engine |
+| `6dfe980` | iPhone app: Browse for Me can be the search engine, as in Arc Search's engine menu |
+| `c811283` | iPhone app: "Browse for Me" in a page's edit menu for selected text (Arc Search 1.23) |
+| `6aed87e` | iPhone app: a Browse for Me action for Shortcuts and Siri |
+| `3519090` | iPhone app: the share extension and its "Saved" screen, as in Arc Search |
+| `01bfc2a` | iPhone app: Translate in the page menu, on the phone with Apple's Translation framework |
+| `5444cc6` | iPhone app: scroll through the suggestions and each one comes up into the field |
+| `1810f12` | docs: plain quotes in the scroll-through row |
+| `b922ba9` | iPhone app: the search sheet in Arc Search's 2025 colours |
+| `b49529c` | iPhone app: "Open App Links in..." takes effect: tapped links to another site go to its app |
+| `25bfa16` | iPhone app: the widgets in Arc Search's look, checked in the widget gallery |
+| `c048088` | iPhone app: "Bring Cra to your home screen", Arc Search's widget walkthrough |
+| `2905119` | iPhone app: Change App Icon opens Arc Search's dock sheet; App Settings in its later order |
+| `7022194` | iPhone app: Languages: what Browse for Me, summaries and Translate answer in |
+| `8222f9f` | iPhone app: custom search engines: an https address with %s for the query |
+| `cdbda1f` | iPhone app: the dark search sheet as in Arc Search's dark-mode clip, glow included |
+| `43aa228` | iPhone app: onboarding's "Pinch to summarize any web page" step, acted out on a loop |
+| `0101d0d` | iPhone app: the mic in the search field starts voice search (Arc Search 1.19) |
+| `c7a0e8a` | iPhone app: the default-browser step in Arc Search's words: three steps, Open Settings, Not now |
+| `05ea070` | iPhone app: Copy and Share on a finished summary |
+| `a19acc6` | docs: Pin to Space as a proposal (phone-pins.json beside the sync bundle), waiting for a decision |
+| `8f02fc9` | iPhone app: Summarize folds the page as Arc Search does |
+| `4f1bd72` | docs: the whole iPhone UI suite passes (50 tests), and what to do when the simulator keeps dying |
+| `c89f1e5` | docs: the iPhone UI suite has 41 tests, not 50 |
+| `16bcba5` | iPhone app: Browse for Me pages end with follow-up questions and their Sources (Arc Search 1.24) |
+| `fff5a49` | iPhone app: landscape keeps the search field and the page menu on screen |
+| `7759f2d` | iPhone app: the Spaces sheet has white text on a dark Space, as Arc Search's does |
+| `0a152f5` | iPhone app: iPad too, as Arc Search runs there; the page menu keeps a phone-like width on iPad |
+| `0bfcabf` | iPhone app: favorites under the search field can be dragged into a new order |
+| `2479f20` | iPhone app: the question at the top of a Browse for Me page opens it for editing |
+| `128488b` | iPhone app: starter questions under the empty field until the first search (Arc Search 1.13) |
+| `cebc99a` | iPhone app: Dynamic Type for Browse for Me pages, the search field and rows, and Settings |
+| `8fb1a31` | iPhone app: onboarding's text follows Dynamic Type too |
+| `a06b9e6` | iPhone app: a Browse for Me page slides up as its loading screen fades |
+| `e632a79` | iPhone app: fix the rejected TestFlight builds; the upload script now waits for Apple's verdict |
+| `be2bfbf` | iPhone app: ask iCloud for the Mac's sidebar instead of waiting for it to turn up |
+| `6a519e7` | docs: index of Victor's Arc Search recording (13 Nov), screen by screen |
+| `0ed640a` | iPhone app: the page menu in Arc Search 1.49's design, from Victor's recording |
+| `4709bbe` | iPhone app: the page menu on dark glass like Arc Search 1.49, tile labels at 13 pt |
+| `ecd8525` | iPhone app: Arc Search's blocker tip and "Did it fix the issue?", from Victor's recording |
+| `fc418af` | iPhone app: Site, App and Default Site Settings and the Archive as in Arc Search 1.49 |
+| `7248d08` | iPhone app: Arc Search 1.49's coach mark and starter questions, from Victor's recording |
+| `1018939` | iPhone app: the page menu and settings follow the phone's appearance |
+| `7de8131` | iPhone app: onboarding rebuilt as Arc Search 1.49, from Victor's recording |
+| `cf1593a` | iPhone app: plain pages are white in dark mode; Summarize on Arc Search's dark gradient |
+| `8605121` | iPhone app: Cra's "Sync with Cra for Mac" sheets and the tab row's sync card, after Arc Search 1.49 |
+| `b3cff22` | docs: Browse for Me feedback thumbs left out of the iPhone app (nowhere to send them) |
+| `b199834` | iPhone app: Browse for Me and Summarize show on every iPhone that can run Apple Intelligence |
+| `56be95d` | iPhone app: the Mac's synced Spaces show up; the phone reads the Mac's dates |
 
 ## Pending
 
-None: every upstream commit through `dc4ed11` is Ported or Skipped (12 Nov 2026). New upstream commits go here
-when triaged, sorted as before: A (bug fixes, engine, tests: small, low risk), B (new features) and C (collide
-with Pane's own UI), each row with the files it would conflict in on main (`scripts/upstream-audit.py --conflicts`)
-and the earlier pending commit it needs.
+Triaged 13 Nov 2026 and waiting for the owner. New upstream commits go here when triaged, sorted as before: A (bug
+fixes, engine, tests: small, low risk), B (new features) and C (collide with Pane's own UI), each row with the
+files it would conflict in on main (`scripts/upstream-audit.py --conflicts`) and the earlier pending commit it needs.
+`Tests/promises.lock` conflicts are the usual ones (take ours, `scripts/promises.py --update`).
+
+### A: needs the CEF update (one pass, straight to `cef-156.0.27-codecs7`)
+
+Each new framework must still get Pane's Keychain item: `scripts/cef-keychain-item.py` prints "Pane Safe
+Storage" for it before the build runs on a real profile (an unknown shape keeps "Cra Safe Storage").
+
+| Upstream | What | Conflicts on main / needs |
+|---|---|---|
+| `39aa7bb` | Tab freezing: a page holding a WebSocket is never frozen; tabs past the five used last freeze; closed tabs' memory goes back (codecs5) | CraCEF.mm, Tests/test-browser-manager.sh, scripts/scenario.sh. Its InfiniteTabsFreezing switch must not come without the codecs5 patch |
+| `935cca1` | New tabs: a page made ahead takes 34 ms off the click (spare pages, codecs6) | PageEngines.swift, TabsQueryExtension (ours is newer), test-browser-manager.sh, cef-patches, fetch-cef.sh, scenario.sh; needs `39aa7bb`. Check Boosts on a taken spare |
+| `14b921f` | Player: a notification ding or Web Audio alone makes no sidebar card (#411, codecs7) | BrowserManagerLifecycleTests.swift, promises.lock, fetch-cef.sh; needs `935cca1` |
+
+### B: new features (owner's call)
+
+| Upstream | What | Conflicts on main / notes |
+|---|---|---|
+| `4ad54a1` | Sidebar: a tab switches on the press, as Arc's does, not on the release | docs/speed.md only; changes how every click feels, check with picks, drags and sections |
+| `c61aab7` | Back and Forward: right-click lists the tab's history (#416) | promises.lock |
+| `3831d67` | Air Traffic Control: a URL typed in ⌘T follows a route to a space (#421) | promises.lock |
+| `115a201` | Sidebar: a link dragged in from a page or another app opens as a tab where it is let go (#419) | promises.lock |
+| `308817d` | Sidebar: a link let go on a tab's middle opens nothing (#419) | needs `115a201` |
+| `4e0c10b` | Sidebar: a link let go on a folder's middle goes in the folder, at the top (#419) | needs `308817d` |
+| `a4192fe` | Sidebar: the insertion line is Arc's ring and line (#419) | needs `4e0c10b`; restyles Pane's drop line |
+| `60cf686` | Split view: drag a sidebar tab or a page's link onto the page to split it (#419) | AppDelegate, ShellView, SidebarRowViews, promises.lock; collides with Pane's page drop (bookmarks) and docking (C-like) |
+| `2908a25` | Split view: a tab dragged on to the page's far edge splits on that side (#419) | needs `60cf686` |
+| `426c345` | Instant Links: Arc Max's Shift-Return opens the top results, planned on-device (#409) | Sharing.swift (stays out), MaxPane.swift (→ settings.js), SpaceListView, docs; touches the command bar ("never touch") |
+| `20de2af` | Instant Links: a Google /goto result opens its own page | needs `426c345` |
