@@ -2163,6 +2163,9 @@ final class SidebarStore {
 
     /// Spaces whose Today tabs the model is sorting: the divider draws its squiggle meanwhile.
     private(set) var tidyingSpaces: Set<UUID> = []
+    /// The loose Today tabs each space had when a Tidy run was last applied there (this session): while
+    /// they are all that is loose, the run has had its say and Tidy waits for Shift (TidyTabs.visibility).
+    private(set) var tidyLeftovers: [UUID: Set<UUID>] = [:]
 
     /// Today's top-level tabs, outside any group: what Tidy sorts.
     func looseTodayTabs(_ sid: UUID) -> [SidebarItem] {
@@ -2195,7 +2198,12 @@ final class SidebarStore {
     /// the Apple Intelligence check is the caller's).
     func tidyVisibility(_ sid: UUID) -> TidyTabs.Visibility {
         guard let space = spaces[sid], !isIncognito(space: sid) else { return .hidden }
-        return TidyTabs.visibility(todayTabs: tabs(under: space.todayContainerID).count, looseTabs: looseTodayTabs(sid).count)
+        let loose = looseTodayTabs(sid).map(\.id)
+        // What a run would hand the model: loose tabs, Full sections' tabs, the sections it may add to.
+        let offer = TidyRun.offer(loose: loose, sections: tidySections(in: sid))
+        return TidyTabs.visibility(todayTabs: tabs(under: space.todayContainerID).count, looseTabs: loose.count,
+                                   offeredTabs: offer.tabs.count, offeredGroups: offer.groups.count,
+                                   leftoversOnly: TidyTabs.onlyLeftovers(loose, leftAfterRun: tidyLeftovers[sid]))
     }
 
     /// Move Up / Move Down in a group header's menu: the group past the next group that way, loose
@@ -2451,6 +2459,8 @@ final class SidebarStore {
             items[today] = t
         }
         // A Full section left with nothing goes with the next touch (pruneEmptyGroups).
+        // The run has had its say on what it left loose: Tidy waits for Shift until another tab comes.
+        tidyLeftovers[sid] = Set(looseTodayTabs(sid).map(\.id))
         CraLog.note("Tidy Tabs applied: \(newGroups.count) new, \(out.sections.count) changed, \(out.renamed.count) renamed, \(out.removed.count) emptied; untouched: \(sections.filter { $0.policy == .locked }.count) locked")
         touch()
     }

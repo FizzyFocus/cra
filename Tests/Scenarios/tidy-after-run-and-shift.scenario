@@ -1,0 +1,56 @@
+# Tidy on the Today divider (Pane, 14 Nov 2026, the owner's spec). Right after a run it goes, however
+# many tabs the run left loose, and comes back with a tab the run didn't leave there (here a new one).
+# Shift over the divider brings it whenever a run could do something, also with every Today tab in
+# Tidy's sections, the divider's first neighbour then a section header. dividerShift= stands in for the
+# Shift key (a test copy can't press it), hover= puts the pointer on the divider, divider= reads the
+# row itself, tidyPlan= is a model's answer as Tidy applies one.
+budget rss=900 stalls50=40
+seed settings.json {"hasSeenImportPrompt": true, "toolbarDefaultMigrated": true}
+env CRA_TIDY_FAKE_MODEL=1
+pace 0.2
+
+repeat 12 cra://open?url=${PAGE}?n=${i}
+wait 3
+cra://debug?tabGroups=twelve
+expect-log tab groups twelve: +tidy=shown$
+cra://debug?divider=twelve
+expect-log divider twelve: tidy=shown button=1
+# A run grouping two leaves ten tabs loose among twelve: Tidy goes at once.
+cra://debug?tidyPlan=Pair:0,1
+wait 0.5
+cra://debug?tabGroups=afterRun
+expect-log tab groups afterRun: Pair\(open rows=2/2\) tidy=withShift$
+cra://debug?dividerShift=0
+cra://debug?hover=DividerRowView
+cra://debug?divider=afterRun
+expect-log divider afterRun: tidy=withShift button=0 hovered=1$
+# Shift over the divider brings it.
+cra://debug?dividerShift=1
+cra://debug?hover=DividerRowView
+cra://debug?divider=afterRunShift
+expect-log divider afterRunShift: tidy=withShift button=1 hovered=1$
+cra://debug?dividerShift=0
+# A new tab after the run: back without Shift.
+cra://open?url=${PAGE}?n=new
+wait 1
+cra://debug?divider=newTab
+expect-log divider newTab: tidy=shown button=1
+# Every loose tab into a section of Tidy's: nothing loose, and without Shift no Tidy...
+cra://debug?tidyPlan=Rest:0,1,2,3,4,5,6,7,8,9,10
+wait 0.5
+cra://debug?tabGroups=allGrouped
+expect-log tab groups allGrouped: (Pair|Rest)\(open rows=[0-9]+/[0-9]+\) (Pair|Rest)\(open rows=[0-9]+/[0-9]+\) tidy=withShift$
+cra://debug?hover=DividerRowView
+cra://debug?divider=allGrouped
+expect-log divider allGrouped: tidy=withShift button=0 hovered=1$
+# ...but Shift over the divider brings it, to tidy the sections again.
+cra://debug?dividerShift=1
+cra://debug?hover=DividerRowView
+cra://debug?divider=allGroupedShift
+expect-log divider allGroupedShift: tidy=withShift button=1 hovered=1$
+# The pointer just under the divider's line, above the first section's header, is on the divider too.
+cra://debug?hover=DividerRowView&below=gap
+cra://debug?divider=underLine
+expect-log divider underLine: tidy=withShift button=1 hovered=1$
+cra://debug?dividerShift=auto
+reject-log fault:

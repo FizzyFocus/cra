@@ -2871,20 +2871,33 @@ final class DividerRowView: SidebarRowView {
         switch tidy {
         case .none: return false
         case .shown, .running: return true
-        case .withShift: return (isHovered || pointerInside) && NSEvent.modifierFlags.contains(.shift)
+        case .withShift: return (isHovered || pointerInside) && (Self.debugShift ?? NSEvent.modifierFlags.contains(.shift))
         }
     }
 
-    /// The pointer on the row, its full width and the gap above it, where it really is now.
+    /// cra://debug?dividerShift=1|0|auto: the Shift key as a test copy can't press it (nil: the real one).
+    static var debugShift: Bool?
+
+    /// cra://debug?divider=<label>: what Tidy is told, whether its button is on the row, and the hover.
+    func debugState() -> String {
+        refresh()
+        return "tidy=\(tidy) button=\(tidyButton == nil ? 0 : 1) hovered=\(isHovered ? 1 : 0)"
+    }
+
+    /// The pointer on the row, its full width and the gaps either side of it, where it really is now.
     private var pointerInside: Bool {
         guard let w = window, w.isVisible, !isHiddenOrHasHiddenAncestor else { return false }
         let p = convert(w.mouseLocationOutsideOfEventStream, from: nil)
         return Self.hoverZone(bounds).contains(p) && visibleRect.insetBy(dx: 0, dy: -Self.hoverSlack).contains(p)
     }
 
-    /// The gap above the row counts as on it: the list's hover test uses the same zone.
+    /// The gaps above and below the row count as on it: the list's hover test uses the same zone. The
+    /// row is a hairline, and the gap under it belongs to no row (a section header or a tab starts below
+    /// it), so a pointer resting just under the line, Shift held, showed no Tidy (Pane, 14 Nov 2026).
     static let hoverSlack: CGFloat = CraMetrics.rowSpacing / 2 + 1
-    static func hoverZone(_ r: NSRect) -> NSRect { NSRect(x: r.minX, y: r.minY - hoverSlack, width: r.width, height: r.height + hoverSlack) }
+    static func hoverZone(_ r: NSRect) -> NSRect {
+        NSRect(x: r.minX, y: r.minY - hoverSlack, width: r.width, height: r.height + 2 * hoverSlack)
+    }
 
     override func setColors(_ c: SidebarColors) {
         super.setColors(c)

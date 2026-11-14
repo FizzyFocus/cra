@@ -102,10 +102,11 @@ final class TidyTabsService {
     func tidy(_ sid: UUID, store: SidebarStore) {
         guard modelAvailable, !store.tidyingSpaces.contains(sid) else { return }
         let loose = store.looseTodayTabs(sid).map(\.id)
-        guard !loose.isEmpty else { return }
         // Each section as its Tidy Tabs Behavior allows (TidyRun, 13 Nov 2026): a Full one's tabs
         // are offered with the loose ones, a Full or Add Only one by name, a Locked one not at all.
         let offer = TidyRun.offer(loose: loose, sections: store.tidySections(in: sid))
+        // Nothing loose is fine when Tidy's own sections can be sorted again (Shift on the divider).
+        guard !offer.tabs.isEmpty else { return }
         let tabs = offer.tabs.compactMap(store.item).map { item in
             TidyTabs.Tab(title: item.displayTitle, host: item.tab.flatMap { URL(string: $0.url)?.host() } ?? "")
         }

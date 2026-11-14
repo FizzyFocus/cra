@@ -1118,6 +1118,13 @@ final class SpaceListView: NSView, NSDraggingSource {
         hoverAt(row.convert(NSPoint(x: row.bounds.midX, y: row.bounds.midY), to: nil))
     }
 
+    /// `hover=<row>&below=<pt>|gap`: the pointer that far under the row's bottom edge (`gap`: just inside
+    /// the gap the divider takes below it), as the list's own hit test sees it.
+    func debugHover(_ row: SidebarRowView, below: CGFloat) {
+        let r = row.convert(row.bounds, to: nil)
+        hoverAt(NSPoint(x: r.midX, y: r.minY - below))
+    }
+
     /// A row's right-click: the hover goes to the row under it, off any other.
     func hoverForMenu(at windowPoint: NSPoint) { hoverAt(windowPoint) }
 
@@ -1130,7 +1137,7 @@ final class SpaceListView: NSView, NSDraggingSource {
         // Nor while a row is dragged: the rows under it show neither hover nor tooltips (12 Nov 2026).
         if let wp = windowPoint, ui.spaceSwipe == 0, ui.libraryPage == nil, !ui.downloadsListOpen, ui.draggingID == nil {
             let p = document.convert(wp, from: nil)
-            // The divider also takes the gap just above it (Tidy with Shift, Clear), its row being thin.
+            // The divider also takes the gaps just above and below it (Tidy with Shift, Clear), its row being thin.
             if document.visibleRect.contains(p),
                let row = rows.first(where: { r in (r.key == .divider ? DividerRowView.hoverZone(placed(r)) : placed(r)).contains(p) }),
                let v = views[row.key] {

@@ -55,16 +55,29 @@ public enum TidyTabs {
         case shown
     }
 
-    /// Tidy needs this many loose Today tabs: it sorts loose tabs only, and a group takes two.
+    /// Tidy makes groups of at least this many tabs.
     public static let minimumLoose = 2
 
-    /// The divider shows Tidy whenever Today holds more than `shownAbove` tabs, and with fewer while
-    /// Shift is held; either way only with `minimumLoose` loose tabs to sort (Pane, 14 Nov 2026: a run
-    /// that left one tab loose kept it there, grouped tabs counting towards the ten). It no longer
-    /// hides after a run that leaves enough loose tabs until a new tab comes, as Arc's did (12 Nov 2026).
-    public static func visibility(todayTabs: Int, looseTabs: Int) -> Visibility {
-        guard looseTabs >= minimumLoose else { return .hidden }
-        return todayTabs > shownAbove ? .shown : .withShift
+    /// When the divider shows Tidy (Pane, 14 Nov 2026, the owner's spec):
+    /// - outright, when Today holds more than `shownAbove` tabs, at least `minimumLoose` of them loose,
+    ///   unless every loose tab is one the last run left loose (`leftoversOnly`): that run has had its
+    ///   say, so Tidy goes the moment it is applied and comes back with a tab it didn't leave there (a
+    ///   new one, one unarchived, or ⌘Z of the run);
+    /// - with Shift held over the divider, whenever a run could do something with what it would offer the
+    ///   model (TidyRun.offer: loose tabs and Full sections' tabs, the sections it may add to): two tabs
+    ///   to group, or one and a section to put it in. Tabs all in Tidy's sections can be tidied again;
+    ///   ones all in sections made by hand (Add Only) or Locked can't, so it stays hidden then.
+    public static func visibility(todayTabs: Int, looseTabs: Int, offeredTabs: Int, offeredGroups: Int,
+                                  leftoversOnly: Bool) -> Visibility {
+        guard offeredTabs >= minimumLoose || (offeredTabs >= 1 && offeredGroups > 0) else { return .hidden }
+        return looseTabs >= minimumLoose && todayTabs > shownAbove && !leftoversOnly ? .shown : .withShift
+    }
+
+    /// Whether `loose` holds nothing but tabs the last run left loose (`leftAfterRun`; nil when no run
+    /// has been applied in the space this session).
+    public static func onlyLeftovers<ID: Hashable>(_ loose: [ID], leftAfterRun: Set<ID>?) -> Bool {
+        guard let leftAfterRun else { return false }
+        return Set(loose).isSubset(of: leftAfterRun)
     }
 
     /// Whether Tidy is on the divider now.

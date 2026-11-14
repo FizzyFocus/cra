@@ -1481,10 +1481,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             // hover=TabRowView,1: that sidebar row hovered as if the pointer were on it (snapshots of
             // hover-only controls, #243) until the pointer moves or the sidebar changes. The URL pill
             // and favorite tiles take it too (#293).
+            // dividerShift=1|0|auto: Shift held or not for the Today divider's Tidy (auto: the real key);
+            // divider=<label>: the focused space's divider, as DividerRowView.debugState reads it.
+            if let v = dict["dividerShift"] {
+                DividerRowView.debugShift = v == "auto" ? nil : v == "1"
+                CraLog.note("divider shift: \(v)")
+                return
+            }
+            if let label = dict["divider"] {
+                let row = ViewSnapshot.find("DividerRowView", in: main.window) as? DividerRowView
+                CraLog.note("divider \(label): \(row?.debugState() ?? "no divider")")
+                return
+            }
             if let spec = dict["hover"] {
                 switch ViewSnapshot.find(spec, in: main.window) {
                 case let row as SidebarRowView:
-                    row.list?.debugHover(row)
+                    if let b = dict["below"] {
+                        row.list?.debugHover(row, below: b == "gap" ? DividerRowView.hoverSlack - 1 : CGFloat(Double(b) ?? 0))
+                    } else {
+                        row.list?.debugHover(row)
+                    }
                     CraLog.note("hover: \(spec) lit=\(row.isHovered ? 1 : 0)")
                 case let pill as SidebarURLPill: pill.debugHover()
                 case let tile as FavoriteTileView: tile.debugHover()

@@ -1,31 +1,30 @@
-# Tidy on the Today divider (Pane, 14 Nov 2026): only with two or more loose Today tabs to sort, as a
-# group takes two. A run that leaves one tab loose, or puts every tab in a section, takes it off the
-# divider at once; a second loose tab brings it back. The runs are cra://debug?tidyPlan= (a model's
-# answer, as Tidy applies one); tabGroups= reads what the divider is told (TidyTabsService.visibility).
+# Tidy on the Today divider needs something a run could do (Pane, 14 Nov 2026): one tab alone has
+# nothing to group, and tabs all in sections made by hand (Add Only: Tidy may only add to them) leave
+# nothing to offer the model, so the divider shows no Tidy, not even with Shift over it. A second loose
+# tab is enough (with Shift, under eleven Today tabs). tabGroups= reads what the divider is told,
+# divider= the row itself; dividerShift= stands in for the Shift key, hover= for the pointer.
 budget rss=800 stalls50=30
 seed settings.json {"hasSeenImportPrompt": true, "toolbarDefaultMigrated": true}
 env CRA_TIDY_FAKE_MODEL=1
+pace 0.2
 
 cra://open?url=${PAGE}?n=1
 expect-log loaded 127\.0\.0\.1 \(HTTP 200\)
-cra://open?url=${PAGE}?n=2
-cra://open?url=${PAGE}?n=3
-wait 2
-cra://debug?tabGroups=start
-expect-log tab groups start: +tidy=withShift$
-# Two of the three grouped: one loose tab left, nothing for Tidy to group.
-cra://debug?tidyPlan=Pair:0,1
-wait 0.5
-cra://debug?tabGroups=oneLeft
-expect-log tab groups oneLeft: Pair\(open rows=2/2\) tidy=hidden$
-# A new tab makes two loose ones: Tidy is back (with Shift, under eleven Today tabs).
-cra://open?url=${PAGE}?n=4
 wait 1
-cra://debug?tabGroups=twoLoose
-expect-log tab groups twoLoose: Pair\(open rows=2/2\) tidy=withShift$
-# Both into a section of their own: every Today tab grouped, no Tidy.
-cra://debug?tidyPlan=Rest:0,1
+cra://debug?tabGroups=one
+expect-log tab groups one: +tidy=hidden$
+cra://open?url=${PAGE}?n=2
+wait 1
+cra://debug?tabGroups=two
+expect-log tab groups two: +tidy=withShift$
+# Both into a section made by hand: nothing Tidy may sort, not even with Shift.
+cra://debug?newSection=Mine&tabs=2
 wait 0.5
-cra://debug?tabGroups=allGrouped
-expect-log tab groups allGrouped: (Pair|Rest)\(open rows=2/2\) (Pair|Rest)\(open rows=2/2\) tidy=hidden$
+cra://debug?tabGroups=byHand
+expect-log tab groups byHand: Mine\(open rows=2/2\) tidy=hidden$
+cra://debug?dividerShift=1
+cra://debug?hover=DividerRowView
+cra://debug?divider=byHandShift
+expect-log divider byHandShift: tidy=none button=0 hovered=1$
+cra://debug?dividerShift=auto
 reject-log fault:

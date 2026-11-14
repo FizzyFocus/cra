@@ -1648,37 +1648,58 @@ enum StoreTests {
         expect(store.integrityProblems().isEmpty, "and the sidebar stays sound")
     }
 
-    /// Tidy is on the divider only with two or more loose Today tabs to sort (Pane, 14 Nov 2026): a run
-    /// that leaves one tab loose, or none, takes it off at once, grouped tabs counted towards the ten or not.
+    /// Tidy on the divider (Pane, 14 Nov 2026, the owner's spec): outright only with two loose tabs to
+    /// group among more than ten, and never right after a run, however many it left loose, until a tab
+    /// it didn't leave there comes (a new one, one unarchived, ⌘Z of the run); with Shift whenever a run
+    /// could do something, tabs all in Tidy's sections included.
     @MainActor
     private static func tidyNeedsTwoLooseTabs() {
         let store = AppComposition(clock: ManualScheduler()).store
         let sid = store.createSpace(title: "Loose", emoji: "🧺").id
-        let tabs = (0..<3).map { store.createTab(url: "https://example.org/t\($0)", in: sid, select: false).id }
-        expect(store.tidyVisibility(sid) == .withShift, "three loose tabs: Tidy with Shift")
-        // A run that groups two of the three: one stays loose, and Tidy goes.
-        var loose = store.looseTodayTabs(sid).map(\.id)
-        store.undoable("Tidy Tabs") {
-            store.applyTidy(TidyTabs.plan([.init(name: "Pair", tabs: [0, 1])], tabCount: loose.count, existingGroups: []),
-                            tabIDs: loose, groups: [], in: sid)
+        let early = store.createTab(url: "https://example.org/early", in: sid, select: false).id
+        store.archiveTab(early, reason: .manual)
+        _ = (0..<12).map { store.createTab(url: "https://example.org/t\($0)", in: sid, select: false).id }
+        expect(store.tidyVisibility(sid) == .shown, "twelve loose Today tabs: Tidy without Shift")
+        func run(_ name: String, _ picks: [Int]) {
+            let loose = store.looseTodayTabs(sid).map(\.id)
+            let offer = TidyRun.offer(loose: loose, sections: store.tidySections(in: sid))
+            store.undoable("Tidy Tabs") {
+                store.applyTidy(TidyTabs.plan([.init(name: name, tabs: picks)], tabCount: offer.tabs.count,
+                                              existingGroups: offer.groups.map { store.item($0)?.title ?? "" }),
+                                tabIDs: offer.tabs, groups: offer.groups, in: sid)
+            }
         }
-        expect(store.looseTodayTabs(sid).count == 1 && store.tidyVisibility(sid) == .hidden, "one loose tab left after a run: no Tidy")
-        // Ten more in sections and the one loose: more than ten Today tabs, still nothing to sort.
-        let more = (0..<10).map { store.createTab(url: "https://example.org/m\($0)", in: sid, select: false).id }
-        _ = store.createSection("Batch", with: more, in: sid)
-        expect(store.tabs(under: store.space(sid)!.todayContainerID).count == 13 && store.looseTodayTabs(sid).count == 1
-               && store.tidyVisibility(sid) == .hidden, "thirteen Today tabs, twelve in sections and one loose: no Tidy")
-        // A second loose tab brings it back, outright with more than ten in Today.
-        let fresh = store.createTab(url: "https://example.org/new", in: sid, select: false).id
-        expect(store.tidyVisibility(sid) == .shown, "two loose tabs among fourteen: Tidy without Shift")
-        // A run that takes both into a section: nothing loose, no Tidy.
-        loose = store.looseTodayTabs(sid).map(\.id)
-        store.applyTidy(TidyTabs.plan([.init(name: "Last", tabs: [0, 1])], tabCount: loose.count, existingGroups: []),
-                        tabIDs: loose, groups: [], in: sid)
-        expect(store.looseTodayTabs(sid).isEmpty && store.tidyVisibility(sid) == .hidden, "every Today tab in a section: no Tidy")
-        expect(store.item(fresh)?.parentID != store.space(sid)!.todayContainerID && tabs.allSatisfy { store.item($0) != nil },
-               "the run moved the tabs, closed none")
+        // A run that groups two: ten left loose among twelve, and Tidy goes at once; Shift brings it.
+        run("Pair", [0, 1])
+        expect(store.looseTodayTabs(sid).count == 10 && store.tidyVisibility(sid) == .withShift,
+               "right after a run that left ten tabs loose: only with Shift")
+        // ⌘Z puts the run's tabs back loose: Tidy is back.
+        expect(store.undo() == .done("Tidy Tabs") && store.tidyVisibility(sid) == .shown, "⌘Z of the run brings Tidy back")
+        // Again; a new tab brings it back.
+        run("Pair", [0, 1])
+        expect(store.tidyVisibility(sid) == .withShift, "after the run again: only with Shift")
+        _ = store.createTab(url: "https://example.org/new", in: sid, select: false)
+        expect(store.tidyVisibility(sid) == .shown, "a new tab after the run: Tidy back")
+        // Again; a tab archived before the run, unarchived, brings it back too.
+        run("Trio", [0, 1, 2])
+        expect(store.tidyVisibility(sid) == .withShift, "after a third run: only with Shift")
+        expect(store.restoreArchived(early, select: false) != nil && store.tidyVisibility(sid) == .shown, "an unarchived tab: Tidy back")
+        // Everything into Tidy's sections: nothing loose, but Shift brings Tidy to tidy them again.
+        let loose = store.looseTodayTabs(sid).count
+        let offered = TidyRun.offer(loose: store.looseTodayTabs(sid).map(\.id), sections: store.tidySections(in: sid)).tabs.count
+        run("Rest", Array(0..<loose).filter { $0 < offered })
+        expect(store.looseTodayTabs(sid).isEmpty && store.tidyVisibility(sid) == .withShift,
+               "every Today tab in Tidy's sections: Tidy with Shift, to tidy them again")
         expect(store.integrityProblems().isEmpty, "the sidebar stays sound")
+
+        // One tab alone: nothing to group, not even with Shift; in a section made by hand, the same.
+        let lone = store.createSpace(title: "Lone", emoji: "🪨").id
+        let only = store.createTab(url: "https://example.org/only", in: lone, select: false).id
+        expect(store.tidyVisibility(lone) == .hidden, "one loose tab, no section: no Tidy")
+        let second = store.createTab(url: "https://example.org/second", in: lone, select: false).id
+        _ = store.createSection("Mine", with: [only, second], in: lone)
+        expect(store.looseTodayTabs(lone).isEmpty && store.tidyVisibility(lone) == .hidden,
+               "every tab in a section made by hand (Add Only): a run could do nothing, no Tidy")
     }
 
     /// Tidy Tabs (Arc's tab groups in Today): the model's plan applied, undone, and the header's
