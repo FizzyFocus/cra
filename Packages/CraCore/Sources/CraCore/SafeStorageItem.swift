@@ -29,6 +29,15 @@ public struct SafeStorageItem: Equatable, Sendable, CustomStringConvertible {
     public var predecessors: [SafeStorageItem] { Self.known.filter { $0 != self } }
 
     public var description: String { service }
+
+    /// Whether an app LaunchServices knows at these bundle paths is installed: in /Applications
+    /// (or a folder in it) or ~/Applications. Cra's item stays for an installed Cra after the
+    /// copy; a build folder's leftover Cra.app doesn't count (13 Nov 2026: one kept it).
+    public static func appIsInstalled(at paths: [String], home: String) -> Bool {
+        paths.contains { path in
+            ["/Applications/", home + "/Applications/"].contains { path.hasPrefix($0) }
+        }
+    }
 }
 
 /// What the launch does with the item before Chromium starts (SafeStorage.swift).

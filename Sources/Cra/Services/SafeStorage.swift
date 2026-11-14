@@ -36,7 +36,8 @@ enum SafeStorage {
     private static let metaKey = "cra_safe_storage"
     private static let databases = ["Cookies", "Extension Cookies", "Safe Browsing Cookies", "Login Data",
                                     "Login Data For Account", "Web Data", "Account Web Data"]
-    /// Upstream Cra's bundle: while it is installed, its item stays for it after the copy.
+    /// Upstream Cra's bundle: while it is installed (SafeStorageItem.appIsInstalled), its item stays
+    /// for it after the copy.
     private static let craBundleID = "dk.kildahl.cra"
 
     /// Called from main.swift before Chromium starts. Only migrates when `profileIsFree`
@@ -130,7 +131,8 @@ enum SafeStorage {
                     return found
                 }
                 NSLog("Cra: copied the \(older) Keychain item's secret to \(item)")
-                if older == .cra, NSWorkspace.shared.urlForApplication(withBundleIdentifier: craBundleID) == nil {
+                let cra = NSWorkspace.shared.urlsForApplications(withBundleIdentifier: craBundleID).map(\.path)
+                if older == .cra, !SafeStorageItem.appIsInstalled(at: cra, home: NSHomeDirectory()) {
                     let removed = SecItemDelete(query(older).filter { $0.key != kSecMatchLimit as String } as CFDictionary)
                     NSLog("Cra: removing the \(older) Keychain item: \(removed == errSecSuccess ? "done" : "failed (\(removed))")")
                 }

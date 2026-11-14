@@ -34,4 +34,14 @@ struct SafeStorageItemTests {
         #expect(plan([.pane], mayMove: false) == .mock, "an ad-hoc build, or another copy has the profile")
         #expect(plan([], mayMove: false) == .mock)
     }
+
+    @Test func onlyAnInstalledCraKeepsItsItem() {
+        let home = "/Users/me"
+        #expect(SafeStorageItem.appIsInstalled(at: ["/Applications/Cra.app"], home: home))
+        #expect(SafeStorageItem.appIsInstalled(at: ["/Applications/Browsers/Cra.app"], home: home))
+        #expect(SafeStorageItem.appIsInstalled(at: ["/Users/me/Applications/Cra.app"], home: home))
+        #expect(!SafeStorageItem.appIsInstalled(at: ["/Users/me/Documents/Browser/cra/build/Cra.app"], home: home),
+                "a build folder's leftover")
+        #expect(!SafeStorageItem.appIsInstalled(at: [], home: home))
+    }
 }
