@@ -28,7 +28,7 @@ became of every upstream commit, so nothing is ported twice or lost.
 
 ## Ported
 
-### Cherry-picked (118): `git cherry-pick -x`, the trailer names the upstream commit
+### Cherry-picked (183): `git cherry-pick -x`, the trailer names the upstream commit
 
 | Upstream | Pane | What |
 |---|---|---|
@@ -166,6 +166,71 @@ paragraph has the detail:
 | `60cf686` | `ea702821` | Split view: drag a sidebar tab or a page's link onto the page to split it, as in Arc (#419) |
 | `20de2af` | `c68b8b97` | Instant Links: a Google /goto result opens its own page, not Google's "verifying your request" first |
 | `2908a25` | `d360d670` | Split view: a tab dragged on to the page's far edge splits on that side, not the region it opened in the middle (#419) |
+| `5aa1df1` | `0fc5f147` | iPhone app, first pieces: search sheet, bottom bar and tabs to Arc Search's measurements |
+| `1d15a9a` | `c07930b9` | iPhone app: tab switcher, page menu, Site and App Settings, Archive, with UI tests |
+| `38239b7` | `93ac1034` | iPhone app: ads, trackers and cookie banners are blocked, per site, and counted |
+| `72f95e7` | `f081fbec` | iPhone app: Arc Search's swipes |
+| `b9d19d9` | `429a030b` | iPhone app: Reader, and Summarize by tile or pinch on the device's own model |
+| `082be90` | `19824100` | iPhone app: Browse for Me, made on the phone |
+| `076a66e` | `338e63b9` | iPhone app: incognito looks and behaves as Arc Search's |
+| `5d185ef` | `ee299160` | iPhone app: the Mac's Spaces, and favorites under the search field |
+| `65f6e16` | `6097bfe8` | iPhone app: the tab row moves at Arc Search's speed, and a drag up from the bar opens it |
+| `85a0d46` | `36d6a861` | iPhone app: voice search by holding the pill |
+| `ae423f9` | `a6f5f0ef` | iPhone app: onboarding, the four app icons, quick actions and App Shortcuts |
+| `7112b72` | `4bac812f` | iPhone app: downloads, page dialogs, widgets, the empty home screen; where the work stopped |
+| `b06bd87` | `a1d09452` | iPhone app: pages the phone knows come up as you type, long suggestions take two lines |
+| `9580594` | `478ad14d` | iPhone app: signed for the team, iPhone only, and a script that uploads to TestFlight |
+| `9c30c32` | `a54f9bb5` | iPhone app: the TestFlight script's messages no longer break bash 3.2 on "…" |
+| `8d6f453` | `ddc06c39` | iPhone app: the iCloud container the Mac syncs into, so a real phone sees the Mac's Spaces |
+| `3e476b6` | `da7f03b2` | iPhone app: the floating switch between Browse for Me and the search engine |
+| `6dfe980` | `685112ce` | iPhone app: Browse for Me can be the search engine, as in Arc Search's engine menu |
+| `c811283` | `8d469c0b` | iPhone app: "Browse for Me" in a page's edit menu for selected text (Arc Search 1.23) |
+| `6aed87e` | `66fbd180` | iPhone app: a Browse for Me action for Shortcuts and Siri |
+| `3519090` | `c0851554` | iPhone app: the share extension and its "Saved" screen, as in Arc Search |
+| `01bfc2a` | `460075b1` | iPhone app: Translate in the page menu, on the phone with Apple's Translation framework |
+| `5444cc6` | `2f0fd52b` | iPhone app: scroll through the suggestions and each one comes up into the field |
+| `1810f12` | `4a117b7e` | docs: plain quotes in the scroll-through row |
+| `b922ba9` | `a1e766ab` | iPhone app: the search sheet in Arc Search's 2025 colours |
+| `b49529c` | `dec71cb8` | iPhone app: "Open App Links in..." takes effect: tapped links to another site go to its app |
+| `25bfa16` | `59d2d597` | iPhone app: the widgets in Arc Search's look, checked in the widget gallery |
+| `c048088` | `041ff0ff` | iPhone app: "Bring Cra to your home screen", Arc Search's widget walkthrough |
+| `2905119` | `c1415fd6` | iPhone app: Change App Icon opens Arc Search's dock sheet; App Settings in its later order |
+| `7022194` | `52706b93` | iPhone app: Languages: what Browse for Me, summaries and Translate answer in |
+| `8222f9f` | `8d11c9ca` | iPhone app: custom search engines: an https address with %s for the query |
+| `cdbda1f` | `5714329d` | iPhone app: the dark search sheet as in Arc Search's dark-mode clip, glow included |
+| `43aa228` | `87aa047f` | iPhone app: onboarding's "Pinch to summarize any web page" step, acted out on a loop |
+| `0101d0d` | `f959b520` | iPhone app: the mic in the search field starts voice search (Arc Search 1.19) |
+| `c7a0e8a` | `8e53df5b` | iPhone app: the default-browser step in Arc Search's words: three steps, Open Settings, Not now |
+| `05ea070` | `781e874d` | iPhone app: Copy and Share on a finished summary |
+| `a19acc6` | `2535c9a2` | docs: Pin to Space as a proposal (phone-pins.json beside the sync bundle), waiting for a decision |
+| `8f02fc9` | `334522a9` | iPhone app: Summarize folds the page as Arc Search does |
+| `4f1bd72` | `59d02962` | docs: the whole iPhone UI suite passes (50 tests), and what to do when the simulator keeps dying |
+| `c89f1e5` | `a5184797` | docs: the iPhone UI suite has 41 tests, not 50 |
+| `16bcba5` | `2197e022` | iPhone app: Browse for Me pages end with follow-up questions and their Sources (Arc Search 1.24) |
+| `fff5a49` | `a49ce785` | iPhone app: landscape keeps the search field and the page menu on screen |
+| `7759f2d` | `94fcbab5` | iPhone app: the Spaces sheet has white text on a dark Space, as Arc Search's does |
+| `0a152f5` | `20759e45` | iPhone app: iPad too, as Arc Search runs there; the page menu keeps a phone-like width on iPad |
+| `0bfcabf` | `97189c01` | iPhone app: favorites under the search field can be dragged into a new order |
+| `2479f20` | `4deb6c96` | iPhone app: the question at the top of a Browse for Me page opens it for editing |
+| `128488b` | `cb8960aa` | iPhone app: starter questions under the empty field until the first search (Arc Search 1.13) |
+| `cebc99a` | `a2955a3b` | iPhone app: Dynamic Type for Browse for Me pages, the search field and rows, and Settings |
+| `8fb1a31` | `e9575f76` | iPhone app: onboarding's text follows Dynamic Type too |
+| `a06b9e6` | `c85d254a` | iPhone app: a Browse for Me page slides up as its loading screen fades |
+| `e632a79` | `2975ca68` | iPhone app: fix the rejected TestFlight builds; the upload script now waits for Apple's verdict |
+| `be2bfbf` | `2282b5db` | iPhone app: ask iCloud for the Mac's sidebar instead of waiting for it to turn up |
+| `6a519e7` | `512c9616` | docs: index of Victor's Arc Search recording (13 Nov), screen by screen |
+| `0ed640a` | `f9fa4242` | iPhone app: the page menu in Arc Search 1.49's design, from Victor's recording |
+| `4709bbe` | `c560f329` | iPhone app: the page menu on dark glass like Arc Search 1.49, tile labels at 13 pt |
+| `ecd8525` | `56457227` | iPhone app: Arc Search's blocker tip and "Did it fix the issue?", from Victor's recording |
+| `fc418af` | `28fbef9b` | iPhone app: Site, App and Default Site Settings and the Archive as in Arc Search 1.49 |
+| `7248d08` | `d1da0a50` | iPhone app: Arc Search 1.49's coach mark and starter questions, from Victor's recording |
+| `1018939` | `4f056148` | iPhone app: the page menu and settings follow the phone's appearance |
+| `7de8131` | `e04280d1` | iPhone app: onboarding rebuilt as Arc Search 1.49, from Victor's recording |
+| `cf1593a` | `b4a78103` | iPhone app: plain pages are white in dark mode; Summarize on Arc Search's dark gradient |
+| `8605121` | `7223a90b` | iPhone app: Cra's "Sync with Cra for Mac" sheets and the tab row's sync card, after Arc Search 1.49 |
+| `b3cff22` | `5ba4a08c` | docs: Browse for Me feedback thumbs left out of the iPhone app (nowhere to send them) |
+| `b199834` | `874c23c7` | iPhone app: Browse for Me and Summarize show on every iPhone that can run Apple Intelligence |
+| `56be95d` | `4353dd9e` | iPhone app: the Mac's synced Spaces show up; the phone reads the Mac's dates |
 
 The 13 Nov 2026 sync (17 picks, branch `upstream-sync-nov13`: the triage's bug fixes and engine/memory
 work, no CEF update) adapted these:
@@ -218,13 +283,27 @@ The features pass the same night (11 picks, branch `upstream-group2`; the owner 
   (Chromium makes the window it shows key), so the URL field's dropdown closed when one came while it was open.
   While a spare is made, Chromium's windows can't become key (`SparePages`, Pane's own commit after `935cca1`).
 
-### Hand-ported (4): Pane's own code after the upstream commit
+The iPhone pass (14 Nov 2026, 65 picks, branch `iphone-app`; the owner took the app, skipped on 13 Nov):
+
+- Internal names stay Cra's (`iOS/Cra.xcodeproj`, the Cra, CraShare and CraWidgets targets and folders), as on
+  the Mac, so upstream's later iPhone commits still apply; what people see says Pane (the owner's call). Bundle ids
+  `uz.pane.ios`, `.share`, `.widgets`, `.uitests` on team GWSB8L799B; `pane://` links; copy through `Brand.name`.
+- GWSB8L799B is a free Apple team: no iCloud container, no App Group. The phone reads the Mac's Spaces from the
+  folder the Mac syncs into in iCloud Drive, picked once in Files (`SyncedSidebar`, the owner's call); the share
+  inbox is a Keychain item in a group both targets claim (`MobileShareInbox.updateInKeychain`). The Mac app's
+  entitlements don't change.
+- Icons: Pane's, from `scripts/make-app-icons.swift --ios` (Arctic, Midnight, Graphite, Rose, and Pane's mark);
+  upstream's `--ios` mode (Cra's icons) was not taken. `MobileTests`' sample Mac space has a colour preset, as Pane
+  starts spaces unthemed. `scripts/ios.sh device` installs onto a connected iPhone with Xcode's free-team signing.
+
+### Hand-ported (5): Pane's own code after the upstream commit
 
 | Upstream | Pane | What |
 |---|---|---|
 | `c1aadf7` | `6adf062` | Theme editor: − on the last colour goes back to the unthemed default (#300) |
 | `b4c20de` | `f2f1840` | Settings: a line under each setting saying what it changes |
 | `eda6089` | `77e2fa1` | Copy URL glyph: link → checkmark → link on a click (#361) |
+| `2d7e110` | `ee8e0f6e` | One repo for both apps: the iPhone app in the README, CONTRIBUTING, CLAUDE.md and CI (not upstream's issue forms) |
 | — | `f166b35` | Extensions popover and bookmark card follow the space's light or dark (upstream's idea, Pane's SpacePopoverTones; no single upstream commit) |
 
 ### Covered by Pane's own work (6): the behaviour is in, by another route
@@ -290,83 +369,6 @@ For good unless the reason changes. "Never touch" areas are the owner's call (11
 | `b309829` | Release notes: sponsors are thanked first, at the top; sponsors.py reads the sponsors fie… | Upstream's release notes and sponsors |
 | `a531a29` | Speed: what the browser process spends per tab, new-window time, no other dirty libraries… | docs/speed.md |
 | `720ede7` | Auto-hiding toolbar: the find bar hangs under the toolbar while it is out, not over its r… | Needs `167c05a` (auto-hiding toolbar), skipped |
-| `2d7e110` | One repo for both apps: the iPhone app in the README, contributor docs, issue forms and CI | Upstream's README, CI and issue forms for both apps; the iPhone app is skipped |
-
-### The iPhone app (65): skipped as a whole
-
-Upstream's Arc Search–style iPhone app (`iOS/`, `Packages/CraCore/Sources/CraCore/Mobile`, `docs/ios*`,
-`scripts/ios*`) and its docs. It is built for upstream's team, iCloud container and TestFlight, and syncs
-with "Cra for Mac"; taking it would be a product of its own (Pane's team, bundle, container and name), not a
-sync. `5aa1df1` (CraCore `Package.swift` platforms), `1d15a9a` (`.gitignore`) and `ae423f9` (upstream's
-`make-app-icons.swift`, which Pane rewrote) are its only changes outside those folders.
-
-| Upstream | What |
-|---|---|
-| `5aa1df1` | iPhone app, first pieces: search sheet, bottom bar and tabs to Arc Search's measurements |
-| `1d15a9a` | iPhone app: tab switcher, page menu, Site and App Settings, Archive, with UI tests |
-| `38239b7` | iPhone app: ads, trackers and cookie banners are blocked, per site, and counted |
-| `72f95e7` | iPhone app: Arc Search's swipes |
-| `b9d19d9` | iPhone app: Reader, and Summarize by tile or pinch on the device's own model |
-| `082be90` | iPhone app: Browse for Me, made on the phone |
-| `076a66e` | iPhone app: incognito looks and behaves as Arc Search's |
-| `5d185ef` | iPhone app: the Mac's Spaces, and favorites under the search field |
-| `65f6e16` | iPhone app: the tab row moves at Arc Search's speed, and a drag up from the bar opens it |
-| `85a0d46` | iPhone app: voice search by holding the pill |
-| `ae423f9` | iPhone app: onboarding, the four app icons, quick actions and App Shortcuts |
-| `7112b72` | iPhone app: downloads, page dialogs, widgets, the empty home screen; where the work stopped |
-| `b06bd87` | iPhone app: pages the phone knows come up as you type, long suggestions take two lines |
-| `9580594` | iPhone app: signed for the team, iPhone only, and a script that uploads to TestFlight |
-| `9c30c32` | iPhone app: the TestFlight script's messages no longer break bash 3.2 on "…" |
-| `8d6f453` | iPhone app: the iCloud container the Mac syncs into, so a real phone sees the Mac's Spaces |
-| `3e476b6` | iPhone app: the floating switch between Browse for Me and the search engine |
-| `6dfe980` | iPhone app: Browse for Me can be the search engine, as in Arc Search's engine menu |
-| `c811283` | iPhone app: "Browse for Me" in a page's edit menu for selected text (Arc Search 1.23) |
-| `6aed87e` | iPhone app: a Browse for Me action for Shortcuts and Siri |
-| `3519090` | iPhone app: the share extension and its "Saved" screen, as in Arc Search |
-| `01bfc2a` | iPhone app: Translate in the page menu, on the phone with Apple's Translation framework |
-| `5444cc6` | iPhone app: scroll through the suggestions and each one comes up into the field |
-| `1810f12` | docs: plain quotes in the scroll-through row |
-| `b922ba9` | iPhone app: the search sheet in Arc Search's 2025 colours |
-| `b49529c` | iPhone app: "Open App Links in..." takes effect: tapped links to another site go to its app |
-| `25bfa16` | iPhone app: the widgets in Arc Search's look, checked in the widget gallery |
-| `c048088` | iPhone app: "Bring Cra to your home screen", Arc Search's widget walkthrough |
-| `2905119` | iPhone app: Change App Icon opens Arc Search's dock sheet; App Settings in its later order |
-| `7022194` | iPhone app: Languages: what Browse for Me, summaries and Translate answer in |
-| `8222f9f` | iPhone app: custom search engines: an https address with %s for the query |
-| `cdbda1f` | iPhone app: the dark search sheet as in Arc Search's dark-mode clip, glow included |
-| `43aa228` | iPhone app: onboarding's "Pinch to summarize any web page" step, acted out on a loop |
-| `0101d0d` | iPhone app: the mic in the search field starts voice search (Arc Search 1.19) |
-| `c7a0e8a` | iPhone app: the default-browser step in Arc Search's words: three steps, Open Settings, Not now |
-| `05ea070` | iPhone app: Copy and Share on a finished summary |
-| `a19acc6` | docs: Pin to Space as a proposal (phone-pins.json beside the sync bundle), waiting for a decision |
-| `8f02fc9` | iPhone app: Summarize folds the page as Arc Search does |
-| `4f1bd72` | docs: the whole iPhone UI suite passes (50 tests), and what to do when the simulator keeps dying |
-| `c89f1e5` | docs: the iPhone UI suite has 41 tests, not 50 |
-| `16bcba5` | iPhone app: Browse for Me pages end with follow-up questions and their Sources (Arc Search 1.24) |
-| `fff5a49` | iPhone app: landscape keeps the search field and the page menu on screen |
-| `7759f2d` | iPhone app: the Spaces sheet has white text on a dark Space, as Arc Search's does |
-| `0a152f5` | iPhone app: iPad too, as Arc Search runs there; the page menu keeps a phone-like width on iPad |
-| `0bfcabf` | iPhone app: favorites under the search field can be dragged into a new order |
-| `2479f20` | iPhone app: the question at the top of a Browse for Me page opens it for editing |
-| `128488b` | iPhone app: starter questions under the empty field until the first search (Arc Search 1.13) |
-| `cebc99a` | iPhone app: Dynamic Type for Browse for Me pages, the search field and rows, and Settings |
-| `8fb1a31` | iPhone app: onboarding's text follows Dynamic Type too |
-| `a06b9e6` | iPhone app: a Browse for Me page slides up as its loading screen fades |
-| `e632a79` | iPhone app: fix the rejected TestFlight builds; the upload script now waits for Apple's verdict |
-| `be2bfbf` | iPhone app: ask iCloud for the Mac's sidebar instead of waiting for it to turn up |
-| `6a519e7` | docs: index of Victor's Arc Search recording (13 Nov), screen by screen |
-| `0ed640a` | iPhone app: the page menu in Arc Search 1.49's design, from Victor's recording |
-| `4709bbe` | iPhone app: the page menu on dark glass like Arc Search 1.49, tile labels at 13 pt |
-| `ecd8525` | iPhone app: Arc Search's blocker tip and "Did it fix the issue?", from Victor's recording |
-| `fc418af` | iPhone app: Site, App and Default Site Settings and the Archive as in Arc Search 1.49 |
-| `7248d08` | iPhone app: Arc Search 1.49's coach mark and starter questions, from Victor's recording |
-| `1018939` | iPhone app: the page menu and settings follow the phone's appearance |
-| `7de8131` | iPhone app: onboarding rebuilt as Arc Search 1.49, from Victor's recording |
-| `cf1593a` | iPhone app: plain pages are white in dark mode; Summarize on Arc Search's dark gradient |
-| `8605121` | iPhone app: Cra's "Sync with Cra for Mac" sheets and the tab row's sync card, after Arc Search 1.49 |
-| `b3cff22` | docs: Browse for Me feedback thumbs left out of the iPhone app (nowhere to send them) |
-| `b199834` | iPhone app: Browse for Me and Summarize show on every iPhone that can run Apple Intelligence |
-| `56be95d` | iPhone app: the Mac's synced Spaces show up; the phone reads the Mac's dates |
 
 ## Pending
 
