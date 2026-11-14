@@ -5,9 +5,9 @@ work **commit by commit and never merges it**: `git merge upstream/main` would w
 (the sidebar, Library drawer, settings tab, themes) and its rebrand. This file is the record of what
 became of every upstream commit, so nothing is ported twice or lost.
 
-- **Decided through:** `7112b72` (13 Nov 2026). Every upstream commit up to it is under Ported or Skipped;
+- **Decided through:** `935cca1` (13 Nov 2026). Every upstream commit up to it is under Ported or Skipped;
   after it, up to "Triaged through", each one is Ported, Skipped or Pending.
-- **Triaged through:** `56be95d` (upstream/main on 13 Nov 2026). 14 are Pending (below).
+- **Triaged through:** `56be95d` (upstream/main on 13 Nov 2026). 11 are Pending (below).
 - **Merge base:** `9927600`.
 
 ## How to sync
@@ -28,7 +28,7 @@ became of every upstream commit, so nothing is ported twice or lost.
 
 ## Ported
 
-### Cherry-picked (104): `git cherry-pick -x`, the trailer names the upstream commit
+### Cherry-picked (107): `git cherry-pick -x`, the trailer names the upstream commit
 
 | Upstream | Pane | What |
 |---|---|---|
@@ -152,6 +152,10 @@ paragraph has the detail:
 - `Sharing.swift` (usage stats) hunks stayed out; AskOnPageTests checks the settings page instead of UsageStats.
 - ShortcutPriority's titles and lines say `Brand.name` (Prefer Pane); #374's locked test expects Pane's words.
 - `9c566c9` (Pane's own, after `ebce13c`): the sync's newer-version error names Pane.
+| `39aa7bb` | `cc2871fa` | Tab freezing: a page holding a WebSocket is never frozen; tabs past the five used last freeze; closed tabs' memory goes back |
+| `935cca1` | `4757e658` | New tabs: a page made ahead takes the click's 34 ms of window-making off it (spare pages) |
+| `14b921f` | `76b88091` | Player: a notification ding or Web Audio alone makes no sidebar card, as in Arc (#411) |
+
 The 13 Nov 2026 sync (17 picks, branch `upstream-sync-nov13`: the triage's bug fixes and engine/memory
 work, no CEF update) adapted these:
 
@@ -166,6 +170,22 @@ work, no CEF update) adapted these:
   `935cca1`, Pending); the scenarios install it by path.
 - Incognito space menu (`305439a`): `SpaceMenu` keeps Pane's `asked` point; the profile pill already hid there.
 - `docs/speed.md`, `scripts/perf` and the #407 Instant Links checklist lines stayed out wherever these touched them.
+
+The CEF pass the same night (3 picks, branch `upstream-cef-codecs7`) took Pane from `cef-156.0.27-codecs4` to
+`codecs7` in one step:
+
+- The codecs7 framework gets Pane's Keychain item: `scripts/cef-keychain-item.py` rewrote 2 + 2 places (the
+  service copy to 17 bytes, the account to "Pane") in the same instruction shapes as codecs4, checked by a byte
+  diff and disassembly against the untouched download, and at runtime: under lldb, the framework's own
+  `SecItemCopyMatching` asks for service "Pane Safe Storage", account "Pane" (Chromium 156 no longer calls
+  `SecKeychainFindGenericPassword`).
+- Spare pages (`935cca1`): a tab takes a spare only when `PageEngines.nativeOwns` doesn't own its address (Pane's
+  hook: `pane://settings` and easels; upstream's `isNativePage` knew only easels, so a Settings tab would have
+  loaded in a Chromium spare). Settings ▸ Profiles ▸ Delete drops that profile's spare. New scenario
+  `spare-page-boost-extension`: a tab that took a spare is boosted from its first document and an extension's
+  content script sees it as the active tab.
+- `AutofillAiWalletPrivatePasses` is off now (`39aa7bb`); `scenario.sh` has the WebSocket server beside Pane's
+  icon-site server; `-ApplePersistenceIgnoreState` stays out with `9d5160d`.
 
 ### Hand-ported (4): Pane's own code after the upstream commit
 
@@ -323,17 +343,6 @@ Triaged 13 Nov 2026 and waiting for the owner. New upstream commits go here when
 fixes, engine, tests: small, low risk), B (new features) and C (collide with Pane's own UI), each row with the
 files it would conflict in on main (`scripts/upstream-audit.py --conflicts`) and the earlier pending commit it needs.
 `Tests/promises.lock` conflicts are the usual ones (take ours, `scripts/promises.py --update`).
-
-### A: needs the CEF update (one pass, straight to `cef-156.0.27-codecs7`)
-
-Each new framework must still get Pane's Keychain item: `scripts/cef-keychain-item.py` prints "Pane Safe
-Storage" for it before the build runs on a real profile (an unknown shape keeps "Cra Safe Storage").
-
-| Upstream | What | Conflicts on main / needs |
-|---|---|---|
-| `39aa7bb` | Tab freezing: a page holding a WebSocket is never frozen; tabs past the five used last freeze; closed tabs' memory goes back (codecs5) | CraCEF.mm, Tests/test-browser-manager.sh, scripts/scenario.sh. Its InfiniteTabsFreezing switch must not come without the codecs5 patch |
-| `935cca1` | New tabs: a page made ahead takes 34 ms off the click (spare pages, codecs6) | PageEngines.swift, TabsQueryExtension (ours is newer), test-browser-manager.sh, cef-patches, fetch-cef.sh, scenario.sh; needs `39aa7bb`. Check Boosts on a taken spare |
-| `14b921f` | Player: a notification ding or Web Audio alone makes no sidebar card (#411, codecs7) | BrowserManagerLifecycleTests.swift, promises.lock, fetch-cef.sh; needs `935cca1` |
 
 ### B: new features (owner's call)
 

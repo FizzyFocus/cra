@@ -1697,6 +1697,12 @@ browsers on this Mac read read-only. Dia's onboarding itself was not re-run past
   copied into Pane's once (macOS asks for the login password to read Cra's item), and Cra's item is
   then removed unless Cra.app is installed. Local builds are signed with the Mac's Apple Development
   identity when there is one, so the item's "Always Allow" holds across rebuilds.
+  cef-156.0.27-codecs7 (13 Nov 2026) has the same shapes 0x300 further on: the service copies at
+  0x2174590 and 0x21746c4, the account copies at 0x217460c and 0x217472c, the constants at 0xc505f89.
+  A byte diff against the untouched download changes only those four runs, the 26 bytes and the
+  signature. Chromium 156 reads the item with `SecItemCopyMatching` (not `SecKeychainFindGenericPassword`):
+  under lldb, a breakpoint there with the framework as the caller shows `svce = "Pane Safe Storage"`,
+  `acct = Pane`.
 - [U] Dia's exact top-sites ranking, its default checkbox states, and the encrypted SNSS v2/v4 session
   format. Firefox saved logins are not read from `logins.json`/`key4.db`; Cra takes Firefox passwords
   only via its own exported CSV, like Safari.
