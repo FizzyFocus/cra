@@ -94,7 +94,7 @@ print(gn_args.GetConfigFileContents(gn_args.GetAllPlatformConfigs({}, quiet=True
   [ -f "$ARCHIVE" ] || { echo "make_distrib wrote no $ARCHIVE" >&2; exit 1; }
   WANT_ARCH="$([ "$cpu" = x64 ] && echo x86_64 || echo arm64)"
   [ "$(lipo -archs "$FRAMEWORK")" = "$WANT_ARCH" ] || { echo "Framework is $(lipo -archs "$FRAMEWORK"), not $WANT_ARCH" >&2; exit 1; }
-  LC_ALL=C grep -qa "Cra Safe Storage" "$FRAMEWORK" || { echo "Framework names no Cra Safe Storage" >&2; exit 1; }
+  LC_ALL=C grep -qa "Pane Safe Storage" "$FRAMEWORK" || { echo "Framework names no Pane Safe Storage" >&2; exit 1; }
   LC_ALL=C grep -qa "GCM.RegistrationCacheStatus" "$FRAMEWORK" || { echo "GCM is compiled out (Web Push)" >&2; exit 1; }
   # Both CPUs come from the same patched sources, so the Cra.* page methods the patches
   # add must match the other CPU's package when there is one. Only NUL-terminated

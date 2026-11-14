@@ -1675,6 +1675,22 @@ browsers on this Mac read read-only. Dia's onboarding itself was not re-run past
   every mock-keychain BLOB in each profile's Cookies / Login Data / Web Data databases and the staged
   import. Unsigned dev builds stay on the mock keychain for profiles that never used the Keychain.
   `Sessions_Encrypted` is not migrated (Cra does not use Chromium's session restore).
+- [O] Pane's own Safe Storage (13 Nov 2026). The CEF builds Pane fetches are upstream Cra's
+  (cef-156.0.27-codecs4), which read "Cra Safe Storage". `scripts/cef-keychain-item.py` renames the item
+  to "Pane Safe Storage", account "Pane", in the binary. os_crypt's constants hold
+  `"saltysalt" "Cra Safe Storage\0Chromium\0mock_password\0"`; the 26 bytes from "Cra" become
+  `"Pane Safe Storage\0Pane\0\0\0\0"`. `KeychainPassword::GetServiceName` and its copy inlined in
+  `GetPassword` (0x2174290, 0x21743c4) build the 16-byte name as a libc++ short string: `mov wN, #16;
+  strb wN, [xD, #23]`, libc++'s overlap check (`add/cmp/ccmp/b.hs`), `ldr q0/str q0`, `strb wzr, [xD,
+  #16]`. For 17 bytes the check gives way to `ldrb/strb` of the 17th byte. `GetAccountName` and its
+  inlined copy (0x217430c, 0x217442c) build "Chromium" from `mov/movk` immediates; they now build
+  "Pane", length 4. The script finds the sites by their references to the constants, checks every
+  instruction and that no branch lands inside, and otherwise leaves Cra's name (SafeStorage follows
+  the build's Info.plist `CraKeychainService`). Checked at run time with lldb: the statics hold "Pane
+  Safe Storage" (size 17) and "Pane" (size 4). A profile encrypted under Cra's item gets the secret
+  copied into Pane's once (macOS asks for the login password to read Cra's item), and Cra's item is
+  then removed unless Cra.app is installed. Local builds are signed with the Mac's Apple Development
+  identity when there is one, so the item's "Always Allow" holds across rebuilds.
 - [U] Dia's exact top-sites ranking, its default checkbox states, and the encrypted SNSS v2/v4 session
   format. Firefox saved logins are not read from `logins.json`/`key4.db`; Cra takes Firefox passwords
   only via its own exported CSV, like Safari.

@@ -73,8 +73,10 @@ This fork ships as **Pane** (pane.uz, `uz.pane.browser`, `build/Pane.app`, `pane
 `Sources/Cra`) so commits from upstream VictorKildahl/cra still port: never rename a Swift symbol
 for the brand. What a person sees says Pane: write `Brand.name` / `Brand.site` (CraCore `Brand`),
 and `InternalScheme` for the scheme (`pane://` canonical, `cra://` an alias everywhere, refused from
-pages like it). Debug log lines (`Cra windows:`, `Cra cdp …`) and the `Cra Safe Storage` Keychain
-item keep their names: scenarios match the logs, and the patched CEF reads that item.
+pages like it). Debug log lines (`Cra windows:`, `Cra cdp …`) keep their names: scenarios match
+them. Chromium's Keychain item is Pane's, "Pane Safe Storage" (13 Nov 2026):
+`scripts/cef-keychain-item.py` renames upstream's "Cra Safe Storage" in the fetched CEF, and
+`SafeStorage` copies a profile's secret from Cra's item once.
 `LegacyDataMigration` copies Cra's data folder, defaults and WebKit stores on Pane's first launch.
 
 ## Upstream sync

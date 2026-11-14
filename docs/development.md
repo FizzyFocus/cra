@@ -189,6 +189,13 @@ Support/CraDev`, never the installed Cra's profile. Ad-hoc development builds us
 encryption key for fresh profiles; use test data and do not copy a daily browser profile
 or real credentials into them.
 
+`scripts/build.sh` (and so `just install`) signs with the Mac's Apple Development identity
+when it has one, else ad hoc; `CRA_SIGN_IDENTITY=-` forces ad hoc. That signature's
+designated requirement (bundle id and certificate) stays the same across rebuilds, so the
+Keychain's "Always Allow" for "Pane Safe Storage" holds after each install. A fresh profile
+of such a build (a scenario's) uses the Keychain item too, but never makes it while Cra's
+older item still holds the real profile's secret (`SafeStorageStep`).
+
 The dev bundle records the CEF download source and Sparkle version. Changing either
 pin refreshes the bundled frameworks, including an engine rebuild with the same CEF
 version but a new release suffix. The watcher notices changes to both fetch scripts.

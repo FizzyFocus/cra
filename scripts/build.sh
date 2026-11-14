@@ -1,9 +1,12 @@
 #!/bin/bash
 # Builds Pane.app into build/Pane.app (Cra was rebranded Pane; modules and targets keep Cra's names).
-#   scripts/build.sh            release build, ad-hoc signed
+#   scripts/build.sh            release build, signed with the Mac's Apple Development
+#                               identity when it has one, else ad-hoc
 #   scripts/build.sh debug      debug build
 #   CRA_SIGN_IDENTITY="Developer ID Application: …" scripts/build.sh
 #                               distributable build (see docs/release.md)
+#   CRA_SIGN_IDENTITY=- scripts/build.sh
+#                               ad-hoc even when the Mac has an Apple Development identity
 #   CRA_PROVISIONING_PROFILE=<path> (with CRA_SIGN_IDENTITY)
 #                               adds the passkey entitlements the profile grants
 #   CRA_INSTALL_DIR=<dir> scripts/build.sh
@@ -65,6 +68,10 @@ sed -e "s/__VERSION__/$VERSION/" -e "s/__BUILD__/$BUILD_NUMBER/" resources/Info.
 # release build never replaces Pane with a Cra release (resources/Info.plist, lint pane-bundle).
 # Google API key for Safe Browsing (docs/release.md); CraCEF hands it to Chromium.
 [ -n "${CRA_GOOGLE_API_KEY:-}" ] && /usr/libexec/PlistBuddy -c "Add :CraGoogleAPIKey string $CRA_GOOGLE_API_KEY" "$APP/Contents/Info.plist"
+# The Keychain item the framework reads (scripts/fetch-cef.sh found it; SafeStorage.swift uses it).
+if [ -s "$CEF_DIR/.cra-keychain-item" ]; then
+  /usr/libexec/PlistBuddy -c "Add :CraKeychainService string '$(cat "$CEF_DIR/.cra-keychain-item")'" "$APP/Contents/Info.plist"
+fi
 echo -n "APPL????" > "$APP/Contents/PkgInfo"
 [ -f resources/AppIcon.icns ] && cp resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 # The AppleScript dictionary (Arc's, same terms and codes: Info.plist OSAScriptingDefinition).
@@ -120,14 +127,28 @@ for exe in "$APP/Contents/MacOS/Pane" "$APP/Contents/MacOS/CraPluginHost" "$APP"
   lipo "$exe" -verify_arch "$ARCH" || { echo "$exe has no $ARCH code: $(lipo -archs "$exe")" >&2; exit 1; }
 done
 
-# Code signing, innermost first. Ad-hoc by default; set CRA_SIGN_IDENTITY to a
-# "Developer ID Application: …" identity for a distributable build with the
-# hardened runtime, timestamps and the CEF entitlements. scripts/release.sh
-# then notarizes the result.
+# Code signing, innermost first. Set CRA_SIGN_IDENTITY to a "Developer ID Application: …"
+# identity for a distributable build with the hardened runtime, timestamps and the CEF
+# entitlements; scripts/release.sh then notarizes the result.
+# Without it, a local build signs with the Mac's own Apple Development identity when it has
+# one (13 Nov 2026), as an ad-hoc build otherwise would (no hardened runtime, timestamp or
+# entitlements). Its designated requirement (bundle id and certificate) stays the same across
+# rebuilds, so the Keychain's "Always Allow" for Pane Safe Storage holds; an ad-hoc signature
+# is a new one each build, and macOS asks again after every install.
 IDENTITY="${CRA_SIGN_IDENTITY:--}"
+LOCAL_IDENTITY=""
+if [ -z "${CRA_SIGN_IDENTITY:-}" ]; then
+  LOCAL_IDENTITY="$( (security find-identity -v -p codesigning 2>/dev/null || true) \
+    | sed -n 's/^ *[0-9][0-9]*) \([0-9A-F]\{40\}\) "Apple Development: .*"$/\1/p' | head -1)"
+  if [ -n "$LOCAL_IDENTITY" ]; then
+    echo "Signing with the Apple Development identity $LOCAL_IDENTITY (CRA_SIGN_IDENTITY=- for ad-hoc)"
+  fi
+fi
 sign() {  # sign <path> [entitlements]
   local target="$1" ent="${2:-}"
-  if [ "$IDENTITY" = "-" ]; then
+  if [ -n "$LOCAL_IDENTITY" ]; then
+    codesign --force --sign "$LOCAL_IDENTITY" --timestamp=none "$target"
+  elif [ "$IDENTITY" = "-" ]; then
     codesign --force --sign - "$target"
   else
     local args=(--force --sign "$IDENTITY" --options runtime --timestamp)

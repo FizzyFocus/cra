@@ -53,21 +53,26 @@ fi
 
 # Chromium encrypts cookies, passwords and card numbers with a secret from the login
 # Keychain item "Chromium Safe Storage", which every Chromium-based app without its own
-# name shares. Cra's is "Cra Safe Storage" (SafeStorage.swift creates it before Chromium
-# starts; scripts/cef-patches/keychain-service-name.patch renames it in CEF builds).
-# cef-156.0.14-codecs2 predates that patch, so its framework is patched here: the name
-# in os_crypt's constant pool, and the length (21) the compiler folded into both places
+# name shares. Pane's is "Pane Safe Storage", account "Pane" (13 Nov 2026; SafeStorage.swift
+# creates it before Chromium starts). The builds fetched here are upstream Cra's, which name
+# Cra's item ("Cra Safe Storage", account "Chromium"): scripts/cef-keychain-item.py renames
+# it in the binary and prints the item the framework reads, which scripts/build.sh writes
+# into Info.plist so the app uses the same one. A framework the script doesn't know keeps
+# Cra's item, and SafeStorage follows it.
+# cef-156.0.14-codecs2 predates Cra's patch, so its framework is first given Cra's name: the
+# name in os_crypt's constant pool, and the length (21) the compiler folded into both places
 # that copy it into a std::string. Any other build must come with the source patch.
-# Stop rather than ship a framework that looks for the old item: Cra would encrypt with
+# Stop rather than ship a framework that looks for the shared item: Pane would encrypt with
 # one secret and Chromium decrypt with another.
 FRAMEWORK_BIN="$DIR/Release/Chromium Embedded Framework.framework/Chromium Embedded Framework"
 # Stock CEF builds (CEF_URL to spotifycdn.com) still use the shared "Chromium Safe
-# Storage" item, and this binary patch is arm64-specific (the folded-length stores are
+# Storage" item, and these binary patches are arm64-specific (the folded-length stores are
 # ARM mov immediates). CRA_ALLOW_STOCK_CEF=1 accepts that: cookies and passwords are
 # still encrypted, under the item every unpatched Chromium-based app shares.
 if [ "${CRA_ALLOW_STOCK_CEF:-0}" = 1 ]; then
   if LC_ALL=C grep -qa "Chromium Safe Storage" "$FRAMEWORK_BIN"; then
     echo "CRA_ALLOW_STOCK_CEF=1: keeping the shared 'Chromium Safe Storage' Keychain item" >&2
+    rm -f "$DIR/.cra-keychain-item"
   fi
 else
   if LC_ALL=C grep -qa "Chromium Safe Storage" "$FRAMEWORK_BIN"; then
@@ -81,6 +86,10 @@ else
     patch_at 0x215ff8c '\010\002\200\122'                      # mov w8, #16 (was #21)
     echo "Renamed the Keychain item to Cra Safe Storage"
   fi
-  LC_ALL=C grep -qa "Cra Safe Storage" "$FRAMEWORK_BIN" || { echo "CEF names no Cra Safe Storage" >&2; exit 1; }
+  # Written after any change to the framework, so a newer framework (a new download) is looked at again.
+  if [ ! "$DIR/.cra-keychain-item" -nt "$FRAMEWORK_BIN" ]; then
+    ITEM="$(python3 scripts/cef-keychain-item.py "$FRAMEWORK_BIN")" || exit 1
+    echo "$ITEM" > "$DIR/.cra-keychain-item"
+  fi
 fi
 echo "CEF ready: $DIR"

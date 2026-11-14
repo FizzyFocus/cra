@@ -31,6 +31,10 @@ bootstrap() {
       -c "Set :CFBundleName $NAME" -c "Set :CFBundleDisplayName $NAME" \
       -c "Delete :CFBundleURLTypes" -c "Delete :CFBundleDocumentTypes" \
       -c "Delete :UTExportedTypeDeclarations" "$APP/Contents/Info.plist"
+  # The Keychain item the framework reads, as in scripts/build.sh (SafeStorage.swift).
+  if [ -s "$ROOT/vendor/cef/.cra-keychain-item" ]; then
+    $PB -c "Add :CraKeychainService string '$(cat "$ROOT/vendor/cef/.cra-keychain-item")'" "$APP/Contents/Info.plist"
+  fi
   echo -n "APPL????" > "$APP/Contents/PkgInfo"
   [ -f resources/AppIcon.icns ] && cp resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
   local fw="$APP/Contents/Frameworks/Chromium Embedded Framework.framework"
@@ -53,6 +57,7 @@ bootstrap() {
     echo -n "APPL????" > "$helper/Contents/PkgInfo"
   done
   cp "$ROOT/vendor/cef/.cra-source" "$APP/Contents/Resources/cef-source" || return 1
+  cp "$ROOT/vendor/cef/.cra-keychain-item" "$APP/Contents/Resources/cef-keychain-item" 2>/dev/null || true
   cp "$ROOT/vendor/sparkle/VERSION" "$APP/Contents/Resources/sparkle-version" || return 1
 }
 
@@ -82,6 +87,7 @@ build() {
      [ ! -f "$APP/Contents/Frameworks/Chromium Embedded Framework.framework/Chromium Embedded Framework" ] || \
      [ ! -d "$APP/Contents/Frameworks/Sparkle.framework" ] || \
      ! cmp -s "$ROOT/vendor/cef/.cra-source" "$APP/Contents/Resources/cef-source" || \
+     [ "$(cat "$ROOT/vendor/cef/.cra-keychain-item" 2>/dev/null)" != "$(cat "$APP/Contents/Resources/cef-keychain-item" 2>/dev/null)" ] || \
      ! cmp -s "$ROOT/vendor/sparkle/VERSION" "$APP/Contents/Resources/sparkle-version"; then
     bootstrap || return 1
   fi
