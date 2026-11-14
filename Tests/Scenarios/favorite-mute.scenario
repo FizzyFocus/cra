@@ -3,6 +3,8 @@
 # Link, Share ›, Change Icon…, Rename…, Mute, Edit Pinned Page ›, …). Mute silences the page without
 # opening it, and on a muted favorite the row says Unmute and brings the sound back (GitHub #387).
 # The tab rows' menu has had Mute from the start; favorites were missing it.
+# Pane: favorites are shared across spaces with the same profile, so the menu opens on Rename… and
+# ends with Arc's "Remove Favorite" (SpaceColumnView.removeTitle), not upstream's per-space layout.
 budget rss=700 stalls50=10
 seed settings.json {"hasSeenImportPrompt": true, "toolbarDefaultMigrated": true, "showToolbar": false}
 
@@ -15,10 +17,10 @@ wait 1
 cra://open?url=${PAGE}?n=other
 wait 1
 cra://debug?favoriteMenu=1&label=before
-expect-log favorite menu before: [^|]*Remove from Favorites\|Rename…\|Mute\|
+expect-log favorite menu before: Rename…\|Mute\|.*\|Remove Favorite$
 cra://debug?favoriteMenu=1&label=mute&run=Mute
 expect-log favorite menu mute ran Mute: saved=muted page=muted$
 cra://debug?favoriteMenu=1&label=muted
-expect-log favorite menu muted: [^|]*Remove from Favorites\|Rename…\|Unmute\|
+expect-log favorite menu muted: Rename…\|Unmute\|.*\|Remove Favorite$
 cra://debug?favoriteMenu=1&label=unmute&run=Unmute
 expect-log favorite menu unmute ran Unmute: saved=unmuted page=unmuted$

@@ -659,7 +659,7 @@
 #385   Packages/CraCore/Tests/CraCoreTests/PeekControlLookTests.swift::shortcutsPressTheirButtons  b2c01bed9702
 #385   Packages/CraCore/Tests/CraCoreTests/PeekControlLookTests.swift::springsAreArcsInCoreAnimationTerms  5be9f378ea04
 #386   Tests/Scenarios/picked-tabs-split.scenario  cd33102969a4
-#387   Tests/Scenarios/favorite-mute.scenario  7b04a5025ba3
+#387   Tests/Scenarios/favorite-mute.scenario  8716fd104043
 #387   Tests/Scenarios/muted-tab-restores.scenario  84b90b5d2da8
 #391   Tests/DockedWindowAccessibilityTests.swift::attachingNoWindowIsHarmless  a7281f64456f
 #391   Tests/DockedWindowAccessibilityTests.swift::movesFindsTheBrowserWindow  b7cbb5a23a9d
