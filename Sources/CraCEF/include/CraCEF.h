@@ -445,6 +445,8 @@ CRA_EXPORT @interface CraCEFRuntime : NSObject
 /// --disable-gpu (and GPU compositing off). Set before +initialize; read at launch only.
 + (void)setHardwareAccelerationEnabled:(BOOL)enabled;
 + (BOOL)chromeHosting;
+/// Whether pages can be made ahead for the next tab (SparePages): CEF's Chrome-style hosting and the Chromium engine.
++ (BOOL)supportsSparePages;
 /// The "Open Link in New Tab" item at the top of a page's context menu: its title and whether it
 /// opens its tab in the background. Read when a menu opens.
 + (void)setLinkMenuTitle:(NSString *)title opensInBackground:(BOOL)background;
