@@ -39,6 +39,8 @@
 #                               relaunch drops it)
 #   extension <folder>          copied into the data folder's Extensions/ before launch, as an
 #                               import leaves an extension
+#   profile <folder>            its contents copied into the data folder before launch: files an
+#                               older Cra left (Tests/Fixtures/CEFProfile, Cra on CEF's cookies)
 #   home                        a throwaway home folder, so downloads stay out of ~/Downloads
 #   requires screen
 #   port <n>                    serve ${PAGE} on a fixed port (snapshots show the address)
@@ -256,6 +258,7 @@ expand() { local s="$1"; s="${s//\$\{FIXTURES\}/$FIXTURES}"; s="${s//\$\{ORIGIN\
 app_args=()
 while read -r _ a; do app_args+=("$(expand "$a")"); done < <(grep '^arg ' "$FILE")
 while read -r _ f; do mkdir -p "$DATA/Extensions" && cp -R "$(expand "$f")" "$DATA/Extensions/"; done < <(grep '^extension ' "$FILE")
+while read -r _ f; do cp -R "$(expand "$f")/." "$DATA/"; done < <(grep '^profile ' "$FILE")
 
 # CRA_PERF=1: the recorder runs (it is off by default since 11 Nov 2026); stalls and memory come from it.
 CRA_DATA_DIR="$DATA" CRA_COMMAND_FILE="$CMD" CRA_HITCH_LOG="$HITCH" CRA_TEST_BACKGROUND=1 CRA_WEBKIT_HOSTS=localhost \
@@ -357,7 +360,7 @@ while IFS= read -r raw || [ -n "$raw" ]; do
         [ -x "$OUT/compare-png" ] || xcrun swiftc -O "$ROOT/scripts/compare-png.swift" -o "$OUT/compare-png" 2>"$OUT/compare-png.log"
         verdict=$("$OUT/compare-png" "$ref" "$shot" "$OUT/snapshots/$3.diff.png" 2>&1) || budget_problem "snapshot $3: $verdict"
       fi ;;
-    fresh|requires|port|seed|env|arg|extension|home) ;;
+    fresh|requires|port|seed|env|arg|extension|profile|home) ;;
     *) problem "unknown scenario line: $line" ;;
   esac
 done < "$FILE"

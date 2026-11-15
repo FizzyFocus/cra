@@ -89,6 +89,8 @@ What the scenarios can't reach, checked by hand on a release build (`scripts/rel
 1. **An existing profile on a signed build.** Install the engine build over a CEF Cra with saved passwords and
    signed-in sites: the "Cra Safe Storage" Keychain item opens the same cookies and passwords (no sign-outs, no
    Keychain prompt). `scripts/test-engine-migration.sh` covers cookies and history on unsigned test copies only.
+   Done 15 Nov on a copy of a real profile (signed engine build, no Keychain prompt): 3063 cookies on 1043 sites
+   decrypt, the 2 saved passwords stay. The first try found every cookie deleted (below, 15 Nov).
 2. **The update itself.** Sparkle from the last CEF release to the engine release: the app relaunches on the
    engine, and the CEF framework is gone from the bundle.
 3. **A real Intel Mac.** The x64 build starts and loads pages; under Rosetta here its start-up stalled 1.7 s, so
@@ -222,11 +224,23 @@ What the scenarios can't reach, checked by hand on a release build (`scripts/rel
     wakeups at 20 tabs 60 → 116 /s. Per process at idle (top, 1 tab): the browser process 1.3 % against CEF's
     0.3 %, every helper ~0; a 10 s sample of it finds no hot spot (its main thread ~30 busy ms). The slower switch
     is open.
-  - Not engine work, found on the way: `solid-spaces` fails its space-dock snapshot on main's CEF build too. The
-    open space's emoji wasn't drawn in component snapshots at all since #399's EmojiLabel (its endless text rect);
-    with a finite rect it draws, ~1.5 pt left of the reference recorded before #399 and the dock changes after it.
-    Victor decides whether that is the dock's look now (re-record) or a shift to fix; `unpacked-extension-copy` fails on any local test copy while the installed
-    Cra runs (profileIsFree), and passes on a copy with its own bundle id.
+  - Not engine work, found on the way, both fixed: `solid-spaces`'s space-dock reference predated #399 (the open
+    emoji cut off and 2 pt off its cell's centre) and #399's EmojiLabel drew nothing in component snapshots (its
+    endless text rect); re-recorded with the emoji whole and centred. `unpacked-extension-copy` failed on any
+    local test copy while the installed Cra ran: owning the data folder now means no live process holds its
+    Chromium `SingletonLock` (DataFolderOwner), not "no other Cra runs"; the Keychain migration and the perf
+    recorder keep "no other Cra runs".
   - `page-windows-open-on-cra` (#354) on the engine: pages count as they first show in a Cra window, and Chrome's
     windows for them (a profile's hidden window, a page's DevTools window) start on the Cra window in use without
     macOS's animation (`setPageWindowStartHandler`), as CEF's page windows do. It passes.
+  - 14 Nov, end of day: every scenario (170, the six that take over the screen included) passes on the engine,
+    on engine-158.0.8127.37-5. Last engine fixes: session cookies outlast a restart (cra-session-cookies.patch,
+    session-cookies-relaunch), Safe Browsing's API key, an extension's window over a full-screen Cra joins its
+    Space. What remains is the hand checks above (Before the switch ships), then the merge and a release.
+  - 15 Nov: a copy of a real CEF profile on a signed engine build lost every cookie at the first launch. Chrome
+    158 (`KeychainKeyProviderUserDataDirProtection`, on by default) makes the "v10" Keychain key unavailable
+    outside Chrome's own data folder and encrypts with a "v11" key; every value Cra on CEF saved is v10, and a
+    cookie that won't decrypt deletes its whole site's cookies. `scripts/test-engine-migration.sh` had passed on
+    the 156 engine and wasn't run again on 158. The bridge turns the feature off (the item is Cra's own, so it
+    protects nothing), and `cef-profile-cookies` opens a CEF build's cookie database (Tests/Fixtures/CEFProfile)
+    in every run, so it needs no CEF build after the switch. Engine release -6.
