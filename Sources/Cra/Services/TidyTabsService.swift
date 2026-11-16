@@ -44,9 +44,16 @@ final class TidyTabsService {
 
     /// Read again when Cra comes to the front and while Settings shows it, so turning Apple
     /// Intelligence on in System Settings shows the button without a relaunch.
-    private(set) var status: Status = .needsNewerMacOS
+    private(set) var status: Status = .needsNewerMacOS {
+        didSet {
+            if status != .available {
+                NotificationCenter.default.post(name: AskOnPage.unavailableNotification, object: self)
+            }
+        }
+    }
     var modelAvailable: Bool { status == .available }
-    /// Re-read at the download's mutation boundary, even before the cached status refreshes.
+    /// Re-read where it matters (a download's rename, an Ask request and its answer), even before the
+    /// cached status refreshes.
     var currentModelAvailable: Bool { Self.currentStatus() == .available }
     @ObservationIgnored var downloadsUnavailable: () -> Void = {}
 
@@ -63,6 +70,10 @@ final class TidyTabsService {
         let now = Self.currentStatus()
         if now != .available { downloadsUnavailable() }
         if now != status { status = now }
+        else if now != .available {
+            // A repeated unavailable refresh must invalidate work even when the UI cache did not change.
+            NotificationCenter.default.post(name: AskOnPage.unavailableNotification, object: self)
+        }
     }
 
     private static func currentStatus() -> Status {
