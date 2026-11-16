@@ -53,6 +53,7 @@
 #   home                        a throwaway home folder, so downloads stay out of ~/Downloads
 #   requires screen
 #   port <n>                    serve ${PAGE} on a fixed port (snapshots show the address)
+# The fixture server answers an address with ?delay=<s> (or &delay=<s>) that many seconds late.
 # ${FIXTURES}, ${ORIGIN} (that server's http://127.0.0.1:<port>), ${PAGE} (Tests/Fixtures/Pages/page.html from a local server, so it has a host
 # for developer mode and tab sleep), ${WEBKIT} (that server as http://localhost:<port>, a host the
 # run treats as a DRM service, so its pages open in WebKit), ${MUSIC} (that server as
@@ -160,7 +161,16 @@ class Server(http.server.ThreadingHTTPServer):
     def server_bind(self):
         socketserver.TCPServer.server_bind(self)
         self.server_name, self.server_port = "127.0.0.1", self.server_address[1]
-s = Server(("127.0.0.1", int(sys.argv[2])), functools.partial(http.server.SimpleHTTPRequestHandler, directory=sys.argv[1]))
+class Handler(http.server.SimpleHTTPRequestHandler):
+    # ?delay=<s> anywhere in the address: the answer (a page, or a 404) comes that many seconds late.
+    def do_GET(self):
+        import re, time
+        m = re.search(r"[?&]delay=([0-9.]+)", self.path)
+        if m:
+            time.sleep(float(m.group(1)))
+            self.path = self.path.split("?", 1)[0]
+        super().do_GET()
+s = Server(("127.0.0.1", int(sys.argv[2])), functools.partial(Handler, directory=sys.argv[1]))
 print(f"Serving HTTP on 127.0.0.1 port {s.server_address[1]}", flush=True)
 s.serve_forever()' "$FIXTURES/Pages" "${FIXED_PORT:-0}" >"$OUT/server.log" 2>&1 &
 SERVER=$!
