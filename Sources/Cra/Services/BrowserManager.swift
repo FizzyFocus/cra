@@ -209,6 +209,15 @@ final class BrowserManager: NSObject, @preconcurrency CraBrowserDelegate {
     }
 
     func runtime(for tabID: UUID) -> TabRuntime? { runtimes[tabID] }
+
+    /// A shown page that is not in its pane: show placed it before the window had made the
+    /// pane's card. A link opened in a new tab is shown from inside the page's pop-up request,
+    /// before the window lays out the tab, and its page waited outside the card for good: the
+    /// tab stayed blank (GitHub #469). The window shows its panes again until each page is in.
+    func waitsForItsPane(_ tabID: UUID) -> Bool {
+        guard let rt = runtimes[tabID], rt.browser.hostWindow == nil, let host = paneHost?(tabID) else { return false }
+        return rt.browser.containerView.superview !== host
+    }
     /// The tab whose page the download being reported came from (set only during that report).
     private(set) var downloadSourceTab: UUID?
     var visibleRuntime: TabRuntime? { visibleTabID.flatMap { runtimes[$0] } }
@@ -291,16 +300,6 @@ final class BrowserManager: NSObject, @preconcurrency CraBrowserDelegate {
         guard Self.showsChromiumMadePages, let view = chromiumPageView(of: rt), view.isHidden else { return }
         view.isHidden = false
         log(rt.tabID, "shows Chromium's view of its page, which Chrome hid")
-    }
-
-    /// A page shown before its card was there: a link's new tab in front, shown as Chromium hands its page over,
-    /// before the window has a card for the tab (on the Chromium engine pages are views in the card, and it stayed
-    /// in the holder for hidden pages: a white tab). The window shows the tabs again once their cards are there.
-    func hasUnplacedPages(_ ids: [UUID]) -> Bool {
-        ids.contains { id in
-            guard let rt = runtimes[id], rt.browser.hostWindow == nil, let host = paneHost?(id) else { return false }
-            return rt.browser.containerView.superview !== host
-        }
     }
 
     private func chromiumPageView(of rt: TabRuntime) -> NSView? {
