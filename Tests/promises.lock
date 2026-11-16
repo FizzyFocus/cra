@@ -748,3 +748,4 @@
 #450   Tests/Scenarios/about-chromium-no-update-check.scenario  b1bdfdccbe87
 #460   Tests/Scenarios/pip-document-window.scenario  a6c85b8fca7c
 #466   Tests/Scenarios/page-menu-shows.scenario  c85711765757
+#468   Tests/Scenarios/devtools-draws.scenario  97ee7dc162fd
