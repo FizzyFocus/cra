@@ -2101,6 +2101,23 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
             let role = browsers.runtimes.values.contains { $0.hostWindow === w } ? "page" : (browsers.visibleDevToolsWindow === w ? "devtools" : "\(type(of: w))")
             CraLog.note("window corners \(label): child\(i) \(role) #\(w.windowNumber) frame=\(Int(w.frame.minX)),\(Int(w.frame.minY)),\(Int(w.frame.width)),\(Int(w.frame.height)) style=\(w.styleMask.rawValue) square=\(ChromiumWindowCorners.isSquareWindow(w) ? 1 : 0) os=\(ChromiumWindowCorners.effectiveRadius(w).map { "\(Int($0.rounded()))" } ?? "-") \(corners)")
         }
+        // The Chromium engine has no window per page: the page's and DevTools' views sit in the card, and
+        // what clips them is the nearest layer above that clips (the card's own, CraMetrics.contentCornerRadius).
+        // A view has no system corners (square=1, os=-).
+        guard let id = browsers.visibleTabID, let rt = browsers.runtime(for: id), rt.hostWindow == nil else { return }
+        let views: [(String, NSView?)] = [("page", rt.pageViews.last), ("devtools", browsers.devToolsViews[id])]
+        for (i, (role, view)) in views.enumerated() {
+            guard let view, view.window === window, !view.isHiddenOrHasHiddenAncestor else { continue }
+            var clip: CALayer?
+            var v: NSView? = view
+            while let current = v, clip == nil {
+                if let l = current.layer, l.masksToBounds, l.cornerRadius > 0 { clip = l }
+                v = current.superview
+            }
+            let f = window.convertToScreen(view.convert(view.bounds, to: nil))
+            let corners = clip.map { "r=\($0.cornerRadius) mask=\($0.maskedCorners.rawValue) clip=1" } ?? "r=0.0 clip=0"
+            CraLog.note("window corners \(label): view\(i) \(role) frame=\(Int(f.minX)),\(Int(f.minY)),\(Int(f.width)),\(Int(f.height)) square=1 os=- \(corners)")
+        }
     }
     private func buttonState(_ w: NSWindow) -> String {
         guard let b = w.standardWindowButton(.closeButton) else { return "none" }

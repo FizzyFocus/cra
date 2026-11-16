@@ -52,6 +52,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         if CraCEFRuntime.responds(to: #selector(CraCEFRuntime.setHardwareAccelerationEnabled(_:))) {
             CraCEFRuntime.setHardwareAccelerationEnabled(store.settings.hardwareAcceleration)
         }
+        // The Chromium engine has none of Pane's CEF bridge calls: Pane puts the Boosts' start script in each page
+        // itself, and searches for a favicon Chrome didn't find, fetching without cookies.
+        if EngineBoostScript.isNeeded {
+            BrowserManager.pageMade = { EngineBoostScript.shared.pageExists($0) }
+            BrowserManager.searchesIconsAfterLoad = true
+            FaviconFinder.bridgeFetches = false
+        }
         SettingsLaunch.hardwareAcceleration = store.settings.hardwareAcceleration
         CraCEFRuntime.setDocumentStartScript(PageScript.mainWorld, isolatedScript: PageScript.isolatedWorld, world: PageScript.world)
         startContentBlocking()
@@ -426,9 +433,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private func updateBoostScript() {
         let on = store.settings.boostsEnabled
         let script = on ? BoostScript.documentStart(BoostStore.shared.boosts) : ""
-        // Pane's CEF bridge only: on the Chromium engine a page's boost goes on when its load commits
-        // (BrowserManager.applyBoost), as upstream's does.
-        guard CraCEFRuntime.responds(to: #selector(CraCEFRuntime.setBoostScript(_:world:hosts:))) else { return }
+        // The Chromium engine has no such call: the script goes in with the engine's own (EngineBoostScript).
+        if EngineBoostScript.isNeeded {
+            EngineBoostScript.shared.update(boosts: on ? BoostStore.shared.boosts : [], mainWorld: PageScript.mainWorld,
+                                            isolatedWorld: PageScript.isolatedWorld, world: PageScript.world)
+            return
+        }
         CraCEFRuntime.setBoostScript(script, world: PageScript.world, hosts: on ? BoostScript.entries(BoostStore.shared.boosts).map(\.host) : [])
     }
 

@@ -790,11 +790,7 @@ final class WebKitBrowser: CraBrowser, WKNavigationDelegate, WKUIDelegate, WKDow
     /// (Chromium's OnFaviconURLChange), so the search starts here.
     @MainActor
     private func loadFavicon() {
-        let js = """
-        JSON.stringify([...document.querySelectorAll('link[rel][href]')]
-          .filter(l => /(^|\\s)(icon|apple-touch-icon|apple-touch-icon-precomposed)(\\s|$)/i.test(l.getAttribute('rel') || '') && l.href)
-          .slice(0, 16).map(l => ({href: l.href, rel: l.getAttribute('rel').toLowerCase()})))
-        """
+        let js = FaviconFinder.pageIconsScript
         webView?.evaluateJavaScript(js, in: nil, in: Self.world) { [weak self] r in
             guard let self, !self.closed else { return }
             self.delegate?.browser?(self, didFindPageIcons: (try? r.get()) as? String ?? "[]")
@@ -810,21 +806,8 @@ final class WebKitBrowser: CraBrowser, WKNavigationDelegate, WKUIDelegate, WKDow
     }
 
     override func fetchImageData(_ url: String, completion: @escaping (Int, String, Data?) -> Void) {
-        guard let source = URL(string: url), ["http", "https"].contains(source.scheme ?? "") else { return completion(0, "", nil) }
-        Self.iconSession.dataTask(with: source) { data, response, _ in
-            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-            let mimeType = response?.mimeType ?? ""
-            DispatchQueue.main.async { completion(status, mimeType, data.flatMap { $0.count <= 4 << 20 ? $0 : nil }) }
-        }.resume()
+        FaviconFetch.get(url, completion: completion)
     }
-
-    private static let iconSession: URLSession = {
-        let c = URLSessionConfiguration.ephemeral
-        c.httpCookieStorage = nil
-        c.httpShouldSetCookies = false
-        c.timeoutIntervalForRequest = 15
-        return URLSession(configuration: c)
-    }()
 
     // MARK: Scripts and the DevTools Protocol methods Cra uses
 

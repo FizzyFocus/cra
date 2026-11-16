@@ -66,6 +66,10 @@ final class TabRuntime {
     var blockedPopups = BlockedPopups()
     /// Looks for the page's icon past the first one Chromium lists (FaviconSearch).
     var favicon: FaviconFinder?
+    /// The Chromium engine: the navigation whose favicon Chrome reported, and the search waiting to start
+    /// when it didn't (BrowserManager.searchIconsAfterLoad).
+    var engineFaviconRevision: UInt?
+    var faviconSearch: ScheduledWork?
     /// Chrome-style hosting: the page's own window (nil until created, or for Alloy).
     var hostWindow: NSWindow? { browser.hostWindow }
     /// The window the page shows in: its Chrome window over the card (CEF's Chrome-style hosting) or the Cra window
@@ -1479,6 +1483,8 @@ final class BrowserManager: NSObject, @preconcurrency CraBrowserDelegate {
     }
 
     func browser(_ browser: CraBrowser, didChangeLoading loading: Bool, canGoBack: Bool, canGoForward: Bool) {
+        // The engine's first callback for a page it just made, before its first document: the Boosts' start script.
+        Self.pageMade(browser)
         guard let id = tabID(of: browser) else { return }
         if loading, findOwner?.tabID == id { stopFinding(false) }
         if loading {
@@ -1584,6 +1590,7 @@ final class BrowserManager: NSObject, @preconcurrency CraBrowserDelegate {
         guard let id = tabID(of: browser), runtimes[id]?.discarded != true else { return }
         log(id, "loaded \(site(url, id, browser)) (HTTP \(statusCode))")
         if statusCode != 0 { runtimes[id]?.extensionPageRetries = 0 }
+        searchIconsAfterLoad(id, browser)
         guard !browser.isIncognito else { return }
         // The profile's extensions are up: imported Web Store copies become store installs (#203).
         ExtensionStore.shared.installFromWebStore(using: browser, profile: store.profileDirectoryName(item: id))
@@ -1623,16 +1630,53 @@ final class BrowserManager: NSObject, @preconcurrency CraBrowserDelegate {
     private func faviconFinder(of browser: CraBrowser) -> FaviconFinder? {
         guard let id = tabID(of: browser), let rt = runtimes[id], rt.browser === browser else { return nil }
         if let finder = rt.favicon { return finder }
-        let finder = FaviconFinder(browser: browser) { [weak self, weak browser] image, iconURL in
+        let finder = FaviconFinder(browser: browser) { [weak self, weak browser] image, _ in
             guard let self, let browser else { return }
-            self.browser(browser, didLoadFavicon: image, forURL: iconURL)
+            self.storeFavicon(image, of: browser)
         }
         rt.favicon = finder
         return finder
     }
 
-    /// An icon FaviconFinder found for the page: the tab's own, and the site's for pages not loaded yet.
+    /// The Chromium engine's favicon for the page: Chrome's own, downloaded and decoded in the renderer (on CEF,
+    /// FaviconFinder finds them). It stands for this load: no search after it (searchesIconsAfterLoad).
     func browser(_ browser: CraBrowser, didLoadFavicon image: NSImage, forURL iconURL: String) {
+        if let id = tabID(of: browser), let rt = runtimes[id] { rt.engineFaviconRevision = rt.navigationRevision }
+        CraLog.note("favicon \(browser.isIncognito ? "(incognito)" : CraLog.host(browser.currentURL)): \(FaviconFinder.name(iconURL)) via renderer")
+        storeFavicon(image, of: browser)
+    }
+
+    /// Set by the app on the Chromium engine, which has none of Pane's CEF bridge calls: a page the engine just
+    /// made gets the Boosts' start script (EngineBoostScript), and a page whose favicon Chrome didn't find has
+    /// FaviconFinder search what it declares once it has loaded (on CEF, the bridge starts that search).
+    static var pageMade: (CraBrowser) -> Void = { _ in }
+    static var searchesIconsAfterLoad = false
+
+    /// A second after a load ends with no favicon from Chrome: what the page's DOM declares, then /favicon.ico
+    /// (FaviconSearch), as for a WebKit page. A page whose declared icon doesn't decode (my.eskiz.uz) keeps the globe
+    /// otherwise: Chrome's favicon driver tries what the page declares, and /favicon.ico only when it declares none.
+    private func searchIconsAfterLoad(_ id: UUID, _ browser: CraBrowser) {
+        guard Self.searchesIconsAfterLoad, let rt = runtimes[id], rt.browser === browser,
+              browser.currentURL.hasPrefix("http") else { return }
+        let revision = rt.navigationRevision
+        rt.faviconSearch = clock.after(1) { [weak self, weak browser, weak rt] in
+            guard let self, let browser, let rt, self.runtimes[id] === rt, rt.browser === browser, !browser.isClosed,
+                  rt.navigationRevision == revision, rt.engineFaviconRevision != revision else { return }
+            let params = (try? JSONSerialization.data(withJSONObject: ["expression": FaviconFinder.pageIconsScript, "returnByValue": true]))
+                .flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+            browser.evaluate(inIsolatedWorld: PageScript.world, params: params) { [weak self, weak browser] result, _ in
+                let json = (result?.data(using: .utf8)).flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+                    .flatMap { ($0["result"] as? [String: Any])?["value"] as? String } ?? "[]"
+                DispatchQueue.main.async {
+                    guard let self, let browser else { return }
+                    self.faviconFinder(of: browser)?.pageLoaded(iconsJSON: json)
+                }
+            }
+        }
+    }
+
+    /// An icon for the page: the tab's own, and the site's for pages not loaded yet.
+    private func storeFavicon(_ image: NSImage, of browser: CraBrowser) {
         guard let id = tabID(of: browser), let tab = store.item(id)?.tab else { return }
         guard let site = FaviconKey.key(for: tab.url) ?? tab.faviconKey.map(FaviconKey.siteKey(of:)) else { return }
         let key = FaviconKey.key(site: site, tabID: id)

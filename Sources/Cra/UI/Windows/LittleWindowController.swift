@@ -1615,6 +1615,7 @@ final class LittleWindowController: NSWindowController, NSWindowDelegate, @preco
     }
 
     func browser(_ browser: CraBrowser, didChangeLoading loading: Bool, canGoBack: Bool, canGoForward: Bool) {
+        BrowserManager.pageMade(browser)
         state.isLoading = loading
         state.canGoBack = canGoBack
         state.canGoForward = canGoForward

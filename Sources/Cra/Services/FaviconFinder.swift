@@ -10,6 +10,19 @@ final class FaviconFinder {
     private var search = FaviconSearch()
     private let found: (NSImage, String) -> Void
 
+    /// Pane's CEF bridge downloads in the renderer (downloadFavicon) and fetches in the tab's session
+    /// (fetchImageData). The Chromium engine has neither: there the app fetches without cookies, as for a WebKit
+    /// page (FaviconFetch), and decodes the bytes itself. Set by the app at launch.
+    static var bridgeFetches = true
+
+    /// What a page's DOM declares as its icons, as JSON (FaviconSearch.pageIcons): `rel~=icon` and the touch
+    /// icons, each href resolved against document.baseURI. WebKit pages and the Chromium engine run it.
+    static let pageIconsScript = """
+    JSON.stringify([...document.querySelectorAll('link[rel][href]')]
+      .filter(l => /(^|\\s)(icon|apple-touch-icon|apple-touch-icon-precomposed)(\\s|$)/i.test(l.getAttribute('rel') || '') && l.href)
+      .slice(0, 16).map(l => ({href: l.href, rel: l.getAttribute('rel').toLowerCase()})))
+    """
+
     init(browser: CraBrowser, found: @escaping (NSImage, String) -> Void) {
         self.browser = browser
         self.found = found
@@ -30,21 +43,22 @@ final class FaviconFinder {
     private func run(_ attempt: FaviconSearch.Attempt?) {
         guard let attempt, let browser, !browser.isClosed else { return }
         switch attempt.fetch {
-        case .renderer:
+        case .renderer where Self.bridgeFetches:
             // CraCEF answers on the main thread.
             browser.downloadFavicon(attempt.url) { [weak self] image in MainActor.assumeIsolated { self?.finish(attempt, image) } }
-        case .session:
+        case .renderer, .session:
             // A data: icon (an SVG the renderer couldn't read) is its own bytes.
             if let inline = WebImagePreview.decodeDataURL(attempt.url) {
                 finish(attempt, FaviconImage.decode(inline.data))
                 return
             }
-            browser.fetchImageData(attempt.url) { [weak self] status, mimeType, data in
+            let answer: (Int, String, Data?) -> Void = { [weak self] status, mimeType, data in
                 MainActor.assumeIsolated {
                     let usable = FaviconSearch.accepts(status: status, mimeType: mimeType)
                     self?.finish(attempt, usable ? data.flatMap(FaviconImage.decode) : nil)
                 }
             }
+            if Self.bridgeFetches { browser.fetchImageData(attempt.url, completion: answer) } else { FaviconFetch.get(attempt.url, completion: answer) }
         }
     }
 
@@ -64,7 +78,7 @@ final class FaviconFinder {
     }
 
     /// What the log names an icon by: its file, never its query.
-    private static func name(_ url: String) -> String {
+    static func name(_ url: String) -> String {
         if url.lowercased().hasPrefix("data:") { return "data:" + (WebImagePreview.decodeDataURL(url)?.mimeType ?? "") }
         return URL(string: url).map { $0.lastPathComponent.isEmpty ? "/" : $0.lastPathComponent } ?? "?"
     }
@@ -98,4 +112,25 @@ enum FaviconImage {
         image.addRepresentation(rep)
         return image
     }
+}
+
+/// An icon fetched by the app without cookies (WebKit pages, and the Chromium engine's fallback): status, MIME
+/// type and at most 4 MB of body, on the main queue. http(s) only.
+enum FaviconFetch {
+    static func get(_ url: String, completion: @escaping (Int, String, Data?) -> Void) {
+        guard let source = URL(string: url), ["http", "https"].contains(source.scheme ?? "") else { return completion(0, "", nil) }
+        session.dataTask(with: source) { data, response, _ in
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            let mimeType = response?.mimeType ?? ""
+            DispatchQueue.main.async { completion(status, mimeType, data.flatMap { $0.count <= 4 << 20 ? $0 : nil }) }
+        }.resume()
+    }
+
+    private static let session: URLSession = {
+        let c = URLSessionConfiguration.ephemeral
+        c.httpCookieStorage = nil
+        c.httpShouldSetCookies = false
+        c.timeoutIntervalForRequest = 15
+        return URLSession(configuration: c)
+    }()
 }
