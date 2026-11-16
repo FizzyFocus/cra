@@ -45,6 +45,7 @@ final class SidebarStore {
     var settings = AppSettings() {
         didSet {
             settingsStore.save(settings)
+            if settings.tidyDownloads != oldValue.tidyDownloads { tidyDownloadsChanged(settings.tidyDownloads) }
             if settings != oldValue { onSyncableChange?() }
         }
     }
@@ -79,6 +80,8 @@ final class SidebarStore {
     /// A tab came into a space's pinned tabs from elsewhere (⌘D, a drag, a menu): Tidy Tab Titles
     /// may give it a shorter name (TidyTitlesService).
     @ObservationIgnored var tabPinned: (UUID) -> Void = { _ in }
+    /// Synchronous so an off/on change in one actor turn cannot revive an older download name.
+    @ObservationIgnored var tidyDownloadsChanged: (Bool) -> Void = { _ in }
     @ObservationIgnored var liveFolderChanged: (UUID) -> Void = { _ in }
     @ObservationIgnored private var liveFolderVersions: [UUID: UUID] = [:]
 
