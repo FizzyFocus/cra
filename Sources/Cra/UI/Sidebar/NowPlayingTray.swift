@@ -115,6 +115,11 @@ final class NowPlayingTrayView: NSView {
     /// The number of cards changed: the sidebar gives the list more or less room.
     var onCountChange: (() -> Void)?
     var shownCount: Int { order.count }
+    /// How high the cards reach from the view's bottom, resting or open, where they are going (not
+    /// mid-spring): the downloads list stays above it (SidebarView.placeTray).
+    private(set) var stackHeight: CGFloat = 0
+    /// The stack's height changed: animated with the cards' spring, or at once.
+    var onStackChange: ((_ animated: Bool) -> Void)?
 
     init(store: SidebarStore, ui: SidebarUIState, favicons: FaviconCache) {
         self.store = store
@@ -200,6 +205,13 @@ final class NowPlayingTrayView: NSView {
         let m = NowPlayingMetrics.self
         var frames: [(NowPlayingCardView, NSRect, CGFloat)] = []
         var y: CGFloat = 0
+        defer {
+            let top = frames.filter { $0.2 > 0 }.map(\.1.maxY).max() ?? 0
+            if top != stackHeight {
+                stackHeight = top
+                onStackChange?(animated && window != nil)
+            }
+        }
         for (k, id) in order.reversed().enumerated() {
             guard let card = cards[id] else { continue }
             card.drawerOpen = expanded && drawerID == id
@@ -248,7 +260,8 @@ final class NowPlayingTrayView: NSView {
     static let cardSpring = SpringMotion(response: 0.3, dampingFraction: 0.86)
 
     /// `card` to `f` on cardSpring, from wherever it shows now (a fold caught mid-way turns round).
-    private static func spring(_ card: NSView, to f: NSRect) {
+    /// The downloads list rides on it too, so its rows keep their room above the cards.
+    static func spring(_ card: NSView, to f: NSRect) {
         guard let layer = card.layer, !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else { card.frame = f; return }
         let shown = layer.presentation()
         let fromPosition = shown?.position ?? layer.position
@@ -294,6 +307,9 @@ final class NowPlayingTrayView: NSView {
     private func overStack(_ p: NSPoint) -> Bool {
         cards.values.filter { $0.alphaValue > 0 }.map(\.frame).reduce(NSRect.null) { $0.union($1) }.contains(p)
     }
+
+    /// cra://debug?playerOpen=1|0: the stack opened or closed as the pointer would.
+    func debugSetHovered(_ hovered: Bool) { setHovered(hovered) }
 
     private func setHovered(_ hovered: Bool) {
         let want = hovered && !order.isEmpty

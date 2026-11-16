@@ -1,0 +1,43 @@
+# The open downloads list stays above the mini player's cards (16 Nov 2026): the rows sat just above
+# the resting stack, and hovering it opened the cards up over them. The list's last row now ends
+# 10 pt above the cards as they are, resting or open, moving with their spring
+# (CraCore DownloadsTrayLayout.rowsBottom). Two quiet tones (−60 dB, sounds.html) give two cards.
+budget rss=900 stalls50=30
+home
+seed settings.json {"hasSeenImportPrompt": true, "toolbarDefaultMigrated": true}
+pace 0.5
+
+# A download, so the list has a row.
+cra://open?url=file://${FIXTURES}/Pages/downloads.html
+expect-log loaded file:
+cra://debug?cdp=Input.dispatchMouseEvent&params={"type":"mousePressed","x":36,"y":24,"button":"left","clickCount":1}
+cra://debug?cdp=Input.dispatchMouseEvent&params={"type":"mouseReleased","x":36,"y":24,"button":"left","clickCount":1}
+wait 4
+
+# Two tabs playing behind a third: two cards.
+cra://open?url=file://${FIXTURES}/Pages/sounds.html?n=a
+wait 2
+cra://debug?cdp=Runtime.evaluate&params={"userGesture":true,"awaitPromise":true,"returnByValue":true,"expression":"tone()"}
+expect-log "value":"tone:playing"
+cra://open?url=file://${FIXTURES}/Pages/sounds.html?n=b
+wait 2
+cra://debug?cdp=Runtime.evaluate&params={"userGesture":true,"awaitPromise":true,"returnByValue":true,"expression":"tone()"}
+wait 1
+cra://open?url=${PAGE}?n=front
+wait 2
+
+cra://debug?downloads=1
+wait 1
+cra://debug?downloadsGeometry=resting
+expect-log downloads list resting: rows=[1-9][0-9]* .* open=1 cards=2 aboveCards=(9|10|11)$
+# The cards open as the pointer opens them: the rows go up with them.
+cra://debug?playerOpen=1
+wait 1
+cra://debug?downloadsGeometry=opened
+expect-log downloads list opened: .* open=1 cards=2 aboveCards=(9|10|11)$
+# Folded again: back down above the resting cards.
+cra://debug?playerOpen=0
+wait 1
+cra://debug?downloadsGeometry=folded
+expect-log downloads list folded: .* open=1 cards=2 aboveCards=(9|10|11)$
+cra://debug?downloads=0

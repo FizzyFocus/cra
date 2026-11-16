@@ -1944,6 +1944,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                 if xy.count == 2 { main.debugPreviewImage(at: NSPoint(x: xy[0], y: xy[1]), shiftClick: dict["shift"] == "1") }
                 return
             }
+            if let v = dict["playerOpen"] { (main.shell.sidebarHost as? SidebarView)?.debugPlayerOpen(v == "1"); return }
             if let label = dict["downloadsGeometry"] {
                 (main.shell.sidebarHost as? SidebarView)?.debugDownloadsGeometry(label)
                 return

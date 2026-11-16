@@ -80,6 +80,7 @@ final class SidebarView: NSView {
         favorites.onHeightChange = { [weak self] animated in self?.placeFavorites(animated: animated) }
         favorites.onSlide = { [weak self] sliding in self?.favoritesClip.layer?.masksToBounds = sliding }
         player.onCountChange = { [weak self] in self?.needsLayout = true }
+        player.onStackChange = { [weak self] animated in self?.placeTray(animated: animated) }
         // A plain click anywhere in the sidebar that isn't a row, tile, button or control (its
         // background, a header, a divider, the space's name, a gutter) drops a ⌘/⇧-click tab
         // selection (11 Nov 2026). Seen before the click is handled; it goes on as it would.
@@ -292,7 +293,7 @@ final class SidebarView: NSView {
     /// and fades back in over the 170 pt above that.
     private func updateTrayMask(open: Bool, rows: Int) {
         let h = max(pager.bounds.height, 1)
-        let clearTop = max(0, h - DownloadsTrayMetrics.listHeight(rows: rows) - DownloadsTrayMetrics.bottomClearance - 3)
+        let clearTop = max(0, h - DownloadsTrayMetrics.listHeight(rows: rows) - DownloadsTrayMetrics.bottomClearance - 3 - trayLift)
         let fadeTop = max(0, clearTop - DownloadsTrayMetrics.fade)
         CATransaction.begin()
         CATransaction.setAnimationDuration(open ? 0.18 : 0.13)
@@ -438,19 +439,35 @@ final class SidebarView: NSView {
         let listBottom = bannerTop - NowPlayingMetrics.restHeight(cards: player.shownCount)
         pager.frame = NSRect(x: 0, y: th, width: b.width, height: max(0, listBottom - th))
         placeFavorites(animated: false)
-        let rows = DownloadHistory.shared.recent.count
-        // The rows end just above the list's area; the view runs on down to the Library button
-        // (4 pt into the dock), so moving up from the button to the rows never leaves it (11 Nov
-        // 2026: the empty strip between closed the list on the way). Only the rows take clicks.
-        let listTop = pager.frame.maxY - (DownloadsTrayMetrics.listHeight(rows: rows) + 2) - DownloadsTrayMetrics.bottomClearance
-        trayHost.frame = NSRect(x: 0, y: listTop, width: b.width, height: max(0, dock.frame.minY + 4 - listTop))
+        placeTray(animated: false)
         // Last: Create a Space's slide moves the list's parts from where they were just put.
         layoutCreateHost()
         // At the column's right edge, where the strip pulls away past the last space.
         let side = CreateSpaceSwipeIndicator.side
         createSwipe.frame = NSRect(x: b.width - side - 16, y: (pager.frame.midY - side / 2).rounded(), width: side, height: side)
-        updateTrayMask(open: ui.downloadsListOpen, rows: rows)
         if renameCard?.layer?.animationKeys()?.isEmpty ?? true { layoutRenameCard() }
+    }
+
+    /// How far the downloads rows sit above where the list's area alone would put them: the mini
+    /// player's open stack reaching higher (DownloadsTrayLayout.rowsBottom).
+    private var trayLift: CGFloat = 0
+
+    /// The downloads list just above whatever is at the bottom: the dock, or the mini player's cards
+    /// as they are now, resting or open (16 Nov 2026: open, they lay over the rows). The view runs on
+    /// down to the Library button (4 pt into the dock), so moving up from the button to the rows never
+    /// leaves it (11 Nov 2026: the empty strip between closed the list on the way); only the rows take
+    /// clicks. With the stack's spring when the cards open or fold, so the rows keep above them.
+    private func placeTray(animated: Bool) {
+        let rows = DownloadHistory.shared.recent.count
+        let stackTop = player.shownCount > 0 && player.stackHeight > 0 ? Double(player.frame.maxY - player.stackHeight) : nil
+        let rowsBottom = CGFloat(DownloadsTrayLayout.rowsBottom(areaBottom: Double(pager.frame.maxY), playerStackTop: stackTop))
+        let listTop = rowsBottom - (DownloadsTrayMetrics.listHeight(rows: rows) + 2)
+        let frame = NSRect(x: 0, y: listTop, width: tabs.bounds.width, height: max(0, dock.frame.minY + 4 - listTop))
+        trayLift = max(0, pager.frame.maxY - DownloadsTrayMetrics.bottomClearance - rowsBottom)
+        if trayHost.frame != frame {
+            if animated, window != nil { NowPlayingTrayView.spring(trayHost, to: frame) } else { trayHost.frame = frame }
+        }
+        updateTrayMask(open: ui.downloadsListOpen, rows: rows)
     }
 
     private var backgroundClickMonitor: Any?
@@ -501,8 +518,14 @@ final class SidebarView: NSView {
         let lastBottom = trayHost.frame.minY + 2 + DownloadsTrayMetrics.listHeight(rows: rows)
         let gap = dock.frame.minY - lastBottom
         let reaches = trayHost.frame.maxY >= dock.frame.minY
-        CraLog.note("downloads list \(label): rows=\(rows) gapToDock=\(Int(gap.rounded())) reachesButton=\(reaches ? 1 : 0) open=\(ui.downloadsListOpen ? 1 : 0)")
+        // The room between the last row and the top of the player's cards ("-" without any).
+        let aboveCards = player.shownCount > 0 ? "\(Int((player.frame.maxY - player.stackHeight - lastBottom).rounded()))" : "-"
+        CraLog.note("downloads list \(label): rows=\(rows) gapToDock=\(Int(gap.rounded())) reachesButton=\(reaches ? 1 : 0) open=\(ui.downloadsListOpen ? 1 : 0) "
+            + "cards=\(player.shownCount) aboveCards=\(aboveCards)")
     }
+
+    /// cra://debug?playerOpen=1|0: the mini player's cards opened or folded as the pointer would.
+    func debugPlayerOpen(_ open: Bool) { player.debugSetHovered(open) }
 
     /// The favorites where the space pages used to carry them: from the pager's top, 8 pt in from
     /// both sides. Each page leaves their room above its header (SpaceColumnView.place). A row

@@ -56,6 +56,21 @@ public enum DownloadsTrayLayout {
     /// Between the name's box and the age's.
     public static let lineGap: Double = 1
 
+    /// Between the open list's last row and the mini player's cards under it.
+    public static let playerSpacing: Double = 8
+
+    /// Where the open list's last row ends (y down): just above the list's area, which ends at the
+    /// dock or at the resting mini player it already leaves room for, and above the player's stack
+    /// as it is now when that reaches higher. Open, the player's cards grow up over the tab list, and
+    /// they lay over the downloads rows too (16 Nov 2026). `playerStackTop`: the top of the cards
+    /// showing, nil without any.
+    public static func rowsBottom(areaBottom: Double, playerStackTop: Double?) -> Double {
+        let bottom = areaBottom - bottomGap
+        guard let top = playerStackTop else { return bottom }
+        // The same room as at rest, where the area ends `playerSpacing` above the cards.
+        return min(bottom, top - playerSpacing - bottomGap)
+    }
+
     /// The list's height with `rows` rows (none: no list).
     public static func listHeight(rows: Int) -> Double { rows == 0 ? 0 : Double(rows) * rowPitch - rowGap }
 

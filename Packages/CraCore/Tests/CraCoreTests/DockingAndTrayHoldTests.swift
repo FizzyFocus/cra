@@ -53,3 +53,28 @@ struct DockingAndTrayHoldTests {
         #expect(L.clickArea(rows: 0, width: 300) == nil)
     }
 }
+
+/// The downloads list's last row ends above the mini player's cards, resting or open (16 Nov 2026:
+/// the open cards lay over the rows).
+struct DownloadsTrayAboveThePlayerTests {
+    @Test func withoutAPlayerTheRowsEndJustAboveTheirArea() {
+        #expect(DownloadsTrayLayout.rowsBottom(areaBottom: 700, playerStackTop: nil) == 698)
+    }
+
+    @Test func aRestingPlayerLeavesTheRowsWhereTheyWere() {
+        // The area already ends `playerSpacing` above the resting cards.
+        #expect(DownloadsTrayLayout.rowsBottom(areaBottom: 700, playerStackTop: 708) == 698)
+    }
+
+    @Test func openCardsPushTheRowsUpAboveThem() {
+        let bottom = DownloadsTrayLayout.rowsBottom(areaBottom: 700, playerStackTop: 612)
+        #expect(bottom == 602)
+        #expect(bottom < 612)
+    }
+
+    @Test func theRoomAboveTheCardsIsTheSameRestingOrOpen() {
+        let resting = 708 - DownloadsTrayLayout.rowsBottom(areaBottom: 700, playerStackTop: 708)
+        let open = 612 - DownloadsTrayLayout.rowsBottom(areaBottom: 700, playerStackTop: 612)
+        #expect(resting == open)
+    }
+}
