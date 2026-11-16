@@ -1230,6 +1230,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                 CraLog.note("list fold \(label): \(SpaceListView.debugFolds(ui: main.sidebarUI, space: store.focusedSpace(window: main.windowID).id))")
                 return
             }
+            if let label = dict["listScroll"] {
+                let to = dict["to"].flatMap(Double.init).map { CGFloat($0) }
+                CraLog.note("list scroll \(label): \(SpaceListView.debugScroll(ui: main.sidebarUI, space: store.focusedSpace(window: main.windowID).id, to: to))")
+                return
+            }
             if let label = dict["listRows"] {
                 CraLog.note("list rows \(label): \(SpaceListView.debugRows(ui: main.sidebarUI, space: store.focusedSpace(window: main.windowID).id))")
                 return

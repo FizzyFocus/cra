@@ -523,7 +523,11 @@ final class SpaceListView: NSView, NSDraggingSource {
         if let h = hovered, h.superview == nil || gone.contains(h) { hovered = nil }
         refreshHover()
         scrollToRenaming()
-        if wasSynced { revealActiveRow() } else { lastActive = activeRowKey() }
+        if wasSynced {
+            revealActiveRow()
+        } else {
+            lastActive = ActiveRowReveal.first(shown: isShownSpace, active: activeRowKey(), spaceOwn: spaceOwnRowKey())
+        }
         updateJumpPill(animated: synced)
     }
 
@@ -952,6 +956,24 @@ final class SpaceListView: NSView, NSDraggingSource {
         if jumpPill.frame != frame { jumpPill.frame = frame }
     }
 
+    /// cra://debug?listScroll=<label>[&to=<y>]: the focused space's list, scrolled to `y` first (no
+    /// animation) when given: how far down it is, how far it can go, and whether the selected row shows.
+    static func debugScroll(ui: SidebarUIState, space: UUID, to: CGFloat?) -> String {
+        guard let l = all.allObjects.first(where: { $0.ui === ui && $0.spaceID == space }) else { return "no list" }
+        let clip = l.scrollView.contentView
+        let most = max(0, l.document.frame.height - clip.bounds.height)
+        if let to {
+            clip.setBoundsOrigin(NSPoint(x: 0, y: min(max(0, to), most)))
+            l.scrollView.reflectScrolledClipView(clip)
+        }
+        let visible = clip.bounds
+        let shows = l.selectedRow().map { r in
+            let f = l.placed(r.row)
+            return f.minY >= visible.minY - 0.5 && f.maxY <= visible.maxY + 0.5
+        }
+        return "y=\(Int(visible.minY.rounded())) max=\(Int(most.rounded())) selectedShows=\(shows.map { $0 ? "1" : "0" } ?? "-")"
+    }
+
     /// Testing: the jump pill's click on the focused space's list.
     static func jumpToSelected(for ui: SidebarUIState, space: UUID) {
         for l in all.allObjects where l.ui === ui && l.spaceID == space { l.scrollToSelected() }
@@ -1069,14 +1091,33 @@ final class SpaceListView: NSView, NSDraggingSource {
         return nil
     }
 
+    /// Whether this list's space is the one its window shows.
+    private var isShownSpace: Bool { store.focusedSpaceID(window: ui.windowID) == spaceID }
+
+    /// The row of the space's own selected tab (or its split), active again once the space shows.
+    private func spaceOwnRowKey() -> RowKey? {
+        guard let id = store.window(ui.windowID).selectedTabPerSpace[spaceID] else { return nil }
+        for row in rows {
+            switch row.content {
+            case .tab(let m) where m.id == id: return row.key
+            case .split(let m) where m.cells.contains(where: { $0.id == id }): return row.key
+            default: continue
+            }
+        }
+        return nil
+    }
+
     /// Arc 1.171 (1 Nov 2026) brings whatever becomes active into view, whatever made it so: ⌘T's
     /// New Tab row, the tab a commit opens, the tab Escape goes back to, Next Tab, a tab picked
     /// anywhere. It scrolls as little as shows the whole row, which lands on the top or bottom
-    /// edge, and not at all when the row already shows, so a scroll by hand stays put.
+    /// edge, and not at all when the row already shows, so a scroll by hand stays put. A space
+    /// switch makes nothing active: the space comes back scrolled where it was (CraCore
+    /// ActiveRowReveal).
     private func revealActiveRow() {
         let key = activeRowKey()
-        defer { lastActive = key }
-        guard let key, key != lastActive, showsNewTab, ui.listDrop == nil,
+        let step = ActiveRowReveal.step(shown: isShownSpace, active: key, spaceOwn: spaceOwnRowKey(), last: lastActive)
+        lastActive = step.remember
+        guard step.reveal, let key, showsNewTab, ui.listDrop == nil,
               let row = rows.first(where: { $0.key == key }) else { return }
         let clip = scrollView.contentView
         let visible = clip.bounds
