@@ -605,6 +605,10 @@ built release app with a test profile. Note anything that fails in the release's
   minutes. No grey pane flashes and Stage Manager shows no window coming and going. After a
   minute pass, the GPU helper's footprint (`footprint -p <pid>`) still drops as the hidden tabs
   let go of their tiles (#195: 20 tabs, 386 → about 235 MB).
+- **Blocked requests:** with Block Ads & Trackers on, ziplyfiber.com, fidelity.com and
+  allstate.com show their pages. They stayed white while a blocked request was cancelled instead of
+  failed: Adobe Target hides the page until its request ends. (The scenario checks the failure and
+  that the blocked host is never asked; this needs the real sites.)
 
 ### Sync
 
