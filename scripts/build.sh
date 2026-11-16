@@ -128,6 +128,26 @@ if [ "$ENGINE" = chromium ]; then
     rm -f "$helper/Contents/Resources/Assets.car"
     /usr/libexec/PlistBuddy -c "Delete :CFBundleIconName" "$helper/Contents/Info.plist" 2>/dev/null || true
   done
+  # Pane on the published engine, which is upstream Cra's build (16 Nov 2026). What macOS shows people comes
+  # from Info.plist and is Pane's: the helpers' names and Pane's icon (app.icns, which their plists name), and
+  # bundle ids under uz.pane.browser. The Alerts helpers, which macOS lists under System Settings ▸
+  # Notifications and asks permission for, are "Pane" with the id Pane's CEF helper had, so a choice made
+  # there carries over. The executables keep Cra's names: Chrome finds its helpers by a name compiled into
+  # the framework ("Cra Helper"), so Activity Monitor lists "Cra Helper (Renderer)" and the others.
+  PB=/usr/libexec/PlistBuddy
+  $PB -c "Set :CFBundleIdentifier uz.pane.browser.framework" "$APP/Contents/Frameworks/$FW_NAME.framework/Resources/Info.plist"
+  for helper in "$APP/Contents/Frameworks/$FW_NAME.framework/Versions/"*/Helpers/*.app; do
+    plist="$helper/Contents/Info.plist"
+    name="$($PB -c "Print :CFBundleName" "$plist")"
+    id="$($PB -c "Print :CFBundleIdentifier" "$plist")"
+    case "$name" in
+      *Alerts*) shown=Pane; id=uz.pane.browser.helper.alerts ;;
+      *) shown="${name/#Cra /Pane }"; id="${id/#dk.kildahl.cra/uz.pane.browser}" ;;
+    esac
+    $PB -c "Set :CFBundleName '$shown'" -c "Set :CFBundleDisplayName '$shown'" -c "Set :CFBundleIdentifier $id" "$plist"
+    # Helpers that show nothing (GPU, utilities) have no icon to replace.
+    if icon="$($PB -c "Print :CFBundleIconFile" "$plist" 2>/dev/null)"; then cp resources/AppIcon.icns "$helper/Contents/Resources/$icon"; fi
+  done
 else
   FW_NAME="Chromium Embedded Framework"
   cp -R "$ROOT/$CEF_DIR/Release/$FW_NAME.framework" "$APP/Contents/Frameworks/"

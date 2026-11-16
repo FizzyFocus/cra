@@ -47,7 +47,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         installURLEventHandler()
         PerfCEF.install(app: self)
         CraCEFRuntime.setChromeHosting(store.settings.chromeEngine)
-        CraCEFRuntime.setHardwareAccelerationEnabled(store.settings.hardwareAcceleration)
+        // Pane's CEF bridge reads it at launch (--disable-gpu); the Chromium engine's has no such call
+        // (it starts Chrome with the app's own arguments), so the switch is CEF-only for now.
+        if CraCEFRuntime.responds(to: #selector(CraCEFRuntime.setHardwareAccelerationEnabled(_:))) {
+            CraCEFRuntime.setHardwareAccelerationEnabled(store.settings.hardwareAcceleration)
+        }
         SettingsLaunch.hardwareAcceleration = store.settings.hardwareAcceleration
         CraCEFRuntime.setDocumentStartScript(PageScript.mainWorld, isolatedScript: PageScript.isolatedWorld, world: PageScript.world)
         startContentBlocking()
@@ -422,6 +426,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private func updateBoostScript() {
         let on = store.settings.boostsEnabled
         let script = on ? BoostScript.documentStart(BoostStore.shared.boosts) : ""
+        // Pane's CEF bridge only: on the Chromium engine a page's boost goes on when its load commits
+        // (BrowserManager.applyBoost), as upstream's does.
+        guard CraCEFRuntime.responds(to: #selector(CraCEFRuntime.setBoostScript(_:world:hosts:))) else { return }
         CraCEFRuntime.setBoostScript(script, world: PageScript.world, hosts: on ? BoostScript.entries(BoostStore.shared.boosts).map(\.host) : [])
     }
 

@@ -1672,6 +1672,12 @@ final class LittleWindowController: NSWindowController, NSWindowDelegate, @preco
         store.recordVisit(url: url, title: title)
     }
 
+    /// The Chromium engine's favicon for the page (on CEF, FaviconFinder below finds it).
+    func browser(_ browser: CraBrowser, didLoadFavicon image: NSImage, forURL iconURL: String) {
+        guard browser === self.browser else { return }
+        favicon = image
+        if let key = FaviconKey.key(for: browser.currentURL) { app.favicons.store(image, forKey: key) }
+    }
     func browser(_ browser: CraBrowser, didChangeFaviconURLs urls: [String]) { faviconFinder(for: browser)?.iconsChanged(urls) }
     func browser(_ browser: CraBrowser, didFindPageIcons json: String) { faviconFinder(for: browser)?.pageLoaded(iconsJSON: json) }
 

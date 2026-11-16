@@ -93,6 +93,9 @@ CRA_EXPORT @interface CraSSLStatus : NSObject
 - (void)browser:(CraBrowser *)browser didChangeLoading:(BOOL)loading canGoBack:(BOOL)canGoBack canGoForward:(BOOL)canGoForward;
 - (void)browser:(CraBrowser *)browser didChangeProgress:(double)progress;
 - (void)browser:(CraBrowser *)browser didFinishLoadingURL:(NSString *)url title:(NSString *)title statusCode:(NSInteger)statusCode;
+/// A favicon Chromium loaded for the page. The Chromium engine reports Chrome's own here; on CEF, Pane's
+/// FaviconFinder (didChangeFaviconURLs) finds and reports them.
+- (void)browser:(CraBrowser *)browser didLoadFavicon:(NSImage *)image forURL:(NSString *)iconURL;
 - (void)browser:(CraBrowser *)browser didChangeStatusMessage:(NSString *)message;
 /// The page's theme colour (meta theme-color or body background) as "#RRGGBB", or "" when unknown.
 - (void)browser:(CraBrowser *)browser didReportThemeColor:(NSString *)hex;

@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-"""Names Pane's own Keychain item in CEF's framework and prints the service name it reads.
+"""Names Pane's own Keychain item in a Chromium framework and prints the service name it reads.
 
-  scripts/cef-keychain-item.py <framework binary>    (scripts/fetch-cef.sh runs it)
+  scripts/cef-keychain-item.py <framework binary>    (scripts/fetch-cef.sh and fetch-engine.sh run it)
 
 Chromium derives the key for cookies, saved passwords and card numbers from a secret in the login
 Keychain item "<Name> Safe Storage". The CEF builds Pane fetches are upstream Cra's, built with
 scripts/cef-patches/keychain-service-name.patch as Cra had it: "Cra Safe Storage", account
-"Chromium". Pane's is "Pane Safe Storage", account "Pane" (13 Nov 2026), so macOS names Pane when
+"Chromium". So is the Chromium engine (engine/chromium/patches/keychain-service-name.patch, Chrome 158,
+16 Nov 2026), whose copies have the same shape. Pane's is "Pane Safe Storage", account "Pane" (13 Nov 2026), so macOS names Pane when
 it asks about the item. SafeStorage.swift moves the secret over once, so nothing is lost.
 
 The name is changed in the binary. os_crypt's constants hold the 26 bytes
@@ -223,7 +224,7 @@ def main():
     framework = os.path.dirname(path)
     if framework.endswith(".framework"):
         subprocess.run(["codesign", "--force", "--sign", "-", framework], check=True, capture_output=True)
-    print(f"Renamed CEF's Keychain item to {PANE} ({len(service)} + {len(account)} places)", file=sys.stderr)
+    print(f"Renamed the framework's Keychain item to {PANE} ({len(service)} + {len(account)} places)", file=sys.stderr)
     print(PANE)
 
 
