@@ -11,7 +11,7 @@ C=Packages/CraCore/Sources/CraCore
 { echo "import Foundation"; echo "public enum SpaceColorPresets {"; sed -n '/^    public static func validTint(/,/^    }/p' $C/SpaceColorPresets.swift; echo "}"; } > "$TEST_DIR/ValidTint.swift"
 xcrun swiftc -swift-version 5 -parse-as-library ${CRA_TEST_SWIFTC_FLAGS:-} \
   $C/LinkSummary.swift $C/LinkSummaryCard.swift $C/LinkSummaryShareBitmap.swift $C/ThemeTones.swift $C/SpaceTheme.swift $C/SpaceThemeVariants.swift $C/ThemeOpacity.swift \
-  "$TEST_DIR/SiteKey.swift" "$TEST_DIR/ValidTint.swift" Sources/Cra/UI/LinkSummaryPreview.swift Sources/Cra/UI/LinkSummaryShareImage.swift \
+  "$TEST_DIR/SiteKey.swift" "$TEST_DIR/ValidTint.swift" Sources/Cra/Services/Scheduler.swift Sources/Cra/UI/LinkSummaryPreview.swift Sources/Cra/UI/LinkSummaryShareImage.swift \
   Tests/LinkSummarySupport/LinkSummaryServiceStub.swift Tests/LinkSummaryPanelTests.swift -o "$TEST_DIR/link-summary-panel-tests"
 "$TEST_DIR/link-summary-panel-tests"
 [ -z "${CRA_TEST_KEEP:-}" ] || cp "$TEST_DIR/link-summary-panel-tests" "$CRA_TEST_KEEP/"

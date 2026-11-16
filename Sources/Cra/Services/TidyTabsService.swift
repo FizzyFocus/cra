@@ -56,6 +56,7 @@ final class TidyTabsService {
     /// cached status refreshes.
     var currentModelAvailable: Bool { Self.currentStatus() == .available }
     @ObservationIgnored var downloadsUnavailable: () -> Void = {}
+    @ObservationIgnored var previewsUnavailable: () -> Void = {}
 
     @ObservationIgnored private var activation: NSObjectProtocol?
 
@@ -68,7 +69,7 @@ final class TidyTabsService {
 
     func refresh() {
         let now = Self.currentStatus()
-        if now != .available { downloadsUnavailable() }
+        if now != .available { downloadsUnavailable(); previewsUnavailable() }
         if now != status { status = now }
         else if now != .available {
             // A repeated unavailable refresh must invalidate work even when the UI cache did not change.

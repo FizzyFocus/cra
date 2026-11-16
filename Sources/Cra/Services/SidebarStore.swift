@@ -50,9 +50,11 @@ final class SidebarStore {
             }
             settingsStore.save(settings)
             if settings.tidyDownloads != oldValue.tidyDownloads { tidyDownloadsChanged(settings.tidyDownloads) }
+            if settings.fiveSecondPreviews != oldValue.fiveSecondPreviews { fiveSecondPreviewsChanged(settings.fiveSecondPreviews) }
             if settings != oldValue { onSyncableChange?() }
         }
     }
+    @ObservationIgnored var fiveSecondPreviewsChanged: (Bool) -> Void = { _ in }
     /// Called after a change to what the sync bundle holds: the sidebar's tree, what it shows open,
     /// the settings. SettingsSyncService writes the bundle a moment later (`writeSoon`), so the
     /// iPhone and other Macs get it without waiting for the 30-second look.

@@ -62,6 +62,14 @@ final class TabRuntime {
     var favicon: FaviconFinder?
     /// Chrome-style hosting: the page's own window (nil until created, or for Alloy).
     var hostWindow: NSWindow? { browser.hostWindow }
+    /// Where the page is on screen, or nil while it isn't shown: its Chrome window's frame, else its view's
+    /// (a WebKit page's, or the Chromium engine's, which has no window per page). Upstream 6f29b6d.
+    var pageScreenFrame: NSRect? {
+        if let host = hostWindow { return host.isVisible ? host.frame : nil }
+        let view = browser.containerView
+        guard let window = view.window, window.isVisible, !view.isHiddenOrHasHiddenAncestor else { return nil }
+        return window.convertToScreen(view.convert(view.bounds, to: nil))
+    }
     init(tabID: UUID, browser: CraBrowser) {
         self.tabID = tabID
         self.browser = browser

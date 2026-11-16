@@ -59,6 +59,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         store.tabPinned = { [unowned self] in TidyTitlesService.shared.tabPinned($0, store: self.store) }
         store.tidyDownloadsChanged = { enabled in if !enabled { TidyDownloadsService.shared.cancelAll() } }
         TidyTabsService.shared.downloadsUnavailable = { TidyDownloadsService.shared.cancelAll() }
+        LinkSummaryPreviewController.shared.bindEligibility(to: store)
         // A tip takes the tones of the space its browser window is in (the sidebar may be a
         // floating panel, a child of that window).
         ArcTooltipController.shared.tones = { [unowned self] window in
