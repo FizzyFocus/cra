@@ -6,8 +6,9 @@ work **commit by commit and never merges it**: `git merge upstream/main` would w
 became of every upstream commit, so nothing is ported twice or lost.
 
 - **Decided through:** `56be95d` (upstream/main on 13 Nov 2026). Every upstream commit up to it is under
-  Ported or Skipped.
-- **Triaged through:** `56be95d`. Nothing is Pending.
+  Ported or Skipped. Of the 192 after it (to `f8a6402`), all are decided but the Chromium engine's 103
+  (Pending E, 16 Nov 2026).
+- **Triaged through:** `f8a6402` (upstream/main on 16 Nov 2026).
 - **Merge base:** `9927600`.
 
 ## How to sync
@@ -28,7 +29,7 @@ became of every upstream commit, so nothing is ported twice or lost.
 
 ## Ported
 
-### Cherry-picked (183): `git cherry-pick -x`, the trailer names the upstream commit
+### Cherry-picked (197): `git cherry-pick -x`, the trailer names the upstream commit
 
 | Upstream | Pane | What |
 |---|---|---|
@@ -231,6 +232,20 @@ paragraph has the detail:
 | `b3cff22` | `5ba4a08c` | docs: Browse for Me feedback thumbs left out of the iPhone app (nowhere to send them) |
 | `b199834` | `874c23c7` | iPhone app: Browse for Me and Summarize show on every iPhone that can run Apple Intelligence |
 | `56be95d` | `4353dd9e` | iPhone app: the Mac's synced Spaces show up; the phone reads the Mac's dates |
+| `89982b1` | `07599cbc` | Snapshot: the space dock's open emoji whole and centred (solid-spaces) |
+| `2f5e3b0` | `4d10b3e1` | A Cra owns its data folder when no other process holds it, not when no other Cra runs (#299) |
+| `0ea8123` | `d09799af` | Theme grain: a pattern Core Animation tiles, not a drawn view |
+| `f27aa5c` | `b55a668c` | Theme grain: the texture is 2x whatever screen is main |
+| `11e4dec` | `406ff0d2` | Remove unused iOS store callbacks (#439) |
+| `a3c6789` | `d6bdeb82` | TabStore: one blank line where #439 removed onChange |
+| `1b0634c` | `208deef5` | Tidy Downloads: Arc's prompt, suffix and clash rules (#441) |
+| `f11c0eb` | `bc8b0bc3` | Blocker: a blocked request fails instead of being cancelled, so pages that wait on it show (#436) |
+| `64b20c0` | `6b3d1b67` | Import: offer a browser macOS keeps from Cra, asking for Full Disk Access |
+| `8cc7ac7` | `43828b3e` | Find bar goes with its tab, as in Arc (#454) |
+| `2507db1` | `215e9740` | Fix preview image size, search escaping and iOS popups (#447) |
+| `39615a1` | `bd9a0c5e` | iOS popups: a closed opener's page is let go; ios.sh test starts the popup fixtures (#447) |
+| `dc7e3ef` | `09e2b333` | Ask on Page: typed answers, whole quotes checked on the page, Return asks after Find finds nothing (#440) |
+| `234639e` | `6aa770bb` | 5-Second Previews: Arc's optional summary and search focus, checked redirects (#442) |
 
 The 13 Nov 2026 sync (17 picks, branch `upstream-sync-nov13`: the triage's bug fixes and engine/memory
 work, no CEF update) adapted these:
@@ -296,7 +311,34 @@ The iPhone pass (14 Nov 2026, 65 picks, branch `iphone-app`; the owner took the 
   upstream's `--ios` mode (Cra's icons) was not taken. `MobileTests`' sample Mac space has a colour preset, as Pane
   starts spaces unthemed. `scripts/ios.sh device` installs onto a connected iPhone with Xcode's free-team signing.
 
-### Hand-ported (5): Pane's own code after the upstream commit
+The 16 Nov 2026 sync (14 picks and a hand-port, branch `upstream-sync-nov16`, all on CEF; the owner took groups
+1–3 of the triage but Tidy Tabs and the engine-only tests) adapted these:
+
+- Tidy Downloads (`1b0634c`): Arc 1.173's nine examples replace the made-up ones Pane had renamed for its brand.
+  `test-tidy-downloads.sh` builds on CEF with Pane's `AppComposition`, `FeatureFlags` and `ChromeDownloadAnimation`.
+- Ask on Page (`dc7e3ef`): the CEF bridge's find correlation and isolated-world evaluation only (the engine's
+  `bridge.mm` is Pending E). The card and find bar sit under Pane's fixed toolbar: no `floatingToolbarCover` or
+  `FindBarPlacement` (the auto-hiding toolbar, `167c05a`, is skipped), and the floating-toolbar selection test is
+  left out. Pane has no master Max switch, so the lifecycle harness takes its six-feature sequence from the Max
+  card's rows in `settings.js`. The locked #393/#417 tests on the old `<excerpt>` format are replaced as upstream's
+  (Victor's call); `promises.lock`'s #393 and #417 rows equal upstream's.
+- 5-Second Previews (`234639e`): redirect hops checked and the profile's cookies never sent to a local address,
+  as upstream. Without Tidy Tabs #443 its `tidyTabsChanged` hooks and `cancelAll` stay out.
+  `TabRuntime.pageScreenFrame` comes from the engine's `6f29b6d` (on CEF: the page's Chrome window frame, or a
+  WebKit page's view).
+- Data folder owner (`2f5e3b0`): the Keychain step (`SafeStorage`, "Pane Safe Storage") still waits until no other
+  Pane runs; only the folder's own migrations follow Chromium's `SingletonLock`.
+- Import (`64b20c0`): the Full Disk Access note says `Brand.name`. #447 (`2507db1`): the iPhone page cover stays
+  above a popup's web view. Blocker (`f11c0eb`): the #308 checklist line beside it stays out with `7be55ee`.
+- Find bar per tab (`8cc7ac7`): its scenario reads `cra://debug?findBar=`, which upstream made with the auto-hiding
+  toolbar (`720ede7`, skipped); the readout alone comes in with the pick. The dock snapshot (`89982b1`): upstream's
+  re-recording equals what Pane draws after the `EmojiLabel` hand-port, byte for byte.
+- Snapshots that already differed before this sync and still do (report-only): `download-rename-long`/`-short`
+  (recorded 5 Nov on a dark space; Pane's new spaces start light) and `download-preview-dock` (1.8 %).
+- Upstream has no counterpart for Pane's own fixes of the same day: a space coming back where it was scrolled
+  (`79ea4d67`) and the downloads list above the mini player's cards (`9bf42d58`).
+
+### Hand-ported (6): Pane's own code after the upstream commit
 
 | Upstream | Pane | What |
 |---|---|---|
@@ -304,9 +346,10 @@ The iPhone pass (14 Nov 2026, 65 picks, branch `iphone-app`; the owner took the 
 | `b4c20de` | `f2f1840` | Settings: a line under each setting saying what it changes |
 | `eda6089` | `77e2fa1` | Copy URL glyph: link → checkmark → link on a click (#361) |
 | `2d7e110` | `ee8e0f6e` | One repo for both apps: the iPhone app in the README, CONTRIBUTING, CLAUDE.md and CI (not upstream's issue forms) |
+| `7b702b1` | `a2177a75` | Emoji label draws into a finite rect, so the space dock's snapshot keeps its emoji (only this hunk; the rest of the commit is the Chromium engine's, Pending E) |
 | — | `f166b35` | Extensions popover and bookmark card follow the space's light or dark (upstream's idea, Pane's SpacePopoverTones; no single upstream commit) |
 
-### Covered by Pane's own work (6): the behaviour is in, by another route
+### Covered by Pane's own work (7): the behaviour is in, by another route
 
 | Upstream | Why it isn't picked |
 |---|---|
@@ -316,6 +359,7 @@ The iPhone pass (14 Nov 2026, 65 picks, branch `iphone-app`; the owner took the 
 | `f5751d6` | ⌘W closes Settings (#364): Settings is a tab in Pane, so ⌘W already closes it |
 | `537dc09` | Notes for #364 on SettingsWindowController, which Pane doesn't have |
 | `f3cf96e` | Docked page and DevTools corners square on macOS 27 (#400): Pane's ChromiumWindowCorners re-masks on 27 (11 Nov), scenario devtools-square-corners |
+| `4cf04e2` | Floating sidebar: no pointer timer while the sidebar is anchored: Pane's `FloatingSidebarPoll` (CraCore, since `09a551c7`, 11 Nov) already stops it with the sidebar docked, and slows it to 4 Hz at rest |
 
 ## Skipped
 
@@ -369,10 +413,207 @@ For good unless the reason changes. "Never touch" areas are the owner's call (11
 | `b309829` | Release notes: sponsors are thanked first, at the top; sponsors.py reads the sponsors fie… | Upstream's release notes and sponsors |
 | `a531a29` | Speed: what the browser process spends per tab, new-window time, no other dirty libraries… | docs/speed.md |
 | `720ede7` | Auto-hiding toolbar: the find bar hangs under the toolbar while it is out, not over its r… | Needs `167c05a` (auto-hiding toolbar), skipped |
+| `d455cb4` | Tidy Tabs: Arc's grouping prompt, stable group ids, fitted requests (#443) | Owner's call (16 Nov sync): Pane's Sections keep their own Tidy (Tidy Tabs Behavior, the Today divider, undo/redo) |
+| `3681a95` | Tidy Tabs: one group name per tab, Arc's empty-run rule (#443) | Goes with `d455cb4` |
+| `8860fc3` | Locked tests for #208, #36, #111, run on the engine; engine -5 | Owner's call (16 Nov sync): tests only, written against the engine; revisit with Pending E |
+| `392cc7e` | Locked test for #106 on the engine (extension badge and title) | Same as `8860fc3` |
+| `01c002b` | Locked test for #198 on the engine (auto Picture in Picture on leaving a call) | Same as `8860fc3` |
+| `72b25f2` | xbench: the cross-browser bench (Cra, Helium, Arc, Dia) | Upstream's perf bench (scripts/perf); Pane measures with scenario budgets |
+| `335bb79` | xbench: read the URL back before Return; a probe mode | Goes with `72b25f2` |
+| `bfdbacb` | xbench: the method, written for anyone to rerun | Goes with `72b25f2` |
+
+### Superseded by a squashed commit (66): Varun's branch commits, merged tree-neutral (16 Nov 2026)
+
+Upstream merged #439–#448 as squashed commits (`1b0634c`, `d455cb4`/`3681a95`, `2507db1`/`39615a1`, `dc7e3ef`,
+`234639e`, `11e4dec`); each "Merge #…: its change landed as …" has the tree of its first parent, so these
+commits add nothing the squashes don't.
+
+| Upstream | What |
+|---|---|
+| `a75d7bd` | docs(downloads): plan Arc rename parity |
+| `3012f06` | docs(tabs): plan Arc grouping parity |
+| `5de4d1d` | docs(previews): plan Arc preview parity |
+| `a9baa45` | fix(downloads): preserve Arc filename suffix rules |
+| `2b8812e` | docs(ask): plan Arc page questions |
+| `529308b` | fix(downloads): match Arc collision naming |
+| `bf795a0` | fix(previews): scope caches to browser context |
+| `2c23473` | fix(tabs): preserve group identity during tidying |
+| `c00d0a8` | feat(ask): add grounded page dialogue logic |
+| `6c64894` | fix(tabs): keep unseen tabs eligible for tidying |
+| `30c01a7` | feat(ask): capture bounded current-page context |
+| `e20d7ea` | docs(tabs): align singleton plan with Arc evidence |
+| `d4e1c29` | docs(ask): adapt output plan for on-device generation |
+| `8fb00bd` | fix(previews): own hover request lifetimes |
+| `74b9757` | docs(ask): preserve answers with missing emphasis |
+| `2211deb` | feat(tabs): match Arc grouping prompts and context limits |
+| `904aee1` | feat(ask): stream grounded on-device answers |
+| `e08c73d` | docs(ask): define correlated native Find sessions |
+| `f9225de` | feat(downloads): match Arc rename prompt context |
+| `2fc13c5` | fix(previews): bound and cancel native requests |
+| `ea28e08` | feat(ask): correlate native Find sessions |
+| `2356949` | docs(ask): reconcile upstream and legacy contracts |
+| `bb69453` | fix(downloads): cancel obsolete rename requests |
+| `15b125c` | fix(downloads): reconcile file moves and undo |
+| `6de2bed` | fix(previews): bound optional image requests |
+| `ee8699f` | fix(tabs): preserve retries and cancel stale grouping |
+| `a4f573c` | feat(previews): match Arc prompt and optional summary fields |
+| `26b6eea` | fix(ask): revoke changed page ownership for #393 |
+| `bae07fd` | fix(previews): fit model context and recover one overflow |
+| `b05e45c` | fix(ask): locate exact live page quotes for #393 |
+| `7dfbb4b` | test(downloads): verify native rename and undo |
+| `d562830` | test(tabs): verify grouping and native undo |
+| `310b84a` | fix(previews): revoke unavailable preview work |
+| `11dc9d4` | fix(ask): match native input and card layout for #393 |
+| `653ed22` | fix(ask): import standalone geometry for #393 |
+| `3db3148` | docs(previews): record validation and native acceptance limits |
+| `822e3ba` | test(ask): verify renderer and Find lifecycles for #393 |
+| `6ad6dc5` | docs(ask): record native Find engine validation |
+| `2d7075c` | fix(ask): restore readable native Find controls |
+| `229edfe` | docs(previews): record deferred native hover validation |
+| `5c91655` | fix(ask): reveal new questions after conversation layout |
+| `a99ac85` | docs(ask): record native input and quote validation |
+| `c05b065` | refactor: simplify private Ask DOM bookkeeping |
+| `b18cbe5` | refactor: avoid copying bounded tidy candidates |
+| `c9dae9e` | refactor: remove unused preview imports |
+| `80dc0e2` | refactor: remove unused iOS store callbacks |
+| `adf389a` | refactor: remove redundant download request state |
+| `126df4e` | fix: find early citations in bounded page prefixes |
+| `e47da6a` | fix: bound preview share image allocations |
+| `205b937` | fix: preserve literal plus signs in search queries |
+| `a86b572` | fix: preserve related iOS popup navigation and opener ownership |
+| `5d4b15c` | fix: preserve download ownership across path replacement |
+| `52529b2` | fix: retain download ownership across replacement and tab transfer |
+| `7d6b943` | test: normalize dialog snapshots to srgb |
+| `c2998e2` | test: normalize dialog snapshots to srgb |
+| `c2351ff` | remove branch documentation changes |
+| `dcd6b9c` | remove branch documentation changes |
+| `4f7a71f` | remove branch documentation changes |
+| `32675b1` | remove branch documentation changes |
+| `aad2c31` | remove branch documentation changes |
+| `bd5de9a` | remove branch documentation changes |
+| `df3683b` | remove unused history move result |
+| `2aac4c1` | remove one-off tidy tabs test selectors |
+| `ea428cf` | remove redundant preview model accounting and test selectors |
+| `97f4e07` | remove unused ask source storage and duplicate emphasis lookup |
+| `5c1a3f5` | remove unused download test paths and optional source state |
 
 ## Pending
 
-None: every upstream commit through `56be95d` is Ported or Skipped (13 Nov 2026). New upstream commits go here
-when triaged, sorted as before: A (bug fixes, engine, tests: small, low risk), B (new features) and C (collide
-with Pane's own UI), each row with the files it would conflict in on main (`scripts/upstream-audit.py --conflicts`)
-and the earlier pending commit it needs.
+### E: the Chromium engine (103, triaged 16 Nov 2026; waits for the owner's go-ahead)
+
+Between 13 and 16 Nov 2026 upstream moved from CEF to Chrome's own framework (`//chrome:chrome_framework`, Chrome
+158.0.8127.37) with a layer of its own linked in (`engine/chromium/`, upstream's `docs/chromium-engine.md`). Upstream's
+CEF stays at 156.0.8078.96 (`codecs7`, what Pane runs) and gets no more builds; its daily update check follows Chrome
+stable for the engine. The commits are one chain and go together: the layer and patches, `build-chromium.sh`,
+`fetch-engine.sh` / `publish-engine.sh` and the pins (`-1` … `-12`), `build.sh`, CI and docs, and the 15 that touch
+the app (`main.swift`'s `CraEngineMain`, `EngineFramework`, `SafeStorage`, `CraCEF.h`). Upstream's published engine
+is Cra's build: `Cra Framework.framework`, `Cra Helper (…)`, bundle id `dk.kildahl.cra`, Cra's icon in
+notifications and the "Cra Safe Storage" Keychain item, so Pane needs either a rebrand of the published engine or
+its own build (`build-chromium.sh` with Pane's `BRANDING`). Already in Pane: `7b702b1`'s `EmojiLabel` hunk
+(hand-ported) and `6f29b6d`'s `TabRuntime.pageScreenFrame` (with `234639e`).
+
+| Upstream | What | Touches |
+|---|---|---|
+| `5bb7467` | Engine: plan to leave CEF for Chrome's own framework, and the test build's layer and checks | engine, docs |
+| `21a273c` | Engine: the test build passes (12 checks), 20 tabs 706 MB with a 102 MB browser process; Aperitif h… | engine, docs |
+| `555d14e` | Engine: build-chromium.sh for a Chrome stable tree; the layer turns on Aperitif helpers; stand-in W… | engine, build |
+| `b6d131b` | Engine: how start-up maps from CEF to ChromeMain | docs |
+| `84b2a83` | Engine: Chrome 157.0.8103.81 tree checked out; layer deps for 157, background mode stays in the bui… | engine, build |
+| `03bc8d0` | Chromium engine: Chrome 157 builds with Cra's layer, the test passes all 12 checks | docs |
+| `144befb` | Chromium engine: Cra's app runs on Chrome's framework | app, engine, build, docs |
+| `e23b0c8` | Chromium engine: page protocol session, Cra's patches, prefs, extension windows | engine |
+| `40fb377` | Chromium engine: the sidebar player's media-session follow-up from #411 waits on the bridge | docs |
+| `708ef2a` | Chromium engine: watch Chrome's new windows through ScopedObservation | engine |
+| `ab02876` | Chromium engine: keys in Cra's pages go to Cra, never to Chrome's shortcuts | engine |
+| `c33d3eb` | Chromium engine: favicons, theme and background colours, find, zoom, SSL status | engine |
+| `78f0456` | Chromium engine: downloads go where Cra says, with progress and controls | engine |
+| `966d2be` | Chromium engine: permission requests go to Cra's own prompt | engine |
+| `52b0b11` | Chromium engine: element fullscreen and the link status line are Cra's | engine |
+| `b2ad0c2` | Chromium engine: restored history, spare pages and side panel pages | engine |
+| `69ba79a` | Chromium engine: DevTools open in Cra's card | engine |
+| `49658e9` | Chromium engine: closing a tab is a forced close, as CEF's | engine |
+| `8b245b4` | Chromium engine: Picture in Picture and print | engine |
+| `76fcf03` | Chromium engine: a tab opened for a download stays Cra's | engine |
+| `22e2beb` | Chromium engine: Cra's document start scripts in every page | engine |
+| `cbbc46f` | Chromium engine: Cra's ad and tracker blocking | engine |
+| `34e6042` | Chromium engine: blocked pop-ups list and the site's pop-up setting | engine |
+| `a1bdf2d` | Chromium engine: capture indicator, process events, incognito end | engine |
+| `a919d1a` | Chromium engine: browser fetches with a profile's cookies | engine |
+| `727af23` | Chromium engine: a page's pop-up is offered with the address it opens | engine |
+| `8280b11` | Chromium engine: Arc's page menu | engine |
+| `d91f8a8` | Chromium engine: Picture in Picture over full-screen Spaces, stray windows stay put | engine |
+| `d4bb5d3` | Chromium engine: a second launch hands its URLs to Cra | engine |
+| `85e6639` | Chromium engine: status, 13 Nov evening | docs |
+| `a08d88c` | Chromium engine: Cra.mediaSession through Chrome's public media session | engine |
+| `df16801` | Chromium engine: Chrome's bubbles find Cra's window (extension popups) | engine |
+| `10e28a2` | Chromium engine: agent pages render unseen, agent downloads | engine |
+| `de3af69` | Chromium engine: keep Chrome's hidden windows from key by swapping the method | engine |
+| `52e297c` | Chromium engine: Cra.installFromWebStore | engine |
+| `94a1897` | Chromium engine: runChromeCommand (Task Manager, Cast) | engine |
+| `7778324` | Chromium engine: pop-up addresses from the opener, observers gone at quit | engine |
+| `b17ab3f` | Chromium engine: no page is started while quitting | engine |
+| `b08c01e` | Chromium engine: unregister from the profile manager by the pointer we have | engine |
+| `f38f787` | Chromium engine: downloads with no page of Cra's go with the profile's last page | engine |
+| `5442f95` | Chromium engine: Google's background services off, fingerprinting protection in | engine |
+| `8a331cb` | Chromium engine: leave out ungoogled's disable-crash-reporter | engine |
+| `f4287f0` | Chromium engine: build.sh takes the engine output of the CPU it builds for | build |
+| `e402f77` | cra://open closes the command bar that waited for a new tab | app |
+| `8dfa38a` | Chromium engine: Cra's branding, published engine, Chromium the default | app, engine, build |
+| `11cc814` | Chromium engine: CI and releases fetch the engine and check it is Chrome stable | build |
+| `6979aa5` | Docs: the engine in CLAUDE.md's layers and development.md's build | docs |
+| `0a13281` | Releases: the newest engine, the hook checks it, release.md says how | build, docs |
+| `1441866` | Tests: the store and fuzz harnesses compile EngineFramework with SafeStorage | build |
+| `c162531` | Chromium engine: build Chrome 158.0.8127.37, the Mac stable | build |
+| `44cce5e` | Player: on Chrome's framework the sidebar card follows the page's media session (#411) | app, engine, tests, docs |
+| `befe6ad` | build-chromium.sh: a version bump fetches only the new tag, one commit deep | build |
+| `5ee9254` | Chromium engine: Cra's patches rebased onto Chrome 158.0.8127.37 | engine |
+| `ca60c59` | Chromium engine: Document Picture in Picture is TYPE_FLOATING in Chrome 158 | engine |
+| `9f57c00` | Engine migration test: a Cra on CEF's data folder opens on the engine | build, tests |
+| `a0c2a0e` | Chromium engine: links Cra opens its own way, sound as it happens, Picture in Picture time | engine, docs |
+| `6f29b6d` | Chromium engine: Peek grows from the link, WebKit tabs get player cards, Chrome's quit watchdog kept | app, engine |
+| `94a09e9` | docs: the engine's quit, host windows and debugger bar, as found on 14 Nov | docs |
+| `dc2731e` | Chromium engine: 5-Second Previews, page focus and the find bar find the page in its card | app |
+| `3dee573` | Chromium engine: fetch-engine.sh pins engine-158.0.8127.37-1; Little Windows measure the page in th… | app, build |
+| `8c05f38` | Chromium engine: Chrome's bars, pages' pop-ups as tabs, side panels, Little Window DevTools | app, engine, tests, docs |
+| `3f11358` | Chromium engine: DevTools report the panel they show | engine, docs |
+| `bece1bd` | docs: the engine's slow quit no longer happens (plain Chrome quits in 0.1 s) | docs |
+| `ababf5a` | Chromium engine: a muted tab stays muted when its page navigates | engine |
+| `556d64a` | Chromium engine: a tab's restored history is reported once the app knows the tab | engine |
+| `86f5d71` | docs: the hand checks before the engine ships | docs |
+| `9b3dff7` | fetch-engine.sh: engine-158.0.8127.37-2, with the 14 Nov bridge fixes (arm64 and x64) | build |
+| `e86910d` | Chromium engine: actions reach a Peek or Little Window with no Chrome window per page | app |
+| `55a75dc` | Chromium engine: a tab behind asks for permission when its tab shows, as Cra decides | engine |
+| `f343676` | Chromium engine: spare pages, no quit crash, extensions don't see the placeholder, switchers skip C… | app, engine, tests, docs |
+| `7b702b1` | Chromium engine: page windows on the Cra window in use (#354), spares a tab can take; emoji in snap… | app, engine, docs |
+| `1a9a408` | fetch-engine.sh: engine-158.0.8127.37-3 (arm64 and x64), with every 14 Nov bridge fix | build |
+| `0f4ef1b` | Chromium engine: session cookies outlast a restart, Safe Browsing gets its key, versions without CEF | app, engine, tests, docs |
+| `91c011b` | fetch-engine.sh: engine-158.0.8127.37-4 (arm64 and x64): session cookies, Safe Browsing key | build |
+| `3ec7f55` | Chromium engine: an extension's window over a full-screen Cra joins its Space; toolbar snapshot re-… | engine, tests |
+| `b97c1b5` | Engine: the cookies and passwords Cra on CEF saved still decrypt | engine, build, tests, docs |
+| `300b113` | fetch-engine.sh: engine-158.0.8127.37-6 (arm64 and x64): CEF's cookies and passwords decrypt | build |
+| `61bb806` | Engine doc: every scenario passes on engine -6 | docs |
+| `e9a89e5` | Engine doc: Sparkle from a CEF build to the engine build works | docs |
+| `62a0e99` | Engine doc: passkeys are offered with the release profile; the Web Store offers Add to Chrome | docs |
+| `ae2a545` | Engine doc: the x64 build under Rosetta passes every scenario that runs without a screen | docs |
+| `6fc2fec` | engine-migration.sh: not a harness, so CI's coverage run no longer picks it up | build, tests, docs |
+| `06e7cab` | Engine doc: merged into main, not yet released | docs |
+| `3806ce0` | Engine doc: the x64 build passes every scenario under Rosetta | docs |
+| `7ff42c7` | Engine doc: point at the right speed numbers | docs |
+| `aa290c4` | Engine: feature lists on the command line join Cra's | engine |
+| `40b006e` | Engine: Chrome's hidden windows stop drawing | app, engine, tests |
+| `580f2db` | Engine: a hidden page keeps its compositor | engine, tests |
+| `de64db6` | Scenarios: the popup check in a scenario of its own | tests |
+| `bbf70c2` | Engine -7: idle wakeups and tab switch as on CEF | build, docs |
+| `9503920` | Engine: downloads from the profile's history aren't new downloads | app, engine, tests |
+| `c186455` | Engine -8: downloads from history stay quiet | build, docs |
+| `6525669` | Engine doc: 1Password trusts Cra only in /Applications | docs |
+| `971daa5` | Engine doc: Victor's day on his profile copy, passkey check skipped | docs |
+| `3f34d02` | Engine doc: no real Intel Mac before the release (Victor's call) | docs |
+| `11a2a55` | Engine: the hidden window's blank page has no renderer | engine, build, tests, docs |
+| `7fc0341` | Engine -9: the hidden window's blank page has no renderer | build |
+| `319d0a0` | The daily update check follows Chrome stable; docs say the engine, not CEF | build, docs |
+| `5fc2322` | build.sh: the other CPU gets its own engine folder, not CEF's | build |
+| `12d5dab` | Engine -10: a live folder's plug-in gets non-2xx answers with their status | app, engine, build, tests |
+| `79ddc8e` | build.sh: sign the engine's libraries, and check every binary for notarization | build |
+| `3a11ffc` | Notifications show Cra's icon, not Chromium's | build |
+| `a4e67c2` | Engine -11: the blocker stops ad frames again | engine, build, tests |
