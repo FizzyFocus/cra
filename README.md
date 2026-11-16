@@ -156,13 +156,15 @@ in [docs/ios.md](docs/ios.md), and its status in [docs/ios-parity.md](docs/ios-p
 
 ## Build from source
 
-    scripts/build.sh          # fetches CEF on first run, builds build/Pane.app
+    scripts/build.sh          # fetches the engine on first run, builds build/Pane.app
     scripts/run.sh            # build if needed, then open
     scripts/dev.sh            # dev loop: debug PaneDev.app, rebuilds + relaunches on save
     scripts/ios.sh build      # the iPhone app, for the iOS Simulator
 
-Needs Xcode 16+ and CMake (`brew install cmake`). The iPhone app builds with
-`scripts/ios.sh build` (Xcode with the iOS platform, no Chromium). [CONTRIBUTING.md](CONTRIBUTING.md)
+Needs Xcode 16+. The engine is Chrome's own framework with Cra's layer built into it
+([docs/chromium-engine.md](docs/chromium-engine.md)); the build downloads a published copy, and
+`scripts/build-chromium.sh` builds it from Chrome's source. The iPhone app builds with
+`scripts/ios.sh build` (Xcode 26 with the iOS platform, no Chromium). [CONTRIBUTING.md](CONTRIBUTING.md)
 covers sending a change, and [docs/development.md](docs/development.md) covers the code
 layout, scripting hooks and test instances.
 
