@@ -2155,7 +2155,10 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
         // what clips them is the nearest layer above that clips (the card's own, CraMetrics.contentCornerRadius).
         // A view has no system corners (square=1, os=-).
         guard let id = browsers.visibleTabID, let rt = browsers.runtime(for: id), rt.hostWindow == nil else { return }
-        let views: [(String, NSView?)] = [("page", rt.pageViews.last), ("devtools", browsers.devToolsViews[id])]
+        // Engine -18 docks DevTools in the card under the page (EmbeddedDevTools): their view is the holder there.
+        let dev = browsers.devToolsViews[id]
+        let devView = EmbeddedDevTools.holder(of: dev?.window).flatMap { $0.superview != nil ? $0 : nil } ?? dev
+        let views: [(String, NSView?)] = [("page", rt.pageViews.last), ("devtools", devView)]
         for (i, (role, view)) in views.enumerated() {
             guard let view, view.window === window, !view.isHiddenOrHasHiddenAncestor else { continue }
             var clip: CALayer?
