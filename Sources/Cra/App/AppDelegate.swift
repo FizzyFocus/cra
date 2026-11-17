@@ -2161,6 +2161,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                 }
                 return
             }
+            // pageRect=<label>: where the visible tab's page view is, for a pixel check of the window (scenario.sh's
+            // expect-pixels): the window's number and the view's rect in the window, top-left origin, in points.
+            if let label = dict["pageRect"] { CraLog.note(main.debugPageRect(label)); return }
+            if let label = dict["pageLayers"] { CraLog.note(main.debugPageLayers(label)); return }
+            // bringFront=1: the window to the front, so a pixel check can capture it (CRA_SCENARIO_SCREEN=1 only:
+            // scenario.sh's expect-pixels; a test copy otherwise stays behind the user's apps).
+            if dict["bringFront"] != nil, let w = main.window {
+                NSApp.activate(ignoringOtherApps: true)
+                w.makeKeyAndOrderFront(nil)
+                CraLog.note("brought to front: window \(w.windowNumber)")
+                return
+            }
             // linkMenuNewTab=<url>[&front=1]: what the page menu's Open Link in New Tab does on the Chromium engine
             // (its own item, which nextPageMenuCommand can't pick): the visible page asks for a tab at the link.
             if let url = dict["linkMenuNewTab"], let page = main.currentBrowser {

@@ -460,11 +460,15 @@ time rather than built from Chrome's source. `CRA_ENGINE=cef scripts/build.sh` s
   page by `pageWindow`/`pageScreenFrame`. The engine half of `dc7e3ef` (Ask on Page's find and evaluation) came in
   with these, so `engine/` and the pin equal upstream's.
 - A page Chromium makes itself and a tab takes (a link's new tab from ⌘-click, `target=_blank` or Chrome's page menu,
-  a page's pop-up) stays hidden to its renderer on the engine, whatever its view does: it loaded but never drew, a
-  reload neither (found by the owner the same night). While its tab is on screen Pane turns on focus emulation for it
-  (`Emulation.setFocusEmulationEnabled`: Chromium counts the page as captured, so it shows and draws), and off when
-  the tab leaves (`BrowserManager.syncChromiumMadePage`); scenario `link-new-tab-loads`. Upstream's `BrowserManager`
-  shows pages the same way and has no scenario for it, so its engine likely has the same bug.
+  a page's pop-up) came into the tab white on the engine, found by the owner the same night: the page ran (its sound
+  played) but nothing showed, it took no clicks (no page menu), and a reload changed nothing. Two causes, both views
+  (17 Nov 2026): Chromium's own view of the page (`WebContentsViewCocoa`) arrives hidden, as Chrome's window hid it
+  as a tab behind, and Pane shows it with its tab (`BrowserManager.showChromiumPageView`); and a link's tab opened in
+  front was shown as Chromium handed its page over, before the window had its card, so the page stayed in the holder
+  for hidden pages, and the window now shows tabs again while a page isn't in its card (`hasUnplacedPages`).
+  Upstream's `BrowserManager` and window code are the same, so its engine likely has both. Scenario
+  `link-new-tab-loads` checks the view (`cra://debug?pageRect`) and, when the window is on screen, its pixels
+  (`expect-pixels`); a first fix by focus emulation (`62f69342`) made the page think it was shown, not the view.
 - Checked on the engine: `scripts/test.sh` and lint; 188 of 207 scenarios in one run and 6 more on a rerun; the Mac
   half of `scripts/ios-sync-e2e.sh` (folder sync). The 6 that take over the screen were not run (the owner's call).
   `instant-links`, `little-window-devtools` and `permission-card` fail on CEF's main as well (not the engine's).

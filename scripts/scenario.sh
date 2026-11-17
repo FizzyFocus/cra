@@ -32,6 +32,14 @@
 #   reject-log <regex>          no such line logged so far
 #   snapshot <View[,n]> <name>  the nth visible view of that class drawn to PNG and compared with
 #                               Tests/Snapshots/<name>.png (CRA_SNAPSHOT_RECORD=1 records it)
+#   expect-pixels <label> <rrggbb> [tolerance]
+#                               the visible tab's page view (cra://debug?pageRect) is in Cra's window, not hidden,
+#                               sized as its container and not empty; then what the window really shows there
+#                               (screencapture -l of the window) averages within <tolerance> (default 40, per
+#                               channel) of <rrggbb> (no "#": it starts a comment), saved as pixels-<label>.png. A snapshot draws views itself and
+#                               misses what Chromium's compositor shows; this reads the screen. A window macOS keeps
+#                               off screen (a test copy behind other apps under Stage Manager) can't be captured:
+#                               the sample is skipped with a note, unless CRA_SCENARIO_SCREEN=1 brings it forward.
 #   fresh                       no seeded settings: onboarding shows, as on a new Mac
 #   seed <file> <json>          that data-folder file before launch (a seeded settings.json
 #                               replaces the default one)
@@ -372,6 +380,46 @@ while IFS= read -r raw || [ -n "$raw" ]; do
         [ -x "$OUT/compare-png" ] || xcrun swiftc -O "$ROOT/scripts/compare-png.swift" -o "$OUT/compare-png" 2>"$OUT/compare-png.log"
         verdict=$("$OUT/compare-png" "$ref" "$shot" "$OUT/snapshots/$3.diff.png" 2>&1) || budget_problem "snapshot $3: $verdict"
       fi ;;
+    expect-pixels)
+      label="$2"; want="${3#\#}"; tol="${4:-40}"; rect_line=""
+      send "cra://debug?pageRect=$label"
+      for _ in $(seq 1 50); do
+        rect_line=$(grep -h "page rect $label: window=" "$DATA"/cra*.log 2>/dev/null | tail -1)
+        [ -n "$rect_line" ] && break; sleep 0.2
+      done
+      if [ -z "$rect_line" ]; then problem "no page rect for $label"; continue; fi
+      for fact in inWindow=1 hidden=0 sizedAsContainer=1; do
+        grep -q " $fact " <<<"$rect_line " || problem "pixels $label: the page's view isn't $fact (${rect_line#*: })"
+      done
+      wid=$(sed -E 's/.*window=([0-9]+).*/\1/' <<<"$rect_line")
+      scale=$(sed -E 's/.*scale=([0-9.]+).*/\1/' <<<"$rect_line")
+      IFS=, read -r rx ry rw rh <<<"$(sed -E 's/.*rect=([0-9-]+,[0-9-]+,[0-9]+,[0-9]+).*/\1/' <<<"$rect_line")"
+      [ "${rw:-0}" -gt 0 ] && [ "${rh:-0}" -gt 0 ] || problem "pixels $label: the page's view is empty (${rect_line#*: })"
+      shot="$OUT/pixels-$label.png"; rm -f "$shot"
+      screencapture -l"$wid" -x -o "$shot" 2>/dev/null
+      if [ ! -s "$shot" ] && [ "${CRA_SCENARIO_SCREEN:-}" = "1" ]; then
+        send "cra://debug?bringFront=1"; sleep 1.5
+        screencapture -l"$wid" -x -o "$shot" 2>/dev/null
+      fi
+      if [ ! -s "$shot" ]; then
+        echo "  pixels $label: window $wid is off screen (behind other apps under Stage Manager): view checked, no pixel sample (CRA_SCENARIO_SCREEN=1 takes one)"
+        continue
+      fi
+      [ -x "$OUT/sample-png" ] || xcrun swiftc -O "$ROOT/scripts/sample-png.swift" -o "$OUT/sample-png" 2>"$OUT/sample-png.log"
+      px=$(awk -v v="$rx" -v s="$scale" 'BEGIN{printf "%d", v*s}'); py=$(awk -v v="$ry" -v s="$scale" 'BEGIN{printf "%d", v*s}')
+      pw=$(awk -v v="$rw" -v s="$scale" 'BEGIN{printf "%d", v*s}'); ph=$(awk -v v="$rh" -v s="$scale" 'BEGIN{printf "%d", v*s}')
+      got=$("$OUT/sample-png" "$shot" "$px" "$py" "$pw" "$ph")
+      # Under Stage Manager a window off the stage captures as its thumbnail: no pixels of the page to read.
+      if [[ "$got" == "rect outside the image"* ]]; then
+        echo "  pixels $label: window $wid captured as a thumbnail ($got): view checked, no pixel sample"
+        continue
+      fi
+      echo "  pixels $label: $got, want #$want"
+      avg=$(sed -nE 's/.*avg=#([0-9a-f]{6}).*/\1/p' <<<"$got")
+      if [ -z "$avg" ]; then problem "pixels $label: $got"; continue; fi
+      far=$(awk -v a="$avg" -v b="$want" -v t="$tol" 'function h(x){return index("0123456789abcdef",substr(x,1,1))*16+index("0123456789abcdef",substr(x,2,1))-17}
+        BEGIN{for(i=0;i<3;i++){d=h(substr(a,i*2+1,2))-h(substr(b,i*2+1,2)); if(d<0)d=-d; if(d>t){print 1; exit}} print 0}')
+      [ "$far" = 0 ] || problem "pixels $label: the window shows $got over the page, not #$want ($shot)" ;;
     fresh|requires|port|seed|env|arg|extension|profile|home) ;;
     *) problem "unknown scenario line: $line" ;;
   esac

@@ -652,7 +652,8 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
         let findReturns = findParked && !overlay.findVisible && selected != nil && selected == findTabID
         if overlay.findVisible, selected != findTabID { hideFindBar(); findParked = true }
         if live != browsers.visibleTabIDs || liveFocus != browsers.visibleTabID
-            || live.contains(where: { browsers.runtime(for: $0) == nil && store.item($0)?.isEmptyTab == false }) {
+            || live.contains(where: { browsers.runtime(for: $0) == nil && store.item($0)?.isEmptyTab == false })
+            || browsers.hasUnplacedPages(live) {
             browsers.show(live, focused: liveFocus, focus: !commandBar.isOpen)
         }
         if overlay.findVisible { syncAskOnPage() } else { askOnPage.service.refresh() }
@@ -4952,6 +4953,48 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
         guard let window, let find = findPanel, overlay.findVisible, let page = lastFindPage else { return }
         let frame = findPanelFrame(page: page)
         if find.parent === window, find.frame != frame { find.setFrame(frame, display: true) }
+    }
+
+    /// For `cra://debug?pageRect=<label>`: the visible tab's page view, Chromium's own (its WebContents view in the
+    /// tab's container), where it is in the window and whether it can show: in this window's view tree, sized as
+    /// its container, nothing hidden on the way up. `rect=` is in points from the window's top left (what
+    /// `screencapture -l` takes, times `scale`).
+    func debugPageRect(_ label: String) -> String {
+        guard let window, let id = browsers.visibleTabID, let rt = browsers.runtime(for: id) else { return "page rect \(label): no page" }
+        let container = rt.browser.containerView
+        let page = container.subviews.first ?? container
+        let inWindow = page.window === window
+        let r = page.convert(page.bounds, to: nil)
+        let top = window.frame.height - r.maxY
+        let matches = page === container || page.frame.size == container.bounds.size
+        return "page rect \(label): window=\(window.windowNumber) scale=\(window.backingScaleFactor) "
+            + "rect=\(Int(r.minX)),\(Int(top)),\(Int(r.width)),\(Int(r.height)) view=\(type(of: page)) "
+            + "inWindow=\(inWindow ? 1 : 0) hidden=\(page.isHiddenOrHasHiddenAncestor ? 1 : 0) "
+            + "hiddenView=\(sequence(first: page, next: { $0.superview }).first { $0.isHidden }.map { "\(type(of: $0))" } ?? "-") "
+            + "chain=\(sequence(first: page, next: { $0.superview }).map { "\(type(of: $0))\($0.isHidden ? "!" : "")\(Int($0.frame.width))" }.joined(separator: "<")) "
+            + "sizedAsContainer=\(matches ? 1 : 0) container=\(Int(container.bounds.width))x\(Int(container.bounds.height)) "
+            + "layer=\(page.layer.map { "\(Int($0.bounds.width))x\(Int($0.bounds.height)) sublayers=\($0.sublayers?.count ?? 0)" } ?? "none")"
+    }
+
+    /// For `cra://debug?pageLayers=<label>`: the visible page's views and their layers, a few levels down (what
+    /// Chromium's compositor puts in the page's view: a page whose frames go elsewhere has none).
+    func debugPageLayers(_ label: String) -> String {
+        guard let id = browsers.visibleTabID, let rt = browsers.runtime(for: id) else { return "page layers \(label): no page" }
+        var out = "page layers \(label):"
+        func layerLine(_ l: CALayer, _ depth: Int) {
+            guard depth < 7 else { return }
+            let contents = l.contents.map { "\(type(of: $0 as AnyObject))" } ?? "-"
+            out += "\n  " + String(repeating: "  ", count: depth) + "L \(type(of: l)) \(Int(l.bounds.width))x\(Int(l.bounds.height)) hidden=\(l.isHidden ? 1 : 0) opacity=\(l.opacity) contents=\(contents)"
+            for sub in l.sublayers ?? [] { layerLine(sub, depth + 1) }
+        }
+        func viewLine(_ v: NSView, _ depth: Int) {
+            guard depth < 5 else { return }
+            out += "\n  " + String(repeating: "  ", count: depth) + "V \(type(of: v)) \(Int(v.frame.width))x\(Int(v.frame.height)) hidden=\(v.isHidden ? 1 : 0) layer=\(v.layer.map { "\(type(of: $0))" } ?? "-")"
+            if let l = v.layer, depth >= 1 { for sub in l.sublayers ?? [] where !(v.subviews.contains { $0.layer === sub }) { layerLine(sub, depth + 1) } }
+            for sub in v.subviews { viewLine(sub, depth + 1) }
+        }
+        viewLine(rt.browser.containerView, 0)
+        return out
     }
 
     /// For `cra://debug?findBar=<label>`: whether the find bar shows, and how far its panel is

@@ -70,10 +70,6 @@ final class TabRuntime {
     /// when it didn't (BrowserManager.searchIconsAfterLoad).
     var engineFaviconRevision: UInt?
     var faviconSearch: ScheduledWork?
-    /// A page Chromium made itself and the tab took (a link's new tab, a page's pop-up: makePopupHost), and
-    /// whether it is shown by focus emulation now (BrowserManager.syncChromiumMadePage).
-    var madeByChromium = false
-    var emulatesVisibility = false
     /// Chrome-style hosting: the page's own window (nil until created, or for Alloy).
     var hostWindow: NSWindow? { browser.hostWindow }
     /// The window the page shows in: its Chrome window over the card (CEF's Chrome-style hosting) or the Cra window
@@ -279,28 +275,36 @@ final class BrowserManager: NSObject, @preconcurrency CraBrowserDelegate {
     func makePopupHost(for tabID: UUID, opener: CraBrowser?) -> CraBrowser {
         let browser = PageEngines.makeBrowser(frame: container.bounds, url: nil, delegate: self, incognito: store.isIncognito(item: tabID),
                                               profilePath: store.profilePath(item: tabID), opener: opener)
-        register(browser: browser, tabID: tabID).madeByChromium = true
+        register(browser: browser, tabID: tabID)
         return browser
     }
 
-    /// Set by the app on the Chromium engine (syncChromiumMadePage).
+    /// Set by the app on the Chromium engine (showChromiumPageView).
     static var showsChromiumMadePages = false
 
-    /// The Chromium engine leaves a page Chrome made itself hidden to its renderer once a tab takes it (a link's new
-    /// tab from ⌘-click, target=_blank or the page menu, a page's pop-up; 16 Nov 2026): it loads but never draws,
-    /// whatever its view does, and a reload doesn't help. While its tab is on screen, focus emulation shows it
-    /// (Chromium counts the page as captured, so it is visible and draws); off when the tab leaves, and it is hidden
-    /// again. Pages Pane makes itself follow their view as before.
-    private func syncChromiumMadePage(_ id: UUID, _ rt: TabRuntime) {
-        guard Self.showsChromiumMadePages, rt.madeByChromium, rt.browser.isCreated, !rt.browser.isClosed else { return }
-        let shown = visibleTabIDs.contains(id)
-        guard shown != rt.emulatesVisibility else { return }
-        rt.emulatesVisibility = shown
-        rt.browser.sendDevToolsMethod("Emulation.setFocusEmulationEnabled", params: shown ? #"{"enabled":true}"# : #"{"enabled":false}"#) { [weak rt] _, error in
-            guard error != nil else { return }
-            // Not there yet (no page to talk to): the next callback tries again.
-            DispatchQueue.main.async { if rt?.emulatesVisibility == shown { rt?.emulatesVisibility = !shown } }
+    /// The Chromium engine moves a page Chromium made itself (a link's new tab from ⌘-click, target=_blank or Chrome's
+    /// page menu, a page's pop-up) into the tab's container with its own view, WebContentsViewCocoa, still hidden:
+    /// Chrome's window hid it as a tab behind (16 Nov 2026). In the card it stayed hidden: the tab showed white (the
+    /// page ran, its sound played), took no clicks (no page menu), and the page read itself as hidden. Shown when its
+    /// tab is; Pane's container hides and shows it from then on, as any page's.
+    private func showChromiumPageView(_ rt: TabRuntime) {
+        guard Self.showsChromiumMadePages, let view = chromiumPageView(of: rt), view.isHidden else { return }
+        view.isHidden = false
+        log(rt.tabID, "shows Chromium's view of its page, which Chrome hid")
+    }
+
+    /// A page shown before its card was there: a link's new tab in front, shown as Chromium hands its page over,
+    /// before the window has a card for the tab (on the Chromium engine pages are views in the card, and it stayed
+    /// in the holder for hidden pages: a white tab). The window shows the tabs again once their cards are there.
+    func hasUnplacedPages(_ ids: [UUID]) -> Bool {
+        ids.contains { id in
+            guard let rt = runtimes[id], rt.browser.hostWindow == nil, let host = paneHost?(id) else { return false }
+            return rt.browser.containerView.superview !== host
         }
+    }
+
+    private func chromiumPageView(of rt: TabRuntime) -> NSView? {
+        rt.browser.containerView.subviews.first { NSStringFromClass(type(of: $0)) == "WebContentsViewCocoa" }
     }
 
     @discardableResult
@@ -425,7 +429,7 @@ final class BrowserManager: NSObject, @preconcurrency CraBrowserDelegate {
             }
         }
         visibleTabIDs = shown
-        for (id, rt) in runtimes where rt.madeByChromium { syncChromiumMadePage(id, rt) }
+        for id in shown { if let rt = runtimes[id] { showChromiumPageView(rt) } }
         if let np = nowPlaying, np.onScreen != Set(shown) { np.onScreen = Set(shown) }
         visibleTabID = focused.flatMap { newSet.contains($0) ? $0 : nil } ?? shown.first
         if visibleTabID != previousFocus {
@@ -1512,7 +1516,7 @@ final class BrowserManager: NSObject, @preconcurrency CraBrowserDelegate {
         Self.pageMade(browser)
         guard let id = tabID(of: browser) else { return }
         // A page Chromium made, taken while its tab is already on screen (a link opened in front).
-        if let rt = runtimes[id] { syncChromiumMadePage(id, rt) }
+        if visibleTabIDs.contains(id), let rt = runtimes[id] { showChromiumPageView(rt) }
         if loading, findOwner?.tabID == id { stopFinding(false) }
         if loading {
             runtimes[id]?.navigationRevision &+= 1
