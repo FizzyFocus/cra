@@ -1,7 +1,9 @@
-# A right-click on a page opens a real menu with Chrome's items for what is under the pointer (PageContextMenu,
-# CraCore PageMenu), and its items work. On the Chromium engine (17 Nov 2026) no menu opened in a page at all: the
-# engine's own never appears in Pane's windows. watchMenus logs each menu that opens (its items, "(off)" when
-# disabled) and closes it, or picks the item menuPick names; the test copy copies to a pasteboard of its own.
+# A real right-click on a page (through the app's event queue) opens Chrome's page menu, a native menu with Chrome's
+# and Arc's items for what is under the pointer, and its items work: Reload, Copy Link Address, Open Link in New Tab,
+# Select All in a field (which keeps its text and the keyboard) and Inspect (DevTools that draw). A page with a menu of
+# its own gets none. On the Chromium engine no menu opened in a page until engine -16 (#466; 17 Nov 2026 in Pane, whose
+# own stand-in menu this replaces). watchMenus logs each menu that opens (its items, "(off)" when disabled) and closes
+# it, or picks the item menuPick names. Chrome copies to the Mac's clipboard: the test copy puts it back as it was.
 budget rss=1100 stalls50=60
 pace 0.5
 seed settings.json {"hasSeenImportPrompt": true, "toolbarDefaultMigrated": true, "showToolbar": false}
@@ -14,70 +16,65 @@ expect-log watching menus
 
 # The page itself: Back, Forward, Reload, Save As…, Print…, View Page Source, Inspect.
 cra://debug?clickAt=700,600&button=right
-expect-log menu opened: Back \(off\) \| Forward \(off\) \| Reload \| Save As… \| Print… \| View Page Source \| Inspect$
+expect-log menu opened: Back( \(off\))? \| Forward( \(off\))? \| Reload \| Save As… \| Print… \| .*View Page Source \| Inspect$
 wait 1
 # Reload loads the page again.
 cra://debug?cdp=Runtime.evaluate&params={"expression":"window.beforeMenuReload='yes';'marked'"}
 expect-log Cra cdp Runtime.evaluate .*"value":"marked"
 cra://debug?menuPick=Reload
 cra://debug?clickAt=700,600&button=right
-expect-log page menu runs reload
+expect-log menu picks Reload
 wait 3
 cra://debug?cdp=Runtime.evaluate&params={"expression":"'afterReload:'+(window.beforeMenuReload||'fresh')"}
 expect-log Cra cdp Runtime.evaluate .*"value":"afterReload:fresh"
 
-# A link: every way to open it (Pane's Open Link in Peek too), and Copy Link Address.
+# A link: every way to open it, and Copy Link Address.
 cra://debug?cdp=Runtime.evaluate&params={"expression":"(a=>(a.href='${PAGE}?n=menuLinked',a.textContent='link',a.style.cssText='position:fixed;left:400px;top:100px;width:300px;height:200px;z-index:9;background:pink',document.body.append(a),'placed'))(document.createElement('a'))"}
 expect-log Cra cdp Runtime.evaluate .*"value":"placed"
 wait 1
+cra://debug?clipboardSave=1
+expect-log clipboard saved
 cra://debug?menuPick=Copy%20Link%20Address
 cra://debug?clickAt=850,200&button=right
-expect-log menu opened: Open Link in New Tab \| Open Link in New Window \| Open Link in Split View \| Open Link in Little Window \| Open Link in Peek \| Open Link in Incognito Window \| Copy Link Address \| Inspect$
-expect-log page menu runs copyLinkAddress
-cra://debug?pageMenuPasteboard=link
-expect-log page menu pasteboard link: string=http://127\.0\.0\.1:[0-9]+/page\.html\?n=menuLinked image=0
-# Open Link in New Tab: a tab for it, behind (Arc's way, #276).
+expect-log menu opened: Open Link in New Tab \| Open Link in New Window \| Open Link in Split View \| Open Link in Little Window \| Open Link in Incognito Window \| .*Copy Link Address \| Inspect$
+expect-log menu picks Copy Link Address
+wait 1
+cra://debug?clipboard=link
+expect-log clipboard link: string=http://127\.0\.0\.1:[0-9]+/page\.html\?n=menuLinked image=0
+# Open Link in New Tab: a tab for it, behind (Arc's way, #276), whose page shows and draws.
 cra://debug?menuPick=Open%20Link%20in%20New%20Tab
 cra://debug?clickAt=850,200&button=right
-expect-log page menu runs openLinkInNewTab
+expect-log menu picks Open Link in New Tab
 wait 3
 cra://action/nextTab
 wait 2
 cra://debug?cdp=Runtime.evaluate&params={"expression":"'newTab:'+location.search+':'+document.visibilityState"}
 expect-log Cra cdp Runtime.evaluate .*"value":"newTab:\?n=menuLinked:visible"
+cra://debug?pageDrawn=menuNewTab
+expect-log page drawn menuNewTab: inCard=1 drawn=1
 cra://action/previousTab
 wait 2
-# Open Link in Peek (Pane's, as ⇧-click): the link in a Peek over the page.
-cra://debug?menuPick=Open%20Link%20in%20Peek
-cra://debug?clickAt=850,200&button=right
-expect-log page menu runs openLinkInPeek
-wait 3
-cra://debug?peeks=menu
-expect-log Cra peeks menu: shown \S+n=menuLinked$
-cra://dismiss
-wait 2
 
-# A field: the right-click selects the word under the pointer (a Mac's way), so Cut and Copy are on; Select All
-# selects the field's text, which the menu leaves as it was (macOS once put spaces in place of the word), and the
-# field keeps the keyboard.
+# A field: the right-click selects the word under the pointer (a Mac's way); Select All selects the field's text,
+# which the menu leaves as it was (macOS once put spaces in place of the word), and the field keeps the keyboard.
 cra://debug?cdp=Runtime.evaluate&params={"expression":"(i=>(i.id='menuField',i.value='hello world',i.style.cssText='position:fixed;left:400px;top:400px;width:300px;height:40px;z-index:9',document.body.append(i),'field'))(document.createElement('input'))"}
 expect-log Cra cdp Runtime.evaluate .*"value":"field"
 wait 1
 cra://debug?menuPick=Select%20All
 cra://debug?clickAt=850,430&button=right
-expect-log menu opened: Cut \| Copy \| Paste \| Select All \| Inspect$
-expect-log page menu runs selectAll
+expect-log menu opened: .*Cut \| Copy \| Paste \| .*Select All \| .*Inspect
+expect-log menu picks Select All
 wait 1
 cra://debug?cdp=Runtime.evaluate&params={"expression":"(f=>'field:'+f.value+':'+f.selectionStart+'-'+f.selectionEnd+':'+(document.activeElement===f))(document.getElementById('menuField'))"}
 expect-log Cra cdp Runtime.evaluate .*"value":"field:hello world:0-11:true"
 
-# Inspect opens DevTools on the page.
+# Inspect opens DevTools on the page, docked in the card and drawing there.
 cra://debug?menuPick=Inspect
 cra://debug?clickAt=700,600&button=right
-expect-log page menu runs inspect
+expect-log menu picks Inspect
 wait 4
 cra://debug?devToolsShown=inspect
-expect-log tab devtools inspect: .*open=1
+expect-log tab devtools inspect: .*open=1 drawn=1 docked=1
 
 # A page with a right-click menu of its own (preventDefault): no menu over it.
 cra://open?url=${PAGE}?n=ownMenu
@@ -85,6 +82,10 @@ expect-log loaded 127\.0\.0\.1 \(HTTP 200\)
 wait 2
 cra://debug?cdp=Runtime.evaluate&params={"expression":"addEventListener('contextmenu',e=>e.preventDefault());'own'"}
 expect-log Cra cdp Runtime.evaluate .*"value":"own"
+cra://debug?menusOpened=before
+expect-log menus opened before: 6$
 cra://debug?clickAt=700,600&button=right
-expect-log page menu: none, the page shows its own
+wait 2
+cra://debug?menusOpened=after
+expect-log menus opened after: 6$
 reject-log fault:

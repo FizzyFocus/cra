@@ -8,6 +8,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     /// cra://debug?watchMenus: the observer of menus opening, and the item the next one picks (menuPick).
     static var menuWatch: NSObjectProtocol?
     static var menuPick: String?
+    static var menusOpened = 0
+    /// cra://debug?clipboardSave: the Mac's clipboard as it was before a test's copy, and its change count then.
+    static var savedClipboard: (items: [[NSPasteboard.PasteboardType: Data]], count: Int)?
 
     /// The store, clock and flags; built the same way by the test hosts.
     let composition = AppComposition()
@@ -62,7 +65,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             BrowserManager.pageMade = { EngineBoostScript.shared.pageExists($0) }
             BrowserManager.searchesIconsAfterLoad = true
             BrowserManager.showsChromiumMadePages = true
-            PageContextMenuController.shared.install(app: self)
             FaviconFinder.bridgeFetches = false
         }
         SettingsLaunch.hardwareAcceleration = store.settings.hardwareAcceleration
@@ -441,9 +443,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         let script = on ? BoostScript.documentStart(BoostStore.shared.boosts) : ""
         // The Chromium engine has no such call: the script goes in with the engine's own (EngineBoostScript).
         if EngineBoostScript.isNeeded {
-            // With the page menu's recorder (PageMenu): the engine's own menu never opens in Pane's windows.
             EngineBoostScript.shared.update(boosts: on ? BoostStore.shared.boosts : [], mainWorld: PageScript.mainWorld,
-                                            isolatedWorld: PageScript.isolatedWorld + "\n;\n" + PageMenu.recorderScript, world: PageScript.world)
+                                            isolatedWorld: PageScript.isolatedWorld, world: PageScript.world)
             return
         }
         CraCEFRuntime.setBoostScript(script, world: PageScript.world, hosts: on ? BoostScript.entries(BoostStore.shared.boosts).map(\.host) : [])
@@ -2274,6 +2275,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                 guard Self.menuWatch == nil else { return }
                 Self.menuWatch = NotificationCenter.default.addObserver(forName: NSMenu.didBeginTrackingNotification, object: nil, queue: .main) { note in
                     guard let menu = note.object as? NSMenu else { return }
+                    AppDelegate.menusOpened += 1
                     let items = menu.items.filter { !$0.isSeparatorItem && !$0.isHidden }.map { "\($0.title)\($0.isEnabled ? "" : " (off)")" }
                     CraLog.note("menu opened: \(items.joined(separator: " | "))")
                     let pick = AppDelegate.menuPick
@@ -2293,9 +2295,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                 return
             }
             if let pick = dict["menuPick"] { Self.menuPick = pick; CraLog.note("menu pick set: \(pick)"); return }
-            if let label = dict["pageMenuPasteboard"] {
-                let pb = PageContextMenuController.pasteboard
-                CraLog.note("page menu pasteboard \(label): string=\(pb.string(forType: .string) ?? "-") image=\(pb.canReadObject(forClasses: [NSImage.self]) ? 1 : 0)")
+            // menusOpened=<label>: how many menus opened since watchMenus (a page with a menu of its own gets none of Chrome's).
+            if let label = dict["menusOpened"] { CraLog.note("menus opened \(label): \(Self.menusOpened)"); return }
+            // clipboardSave=1, then clipboard=<label>: what a page menu's Copy put on the clipboard. Chrome writes to the
+            // Mac's own, so a test copy keeps what was there first and puts it back once it has read it, unless something
+            // else was copied meanwhile (17 Nov 2026: a test's Copy Link Address took the place of the owner's clipboard).
+            if dict["clipboardSave"] != nil {
+                let pb = NSPasteboard.general
+                let items = (pb.pasteboardItems ?? []).map { item in
+                    Dictionary(uniqueKeysWithValues: item.types.compactMap { t in item.data(forType: t).map { (t, $0) } })
+                }
+                Self.savedClipboard = (items, pb.changeCount)
+                CraLog.note("clipboard saved")
+                return
+            }
+            if let label = dict["clipboard"] {
+                let pb = NSPasteboard.general
+                CraLog.note("clipboard \(label): string=\(pb.string(forType: .string) ?? "-") image=\(pb.canReadObject(forClasses: [NSImage.self]) ? 1 : 0)")
+                // Chrome's write is one change (clearContents); more is someone else's copy, which stays.
+                if let saved = Self.savedClipboard, pb.changeCount - saved.count <= 1 {
+                    pb.clearContents()
+                    pb.writeObjects(saved.items.map { types in
+                        let item = NSPasteboardItem()
+                        for (t, data) in types { item.setData(data, forType: t) }
+                        return item
+                    })
+                    CraLog.note("clipboard restored")
+                }
+                Self.savedClipboard = nil
                 return
             }
             if let label = dict["pageLayers"] { CraLog.note(main.debugPageLayers(label)); return }
