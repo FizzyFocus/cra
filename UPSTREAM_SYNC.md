@@ -469,6 +469,14 @@ time rather than built from Chrome's source. `CRA_ENGINE=cef scripts/build.sh` s
   Upstream's `BrowserManager` and window code are the same, so its engine likely has both. Scenario
   `link-new-tab-loads` checks the view (`cra://debug?pageRect`) and, when the window is on screen, its pixels
   (`expect-pixels`); a first fix by focus emulation (`62f69342`) made the page think it was shown, not the view.
+- No right-click menu opened in a page on the engine (the owner, 17 Nov 2026): Chrome reaches its menu code, but its
+  menu never appears in Pane's windows. Pane opens its own native menu (`PageContextMenu`, CraCore `PageMenu`):
+  the page still gets the right-click, a script in its isolated world says what was under the pointer and whether
+  the page made a menu of its own (`PageMenu.recorderScript`, with the engine's start scripts), and Chrome's items
+  for it follow (links, pictures, a selection, a field, else Back/Forward/Reload, Save As…, Print…, View Page Source,
+  then Inspect), with Pane's Open Link in Split View, Little Window and Peek and Open Image in Preview. While it is
+  open Chromium's view gives up the keyboard: macOS put spaces in place of a field's selected word otherwise.
+  Scenario `page-context-menu` (`cra://debug?watchMenus`, `menuPick`).
 - Checked on the engine: `scripts/test.sh` and lint; 188 of 207 scenarios in one run and 6 more on a rerun; the Mac
   half of `scripts/ios-sync-e2e.sh` (folder sync). The 6 that take over the screen were not run (the owner's call).
   `instant-links`, `little-window-devtools` and `permission-card` fail on CEF's main as well (not the engine's).
@@ -482,8 +490,6 @@ time rather than built from Chrome's source. `CRA_ENGINE=cef scripts/build.sh` s
 - Activity Monitor lists Chrome's helpers as "Cra Helper (…)": Chrome finds them by a name compiled into the framework.
 - Settings' "Use hardware acceleration" does nothing on the engine: its bridge starts Chrome with the app's own
   arguments and has no call for `--disable-gpu`.
-- The page menu has no "Open Link in Peek" (⇧-click still peeks) or "Open Image in Preview": they were Pane's CEF
-  bridge's items.
 
 ### Hand-ported (6): Pane's own code after the upstream commit
 

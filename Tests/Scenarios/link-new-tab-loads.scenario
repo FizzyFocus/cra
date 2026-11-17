@@ -2,8 +2,8 @@
 # takes), the page menu's Open Link in New Tab (Pane makes the tab's page, with a spare page and without), and a
 # target=_blank link (in front, Chromium's page again). Switched to, each tab shows the link's page (solid.html, a
 # solid 1f7a4a): its view is in the window, shown and sized as its card (expect-pixels; with CRA_SCENARIO_SCREEN=1
-# also the window's own pixels there), the page is visible and drawing, it takes a real right-click (the page
-# menu), and ⌘R loads it again. On the Chromium engine (16 Nov 2026) Chromium's view of a page it made came into
+# also the window's own pixels there), the page is visible and drawing, it takes a real right-click (Pane's page
+# menu opens), and ⌘R loads it again. On the Chromium engine (16 Nov 2026) Chromium's view of a page it made came into
 # the tab hidden: the tab was white with the page running behind it (its sound played), took no clicks and no
 # page menu, and a reload changed nothing (BrowserManager.showChromiumPageView).
 budget rss=1100 stalls50=60
@@ -24,12 +24,13 @@ wait 2
 expect-pixels cmd 1f7a4a
 cra://debug?cdp=Runtime.evaluate&params={"expression":"new Promise(r=>{const say=d=>r('cmd:'+location.search+':'+document.readyState+':'+document.visibilityState+':'+d);let n=0;const s=performance.now();(function f(){n++;if(performance.now()-s<500)requestAnimationFrame(f);else say(n>5?'drawing':'still')})();setTimeout(()=>say('still'),1500)})","awaitPromise":true}
 expect-log Cra cdp Runtime.evaluate .*"value":"cmd:\?n=cmdClicked:complete:visible:drawing"
-# A real right-click on it, through the app's event queue: the page takes it and its menu comes (the hook runs the
-# menu's View Page Source instead of showing it).
-cra://debug?nextPageMenuCommand=IDC_VIEW_SOURCE
-expect-log Cra next page menu command IDC_VIEW_SOURCE: set
+# A real right-click on it, through the app's event queue: the page takes it and a real menu opens over it
+# (PageContextMenu; watchMenus logs it and picks its View Page Source, a new tab).
+cra://debug?watchMenus=1
+cra://debug?menuPick=View%20Page%20Source
 cra://debug?clickAt=600,400&button=right
-expect-log Cra page menu runs command 35002
+expect-log menu opened: Back .*\| Reload \| Save As… \| Print… \| View Page Source \| Inspect$
+expect-log page menu runs viewSource
 wait 2
 cra://action/closeTab
 wait 1

@@ -5,6 +5,10 @@ import SwiftUI
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
+    /// cra://debug?watchMenus: the observer of menus opening, and the item the next one picks (menuPick).
+    static var menuWatch: NSObjectProtocol?
+    static var menuPick: String?
+
     /// The store, clock and flags; built the same way by the test hosts.
     let composition = AppComposition()
     var store: SidebarStore { composition.store }
@@ -58,6 +62,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             BrowserManager.pageMade = { EngineBoostScript.shared.pageExists($0) }
             BrowserManager.searchesIconsAfterLoad = true
             BrowserManager.showsChromiumMadePages = true
+            PageContextMenuController.shared.install(app: self)
             FaviconFinder.bridgeFetches = false
         }
         SettingsLaunch.hardwareAcceleration = store.settings.hardwareAcceleration
@@ -436,8 +441,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         let script = on ? BoostScript.documentStart(BoostStore.shared.boosts) : ""
         // The Chromium engine has no such call: the script goes in with the engine's own (EngineBoostScript).
         if EngineBoostScript.isNeeded {
+            // With the page menu's recorder (PageMenu): the engine's own menu never opens in Pane's windows.
             EngineBoostScript.shared.update(boosts: on ? BoostStore.shared.boosts : [], mainWorld: PageScript.mainWorld,
-                                            isolatedWorld: PageScript.isolatedWorld, world: PageScript.world)
+                                            isolatedWorld: PageScript.isolatedWorld + "\n;\n" + PageMenu.recorderScript, world: PageScript.world)
             return
         }
         CraCEFRuntime.setBoostScript(script, world: PageScript.world, hosts: on ? BoostScript.entries(BoostStore.shared.boosts).map(\.host) : [])
@@ -2164,6 +2170,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             // pageRect=<label>: where the visible tab's page view is, for a pixel check of the window (scenario.sh's
             // expect-pixels): the window's number and the view's rect in the window, top-left origin, in points.
             if let label = dict["pageRect"] { CraLog.note(main.debugPageRect(label)); return }
+            // watchMenus=1: every menu that opens logs its items ("menu opened: …") and closes again, so a scenario can
+            // see a page's right-click menu really open (a menu's tracking would otherwise wait for a person).
+            if dict["watchMenus"] != nil {
+                guard Self.menuWatch == nil else { return }
+                Self.menuWatch = NotificationCenter.default.addObserver(forName: NSMenu.didBeginTrackingNotification, object: nil, queue: .main) { note in
+                    guard let menu = note.object as? NSMenu else { return }
+                    let items = menu.items.filter { !$0.isSeparatorItem && !$0.isHidden }.map { "\($0.title)\($0.isEnabled ? "" : " (off)")" }
+                    CraLog.note("menu opened: \(items.joined(separator: " | "))")
+                    let pick = AppDelegate.menuPick
+                    AppDelegate.menuPick = nil
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        // menuPick=<title>: that item is chosen, as a click on it would.
+                        if let pick, let i = menu.items.firstIndex(where: { $0.title == pick }) {
+                            CraLog.note("menu picks \(pick)")
+                            menu.cancelTracking()
+                            menu.performActionForItem(at: i)
+                        } else {
+                            menu.cancelTracking()
+                        }
+                    }
+                }
+                CraLog.note("watching menus")
+                return
+            }
+            if let pick = dict["menuPick"] { Self.menuPick = pick; CraLog.note("menu pick set: \(pick)"); return }
+            if let label = dict["pageMenuPasteboard"] {
+                let pb = PageContextMenuController.pasteboard
+                CraLog.note("page menu pasteboard \(label): string=\(pb.string(forType: .string) ?? "-") image=\(pb.canReadObject(forClasses: [NSImage.self]) ? 1 : 0)")
+                return
+            }
             if let label = dict["pageLayers"] { CraLog.note(main.debugPageLayers(label)); return }
             // bringFront=1: the window to the front, so a pixel check can capture it (CRA_SCENARIO_SCREEN=1 only:
             // scenario.sh's expect-pixels; a test copy otherwise stays behind the user's apps).
