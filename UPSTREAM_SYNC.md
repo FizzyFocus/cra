@@ -5,10 +5,9 @@ work **commit by commit and never merges it**: `git merge upstream/main` would w
 (the sidebar, Library drawer, settings tab, themes) and its rebrand. This file is the record of what
 became of every upstream commit, so nothing is ported twice or lost.
 
-- **Decided through:** `56be95d` (upstream/main on 13 Nov 2026). Every upstream commit up to it is under
-  Ported or Skipped. Of the 192 after it (to `f8a6402`), all are decided but the Chromium engine's 103
-  (Pending E, 16 Nov 2026).
-- **Triaged through:** `f8a6402` (upstream/main on 16 Nov 2026).
+- **Decided through:** `f8a6402` (upstream/main on 16 Nov 2026). Every upstream commit up to it is under
+  Ported or Skipped.
+- **Triaged through:** `f8a6402`. Nothing is Pending.
 - **Merge base:** `9927600`.
 
 ## How to sync
@@ -29,7 +28,7 @@ became of every upstream commit, so nothing is ported twice or lost.
 
 ## Ported
 
-### Cherry-picked (197): `git cherry-pick -x`, the trailer names the upstream commit
+### Cherry-picked (300): `git cherry-pick -x`, the trailer names the upstream commit
 
 | Upstream | Pane | What |
 |---|---|---|
@@ -233,6 +232,109 @@ paragraph has the detail:
 | `b199834` | `874c23c7` | iPhone app: Browse for Me and Summarize show on every iPhone that can run Apple Intelligence |
 | `56be95d` | `4353dd9e` | iPhone app: the Mac's synced Spaces show up; the phone reads the Mac's dates |
 | `89982b1` | `07599cbc` | Snapshot: the space dock's open emoji whole and centred (solid-spaces) |
+| `5bb7467` | `d17b6169` | Engine: plan to leave CEF for Chrome's own framework, and the test build's layer and checks |
+| `21a273c` | `ef6522f0` | Engine: the test build passes (12 checks), 20 tabs 706 MB with a 102 MB browser process; Aperitif helpers nee… |
+| `555d14e` | `b03b9a3a` | Engine: build-chromium.sh for a Chrome stable tree; the layer turns on Aperitif helpers; stand-in Widevine si… |
+| `b6d131b` | `d8c82555` | Engine: how start-up maps from CEF to ChromeMain |
+| `84b2a83` | `28834749` | Engine: Chrome 157.0.8103.81 tree checked out; layer deps for 157, background mode stays in the build |
+| `03bc8d0` | `3a2ccfb3` | Chromium engine: Chrome 157 builds with Cra's layer, the test passes all 12 checks |
+| `144befb` | `b7982d73` | Chromium engine: Cra's app runs on Chrome's framework |
+| `e23b0c8` | `934cbb8b` | Chromium engine: page protocol session, Cra's patches, prefs, extension windows |
+| `40fb377` | `15a6fb4f` | Chromium engine: the sidebar player's media-session follow-up from #411 waits on the bridge |
+| `708ef2a` | `dcb0ffd6` | Chromium engine: watch Chrome's new windows through ScopedObservation |
+| `ab02876` | `f0630797` | Chromium engine: keys in Cra's pages go to Cra, never to Chrome's shortcuts |
+| `c33d3eb` | `002ffe4b` | Chromium engine: favicons, theme and background colours, find, zoom, SSL status |
+| `78f0456` | `facc609a` | Chromium engine: downloads go where Cra says, with progress and controls |
+| `966d2be` | `3683a034` | Chromium engine: permission requests go to Cra's own prompt |
+| `52b0b11` | `a0cf6f4e` | Chromium engine: element fullscreen and the link status line are Cra's |
+| `b2ad0c2` | `9afc8b6b` | Chromium engine: restored history, spare pages and side panel pages |
+| `69ba79a` | `079de3b0` | Chromium engine: DevTools open in Cra's card |
+| `49658e9` | `36681e7b` | Chromium engine: closing a tab is a forced close, as CEF's |
+| `8b245b4` | `c97a4124` | Chromium engine: Picture in Picture and print |
+| `76fcf03` | `b436f881` | Chromium engine: a tab opened for a download stays Cra's |
+| `22e2beb` | `82747556` | Chromium engine: Cra's document start scripts in every page |
+| `cbbc46f` | `babe7a45` | Chromium engine: Cra's ad and tracker blocking |
+| `34e6042` | `6ac0c86a` | Chromium engine: blocked pop-ups list and the site's pop-up setting |
+| `a1bdf2d` | `89357e01` | Chromium engine: capture indicator, process events, incognito end |
+| `a919d1a` | `55046fd3` | Chromium engine: browser fetches with a profile's cookies |
+| `727af23` | `d01c3f6c` | Chromium engine: a page's pop-up is offered with the address it opens |
+| `8280b11` | `ee95ba9b` | Chromium engine: Arc's page menu |
+| `d91f8a8` | `77be48b9` | Chromium engine: Picture in Picture over full-screen Spaces, stray windows stay put |
+| `d4bb5d3` | `c6a1a6a0` | Chromium engine: a second launch hands its URLs to Cra |
+| `85e6639` | `7a787d2f` | Chromium engine: status, 13 Nov evening |
+| `a08d88c` | `d1a86fff` | Chromium engine: Cra.mediaSession through Chrome's public media session |
+| `df16801` | `820c8037` | Chromium engine: Chrome's bubbles find Cra's window (extension popups) |
+| `10e28a2` | `74688475` | Chromium engine: agent pages render unseen, agent downloads |
+| `de3af69` | `6c89e328` | Chromium engine: keep Chrome's hidden windows from key by swapping the method |
+| `52e297c` | `af808613` | Chromium engine: Cra.installFromWebStore |
+| `94a1897` | `b4f452d0` | Chromium engine: runChromeCommand (Task Manager, Cast) |
+| `7778324` | `512a7a48` | Chromium engine: pop-up addresses from the opener, observers gone at quit |
+| `b17ab3f` | `9d5ee363` | Chromium engine: no page is started while quitting |
+| `b08c01e` | `21854c4d` | Chromium engine: unregister from the profile manager by the pointer we have |
+| `f38f787` | `70d50260` | Chromium engine: downloads with no page of Cra's go with the profile's last page |
+| `5442f95` | `b9cc30e6` | Chromium engine: Google's background services off, fingerprinting protection in |
+| `8a331cb` | `140bac17` | Chromium engine: leave out ungoogled's disable-crash-reporter |
+| `f4287f0` | `e81c4fa7` | Chromium engine: build.sh takes the engine output of the CPU it builds for |
+| `e402f77` | `dfdbd2c5` | cra://open closes the command bar that waited for a new tab |
+| `8dfa38a` | `82672560` | Chromium engine: Cra's branding, published engine, Chromium the default |
+| `11cc814` | `2293b535` | Chromium engine: CI and releases fetch the engine and check it is Chrome stable |
+| `6979aa5` | `a33acb5b` | Docs: the engine in CLAUDE.md's layers and development.md's build |
+| `0a13281` | `426c5226` | Releases: the newest engine, the hook checks it, release.md says how |
+| `1441866` | `36c38c4d` | Tests: the store and fuzz harnesses compile EngineFramework with SafeStorage |
+| `c162531` | `3d47c6b4` | Chromium engine: build Chrome 158.0.8127.37, the Mac stable |
+| `44cce5e` | `9528db33` | Player: on Chrome's framework the sidebar card follows the page's media session (#411) |
+| `befe6ad` | `65e1fc4a` | build-chromium.sh: a version bump fetches only the new tag, one commit deep |
+| `5ee9254` | `2a9a0132` | Chromium engine: Cra's patches rebased onto Chrome 158.0.8127.37 |
+| `ca60c59` | `f6c48e65` | Chromium engine: Document Picture in Picture is TYPE_FLOATING in Chrome 158 |
+| `9f57c00` | `f401d89d` | Engine migration test: a Cra on CEF's data folder opens on the engine |
+| `a0c2a0e` | `7c1cf016` | Chromium engine: links Cra opens its own way, sound as it happens, Picture in Picture time |
+| `6f29b6d` | `973a54f0` | Chromium engine: Peek grows from the link, WebKit tabs get player cards, Chrome's quit watchdog kept |
+| `94a09e9` | `8b2f8a66` | docs: the engine's quit, host windows and debugger bar, as found on 14 Nov |
+| `dc2731e` | `deb33180` | Chromium engine: 5-Second Previews, page focus and the find bar find the page in its card |
+| `3dee573` | `45b11b2b` | Chromium engine: fetch-engine.sh pins engine-158.0.8127.37-1; Little Windows measure the page in their card |
+| `8c05f38` | `6895084e` | Chromium engine: Chrome's bars, pages' pop-ups as tabs, side panels, Little Window DevTools |
+| `3f11358` | `25f6a0dc` | Chromium engine: DevTools report the panel they show |
+| `bece1bd` | `5a6750fa` | docs: the engine's slow quit no longer happens (plain Chrome quits in 0.1 s) |
+| `ababf5a` | `599e2fd2` | Chromium engine: a muted tab stays muted when its page navigates |
+| `556d64a` | `fea1b9fb` | Chromium engine: a tab's restored history is reported once the app knows the tab |
+| `86f5d71` | `029489c5` | docs: the hand checks before the engine ships |
+| `9b3dff7` | `b6e206f8` | fetch-engine.sh: engine-158.0.8127.37-2, with the 14 Nov bridge fixes (arm64 and x64) |
+| `e86910d` | `9f5879fa` | Chromium engine: actions reach a Peek or Little Window with no Chrome window per page |
+| `55a75dc` | `18b273b1` | Chromium engine: a tab behind asks for permission when its tab shows, as Cra decides |
+| `f343676` | `d48dbe55` | Chromium engine: spare pages, no quit crash, extensions don't see the placeholder, switchers skip Chrome's wi… |
+| `7b702b1` | `600cc243` | Chromium engine: page windows on the Cra window in use (#354), spares a tab can take; emoji in snapshots |
+| `1a9a408` | `42be2d22` | fetch-engine.sh: engine-158.0.8127.37-3 (arm64 and x64), with every 14 Nov bridge fix |
+| `0f4ef1b` | `3945d23e` | Chromium engine: session cookies outlast a restart, Safe Browsing gets its key, versions without CEF |
+| `91c011b` | `3e13e062` | fetch-engine.sh: engine-158.0.8127.37-4 (arm64 and x64): session cookies, Safe Browsing key |
+| `3ec7f55` | `4923d81d` | Chromium engine: an extension's window over a full-screen Cra joins its Space; toolbar snapshot re-recorded |
+| `b97c1b5` | `de9c2c3b` | Engine: the cookies and passwords Cra on CEF saved still decrypt |
+| `300b113` | `335f4861` | fetch-engine.sh: engine-158.0.8127.37-6 (arm64 and x64): CEF's cookies and passwords decrypt |
+| `61bb806` | `6d92f95e` | Engine doc: every scenario passes on engine -6 |
+| `e9a89e5` | `7fe8fac1` | Engine doc: Sparkle from a CEF build to the engine build works |
+| `62a0e99` | `c3206d52` | Engine doc: passkeys are offered with the release profile; the Web Store offers Add to Chrome |
+| `ae2a545` | `acd6d672` | Engine doc: the x64 build under Rosetta passes every scenario that runs without a screen |
+| `6fc2fec` | `4fcc14ac` | engine-migration.sh: not a harness, so CI's coverage run no longer picks it up |
+| `06e7cab` | `d2d37479` | Engine doc: merged into main, not yet released |
+| `3806ce0` | `7cc740f9` | Engine doc: the x64 build passes every scenario under Rosetta |
+| `7ff42c7` | `8a8de7a3` | Engine doc: point at the right speed numbers |
+| `aa290c4` | `7559ad14` | Engine: feature lists on the command line join Cra's |
+| `40b006e` | `fd854e98` | Engine: Chrome's hidden windows stop drawing |
+| `580f2db` | `5d26ba47` | Engine: a hidden page keeps its compositor |
+| `de64db6` | `d6e4489d` | Scenarios: the popup check in a scenario of its own |
+| `bbf70c2` | `ea505fd0` | Engine -7: idle wakeups and tab switch as on CEF |
+| `9503920` | `c0a2df9d` | Engine: downloads from the profile's history aren't new downloads |
+| `c186455` | `7d7b600c` | Engine -8: downloads from history stay quiet |
+| `6525669` | `1f2da4a5` | Engine doc: 1Password trusts Cra only in /Applications |
+| `971daa5` | `479bf79f` | Engine doc: Victor's day on his profile copy, passkey check skipped |
+| `3f34d02` | `90e3bae6` | Engine doc: no real Intel Mac before the release (Victor's call) |
+| `11a2a55` | `fb6527ff` | Engine: the hidden window's blank page has no renderer |
+| `7fc0341` | `4c780617` | Engine -9: the hidden window's blank page has no renderer |
+| `319d0a0` | `cfb7dfaf` | The daily update check follows Chrome stable; docs say the engine, not CEF |
+| `5fc2322` | `066fe43c` | build.sh: the other CPU gets its own engine folder, not CEF's |
+| `12d5dab` | `f9752e6c` | Engine -10: a live folder's plug-in gets non-2xx answers with their status |
+| `79ddc8e` | `f9c2a668` | build.sh: sign the engine's libraries, and check every binary for notarization |
+| `3a11ffc` | `b71e2fe3` | Notifications show Cra's icon, not Chromium's |
+| `a4e67c2` | `c6109ff2` | Engine -11: the blocker stops ad frames again |
 | `2f5e3b0` | `4d10b3e1` | A Cra owns its data folder when no other process holds it, not when no other Cra runs (#299) |
 | `0ea8123` | `d09799af` | Theme grain: a pattern Core Animation tiles, not a drawn view |
 | `f27aa5c` | `b55a668c` | Theme grain: the texture is 2x whatever screen is main |
@@ -338,6 +440,41 @@ The 16 Nov 2026 sync (14 picks and a hand-port, branch `upstream-sync-nov16`, al
 - Upstream has no counterpart for Pane's own fixes of the same day: a space coming back where it was scrolled
   (`79ea4d67`) and the downloads list above the mini player's cards (`9bf42d58`).
 
+The Chromium engine pass (16 Nov 2026, the 103 commits, branch `chrome-158`): Pane runs on upstream's published
+Chrome 158 engine (`scripts/fetch-engine.sh`, `engine-158.0.8127.37-12`), which is Cra's build, rebranded at build
+time rather than built from Chrome's source. `CRA_ENGINE=cef scripts/build.sh` still builds on CEF (156, `codecs7`).
+
+- Keychain: `scripts/cef-keychain-item.py` renames the engine's item to "Pane Safe Storage" / "Pane" unchanged (the
+  code that copies the names has CEF's shape; 2 + 2 places). Checked at runtime on a clone of the owner's profile,
+  network off: under lldb the framework's own `SecItemCopyMatching` asks for `svce = "Pane Safe Storage"`,
+  `acct = "Pane"`; no Keychain prompt; 700 of 702 cookies stayed (every site kept its own; the two gone were week-old
+  `googtrans` session cookies), all still `v10`. The profile had no saved passwords or cards.
+- `build.sh` gives Chrome's helpers Pane's names, icon and ids under `uz.pane.browser`; the Alerts helpers are "Pane"
+  with Pane's CEF Alerts id (`uz.pane.browser.helper.alerts`), so notification permission carries over.
+- Pane's own CEF bridge calls the engine doesn't have: `browser:didLoadFavicon:forURL:` is declared again (the engine
+  calls it unconditionally); `setHardwareAccelerationEnabled` and `setBoostScript` are called only where the bridge
+  has them; the Boosts' start script goes in with the engine's own start scripts and, in pages made before a change,
+  over each page's DevTools session (`EngineBoostScript`); a favicon Chrome didn't find is searched by `FaviconFinder`
+  a second after the load, fetched without cookies (`FaviconFetch`); `cra://debug?windowCorners` reads the page and
+  DevTools views in the card. `peekSource` keeps Pane's (upstream's builds on the skipped `8f9af14`) and finds the
+  page by `pageWindow`/`pageScreenFrame`. The engine half of `dc7e3ef` (Ask on Page's find and evaluation) came in
+  with these, so `engine/` and the pin equal upstream's.
+- Checked on the engine: `scripts/test.sh` and lint; 188 of 207 scenarios in one run and 6 more on a rerun; the Mac
+  half of `scripts/ios-sync-e2e.sh` (folder sync). The 6 that take over the screen were not run (the owner's call).
+  `instant-links`, `little-window-devtools` and `permission-card` fail on CEF's main as well (not the engine's).
+
+**Known limitations of the prebuilt engine** (Pane's own build of the engine would lift them):
+
+- A brand-new tab's first document on a boosted site parses before its boost is on (zapped elements show until the
+  load commits): the engine's start scripts miss the first document of a page made and loaded at once. Reloads,
+  navigations, a tab that takes a spare and every later document start boosted. `boost-zaps-on-load` fails its
+  first check on the engine (it passes on CEF).
+- Activity Monitor lists Chrome's helpers as "Cra Helper (…)": Chrome finds them by a name compiled into the framework.
+- Settings' "Use hardware acceleration" does nothing on the engine: its bridge starts Chrome with the app's own
+  arguments and has no call for `--disable-gpu`.
+- The page menu has no "Open Link in Peek" (⇧-click still peeks) or "Open Image in Preview": they were Pane's CEF
+  bridge's items.
+
 ### Hand-ported (6): Pane's own code after the upstream commit
 
 | Upstream | Pane | What |
@@ -415,7 +552,7 @@ For good unless the reason changes. "Never touch" areas are the owner's call (11
 | `720ede7` | Auto-hiding toolbar: the find bar hangs under the toolbar while it is out, not over its r… | Needs `167c05a` (auto-hiding toolbar), skipped |
 | `d455cb4` | Tidy Tabs: Arc's grouping prompt, stable group ids, fitted requests (#443) | Owner's call (16 Nov sync): Pane's Sections keep their own Tidy (Tidy Tabs Behavior, the Today divider, undo/redo) |
 | `3681a95` | Tidy Tabs: one group name per tab, Arc's empty-run rule (#443) | Goes with `d455cb4` |
-| `8860fc3` | Locked tests for #208, #36, #111, run on the engine; engine -5 | Owner's call (16 Nov sync): tests only, written against the engine; revisit with Pending E |
+| `8860fc3` | Locked tests for #208, #36, #111, run on the engine; engine -5 | Owner's call (16 Nov sync): tests only, written against the engine; the engine is in since the same day, so they can come now |
 | `392cc7e` | Locked test for #106 on the engine (extension badge and title) | Same as `8860fc3` |
 | `01c002b` | Locked test for #198 on the engine (auto Picture in Picture on leaving a call) | Same as `8860fc3` |
 | `72b25f2` | xbench: the cross-browser bench (Cra, Helium, Arc, Dia) | Upstream's perf bench (scripts/perf); Pane measures with scenario budgets |
@@ -499,121 +636,7 @@ commits add nothing the squashes don't.
 
 ## Pending
 
-### E: the Chromium engine (103, triaged 16 Nov 2026; waits for the owner's go-ahead)
-
-Between 13 and 16 Nov 2026 upstream moved from CEF to Chrome's own framework (`//chrome:chrome_framework`, Chrome
-158.0.8127.37) with a layer of its own linked in (`engine/chromium/`, upstream's `docs/chromium-engine.md`). Upstream's
-CEF stays at 156.0.8078.96 (`codecs7`, what Pane runs) and gets no more builds; its daily update check follows Chrome
-stable for the engine. The commits are one chain and go together: the layer and patches, `build-chromium.sh`,
-`fetch-engine.sh` / `publish-engine.sh` and the pins (`-1` … `-12`), `build.sh`, CI and docs, and the 15 that touch
-the app (`main.swift`'s `CraEngineMain`, `EngineFramework`, `SafeStorage`, `CraCEF.h`). Upstream's published engine
-is Cra's build: `Cra Framework.framework`, `Cra Helper (…)`, bundle id `dk.kildahl.cra`, Cra's icon in
-notifications and the "Cra Safe Storage" Keychain item, so Pane needs either a rebrand of the published engine or
-its own build (`build-chromium.sh` with Pane's `BRANDING`). Already in Pane: `7b702b1`'s `EmojiLabel` hunk
-(hand-ported) and `6f29b6d`'s `TabRuntime.pageScreenFrame` (with `234639e`).
-
-| Upstream | What | Touches |
-|---|---|---|
-| `5bb7467` | Engine: plan to leave CEF for Chrome's own framework, and the test build's layer and checks | engine, docs |
-| `21a273c` | Engine: the test build passes (12 checks), 20 tabs 706 MB with a 102 MB browser process; Aperitif h… | engine, docs |
-| `555d14e` | Engine: build-chromium.sh for a Chrome stable tree; the layer turns on Aperitif helpers; stand-in W… | engine, build |
-| `b6d131b` | Engine: how start-up maps from CEF to ChromeMain | docs |
-| `84b2a83` | Engine: Chrome 157.0.8103.81 tree checked out; layer deps for 157, background mode stays in the bui… | engine, build |
-| `03bc8d0` | Chromium engine: Chrome 157 builds with Cra's layer, the test passes all 12 checks | docs |
-| `144befb` | Chromium engine: Cra's app runs on Chrome's framework | app, engine, build, docs |
-| `e23b0c8` | Chromium engine: page protocol session, Cra's patches, prefs, extension windows | engine |
-| `40fb377` | Chromium engine: the sidebar player's media-session follow-up from #411 waits on the bridge | docs |
-| `708ef2a` | Chromium engine: watch Chrome's new windows through ScopedObservation | engine |
-| `ab02876` | Chromium engine: keys in Cra's pages go to Cra, never to Chrome's shortcuts | engine |
-| `c33d3eb` | Chromium engine: favicons, theme and background colours, find, zoom, SSL status | engine |
-| `78f0456` | Chromium engine: downloads go where Cra says, with progress and controls | engine |
-| `966d2be` | Chromium engine: permission requests go to Cra's own prompt | engine |
-| `52b0b11` | Chromium engine: element fullscreen and the link status line are Cra's | engine |
-| `b2ad0c2` | Chromium engine: restored history, spare pages and side panel pages | engine |
-| `69ba79a` | Chromium engine: DevTools open in Cra's card | engine |
-| `49658e9` | Chromium engine: closing a tab is a forced close, as CEF's | engine |
-| `8b245b4` | Chromium engine: Picture in Picture and print | engine |
-| `76fcf03` | Chromium engine: a tab opened for a download stays Cra's | engine |
-| `22e2beb` | Chromium engine: Cra's document start scripts in every page | engine |
-| `cbbc46f` | Chromium engine: Cra's ad and tracker blocking | engine |
-| `34e6042` | Chromium engine: blocked pop-ups list and the site's pop-up setting | engine |
-| `a1bdf2d` | Chromium engine: capture indicator, process events, incognito end | engine |
-| `a919d1a` | Chromium engine: browser fetches with a profile's cookies | engine |
-| `727af23` | Chromium engine: a page's pop-up is offered with the address it opens | engine |
-| `8280b11` | Chromium engine: Arc's page menu | engine |
-| `d91f8a8` | Chromium engine: Picture in Picture over full-screen Spaces, stray windows stay put | engine |
-| `d4bb5d3` | Chromium engine: a second launch hands its URLs to Cra | engine |
-| `85e6639` | Chromium engine: status, 13 Nov evening | docs |
-| `a08d88c` | Chromium engine: Cra.mediaSession through Chrome's public media session | engine |
-| `df16801` | Chromium engine: Chrome's bubbles find Cra's window (extension popups) | engine |
-| `10e28a2` | Chromium engine: agent pages render unseen, agent downloads | engine |
-| `de3af69` | Chromium engine: keep Chrome's hidden windows from key by swapping the method | engine |
-| `52e297c` | Chromium engine: Cra.installFromWebStore | engine |
-| `94a1897` | Chromium engine: runChromeCommand (Task Manager, Cast) | engine |
-| `7778324` | Chromium engine: pop-up addresses from the opener, observers gone at quit | engine |
-| `b17ab3f` | Chromium engine: no page is started while quitting | engine |
-| `b08c01e` | Chromium engine: unregister from the profile manager by the pointer we have | engine |
-| `f38f787` | Chromium engine: downloads with no page of Cra's go with the profile's last page | engine |
-| `5442f95` | Chromium engine: Google's background services off, fingerprinting protection in | engine |
-| `8a331cb` | Chromium engine: leave out ungoogled's disable-crash-reporter | engine |
-| `f4287f0` | Chromium engine: build.sh takes the engine output of the CPU it builds for | build |
-| `e402f77` | cra://open closes the command bar that waited for a new tab | app |
-| `8dfa38a` | Chromium engine: Cra's branding, published engine, Chromium the default | app, engine, build |
-| `11cc814` | Chromium engine: CI and releases fetch the engine and check it is Chrome stable | build |
-| `6979aa5` | Docs: the engine in CLAUDE.md's layers and development.md's build | docs |
-| `0a13281` | Releases: the newest engine, the hook checks it, release.md says how | build, docs |
-| `1441866` | Tests: the store and fuzz harnesses compile EngineFramework with SafeStorage | build |
-| `c162531` | Chromium engine: build Chrome 158.0.8127.37, the Mac stable | build |
-| `44cce5e` | Player: on Chrome's framework the sidebar card follows the page's media session (#411) | app, engine, tests, docs |
-| `befe6ad` | build-chromium.sh: a version bump fetches only the new tag, one commit deep | build |
-| `5ee9254` | Chromium engine: Cra's patches rebased onto Chrome 158.0.8127.37 | engine |
-| `ca60c59` | Chromium engine: Document Picture in Picture is TYPE_FLOATING in Chrome 158 | engine |
-| `9f57c00` | Engine migration test: a Cra on CEF's data folder opens on the engine | build, tests |
-| `a0c2a0e` | Chromium engine: links Cra opens its own way, sound as it happens, Picture in Picture time | engine, docs |
-| `6f29b6d` | Chromium engine: Peek grows from the link, WebKit tabs get player cards, Chrome's quit watchdog kept | app, engine |
-| `94a09e9` | docs: the engine's quit, host windows and debugger bar, as found on 14 Nov | docs |
-| `dc2731e` | Chromium engine: 5-Second Previews, page focus and the find bar find the page in its card | app |
-| `3dee573` | Chromium engine: fetch-engine.sh pins engine-158.0.8127.37-1; Little Windows measure the page in th… | app, build |
-| `8c05f38` | Chromium engine: Chrome's bars, pages' pop-ups as tabs, side panels, Little Window DevTools | app, engine, tests, docs |
-| `3f11358` | Chromium engine: DevTools report the panel they show | engine, docs |
-| `bece1bd` | docs: the engine's slow quit no longer happens (plain Chrome quits in 0.1 s) | docs |
-| `ababf5a` | Chromium engine: a muted tab stays muted when its page navigates | engine |
-| `556d64a` | Chromium engine: a tab's restored history is reported once the app knows the tab | engine |
-| `86f5d71` | docs: the hand checks before the engine ships | docs |
-| `9b3dff7` | fetch-engine.sh: engine-158.0.8127.37-2, with the 14 Nov bridge fixes (arm64 and x64) | build |
-| `e86910d` | Chromium engine: actions reach a Peek or Little Window with no Chrome window per page | app |
-| `55a75dc` | Chromium engine: a tab behind asks for permission when its tab shows, as Cra decides | engine |
-| `f343676` | Chromium engine: spare pages, no quit crash, extensions don't see the placeholder, switchers skip C… | app, engine, tests, docs |
-| `7b702b1` | Chromium engine: page windows on the Cra window in use (#354), spares a tab can take; emoji in snap… | app, engine, docs |
-| `1a9a408` | fetch-engine.sh: engine-158.0.8127.37-3 (arm64 and x64), with every 14 Nov bridge fix | build |
-| `0f4ef1b` | Chromium engine: session cookies outlast a restart, Safe Browsing gets its key, versions without CEF | app, engine, tests, docs |
-| `91c011b` | fetch-engine.sh: engine-158.0.8127.37-4 (arm64 and x64): session cookies, Safe Browsing key | build |
-| `3ec7f55` | Chromium engine: an extension's window over a full-screen Cra joins its Space; toolbar snapshot re-… | engine, tests |
-| `b97c1b5` | Engine: the cookies and passwords Cra on CEF saved still decrypt | engine, build, tests, docs |
-| `300b113` | fetch-engine.sh: engine-158.0.8127.37-6 (arm64 and x64): CEF's cookies and passwords decrypt | build |
-| `61bb806` | Engine doc: every scenario passes on engine -6 | docs |
-| `e9a89e5` | Engine doc: Sparkle from a CEF build to the engine build works | docs |
-| `62a0e99` | Engine doc: passkeys are offered with the release profile; the Web Store offers Add to Chrome | docs |
-| `ae2a545` | Engine doc: the x64 build under Rosetta passes every scenario that runs without a screen | docs |
-| `6fc2fec` | engine-migration.sh: not a harness, so CI's coverage run no longer picks it up | build, tests, docs |
-| `06e7cab` | Engine doc: merged into main, not yet released | docs |
-| `3806ce0` | Engine doc: the x64 build passes every scenario under Rosetta | docs |
-| `7ff42c7` | Engine doc: point at the right speed numbers | docs |
-| `aa290c4` | Engine: feature lists on the command line join Cra's | engine |
-| `40b006e` | Engine: Chrome's hidden windows stop drawing | app, engine, tests |
-| `580f2db` | Engine: a hidden page keeps its compositor | engine, tests |
-| `de64db6` | Scenarios: the popup check in a scenario of its own | tests |
-| `bbf70c2` | Engine -7: idle wakeups and tab switch as on CEF | build, docs |
-| `9503920` | Engine: downloads from the profile's history aren't new downloads | app, engine, tests |
-| `c186455` | Engine -8: downloads from history stay quiet | build, docs |
-| `6525669` | Engine doc: 1Password trusts Cra only in /Applications | docs |
-| `971daa5` | Engine doc: Victor's day on his profile copy, passkey check skipped | docs |
-| `3f34d02` | Engine doc: no real Intel Mac before the release (Victor's call) | docs |
-| `11a2a55` | Engine: the hidden window's blank page has no renderer | engine, build, tests, docs |
-| `7fc0341` | Engine -9: the hidden window's blank page has no renderer | build |
-| `319d0a0` | The daily update check follows Chrome stable; docs say the engine, not CEF | build, docs |
-| `5fc2322` | build.sh: the other CPU gets its own engine folder, not CEF's | build |
-| `12d5dab` | Engine -10: a live folder's plug-in gets non-2xx answers with their status | app, engine, build, tests |
-| `79ddc8e` | build.sh: sign the engine's libraries, and check every binary for notarization | build |
-| `3a11ffc` | Notifications show Cra's icon, not Chromium's | build |
-| `a4e67c2` | Engine -11: the blocker stops ad frames again | engine, build, tests |
+None: every upstream commit through `f8a6402` is Ported or Skipped (16 Nov 2026). New upstream commits go here
+when triaged, sorted as before: A (bug fixes, engine, tests: small, low risk), B (new features) and C (collide
+with Pane's own UI), each row with the files it would conflict in on main (`scripts/upstream-audit.py --conflicts`)
+and the earlier pending commit it needs.

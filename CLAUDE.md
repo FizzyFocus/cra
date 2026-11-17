@@ -85,8 +85,10 @@ for the brand. What a person sees says Pane: write `Brand.name` / `Brand.site` (
 and `InternalScheme` for the scheme (`pane://` canonical, `cra://` an alias everywhere, refused from
 pages like it). Debug log lines (`Cra windows:`, `Cra cdp …`) keep their names: scenarios match
 them. Chromium's Keychain item is Pane's, "Pane Safe Storage" (13 Nov 2026):
-`scripts/cef-keychain-item.py` renames upstream's "Cra Safe Storage" in the fetched CEF, and
-`SafeStorage` copies a profile's secret from Cra's item once.
+`scripts/cef-keychain-item.py` renames upstream's "Cra Safe Storage" in the fetched engine (Chrome 158,
+`fetch-engine.sh`) and CEF (`CRA_ENGINE=cef`, `fetch-cef.sh`), and `SafeStorage` copies a profile's secret from Cra's
+item once. The published engine is Cra's build: `build.sh` gives its helpers Pane's names, icon and ids; their
+executables stay "Cra Helper (…)" (UPSTREAM_SYNC.md lists the engine's known limitations).
 `LegacyDataMigration` copies Cra's data folder, defaults and WebKit stores on Pane's first launch.
 The iPhone app (since 14 Nov 2026) is the same: `iOS/Cra.xcodeproj` and its Cra, CraShare and
 CraWidgets targets keep Cra's names, while the bundle ids are `uz.pane.ios(.share|.widgets)` on team
