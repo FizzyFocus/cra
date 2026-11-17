@@ -7,7 +7,8 @@ became of every upstream commit, so nothing is ported twice or lost.
 
 - **Decided through:** `f8a6402` (upstream/main on 16 Nov 2026). Every upstream commit up to it is under
   Ported or Skipped.
-- **Triaged through:** `f8a6402`. Nothing is Pending.
+- **Triaged through:** `f8a6402`. Past it, the engine's chain through `12889a6` (engine -13 to -18 and what they
+  need, 17 Nov 2026) is ported ahead of triage; the other new commits up to `debd562` wait for it (Pending).
 - **Merge base:** `9927600`.
 
 ## How to sync
@@ -28,7 +29,7 @@ became of every upstream commit, so nothing is ported twice or lost.
 
 ## Ported
 
-### Cherry-picked (300): `git cherry-pick -x`, the trailer names the upstream commit
+### Cherry-picked (319): `git cherry-pick -x`, the trailer names the upstream commit
 
 | Upstream | Pane | What |
 |---|---|---|
@@ -343,6 +344,25 @@ paragraph has the detail:
 | `1b0634c` | `208deef5` | Tidy Downloads: Arc's prompt, suffix and clash rules (#441) |
 | `f11c0eb` | `bc8b0bc3` | Blocker: a blocked request fails instead of being cancelled, so pages that wait on it show (#436) |
 | `64b20c0` | `6b3d1b67` | Import: offer a browser macOS keeps from Cra, asking for Full Disk Access |
+| `eb6fd55` | `4e334b07` | Engine -13: background tabs draw again, and two 0.1.44 crashes |
+| `1875397` | `7919df12` | Runaway pages: a hidden page whose process passes 8 GB sleeps, and Cra names what ran away |
+| `6ad7cdb` | `12610469` | Engine -14: Cra.getProcessInfo for the runaway-page check |
+| `fac5b66` | `b5973a58` | About Chromium checks for no update (#450) |
+| `4901548` | `c299e12a` | Page right-click menus show again on the engine (#466) |
+| `fda9750` | `768a1bf8` | Document Picture in Picture keeps the site's own controls (#460) |
+| `f3a0804` | `788fc8af` | Engine -16: About Chromium without an update check (#450), page menus (#466), Document Picture in Picture (#460) |
+| `ca31e20` | `7a1137ab` | Engine: three 0.1.44 crashes (tab groups, closing host, profile unload) |
+| `b98e03e` | `4f3b43d3` | DevTools draw in the card again on the engine (#468) |
+| `17ea081` | `21c14437` | Links opened in a new tab draw their page again (#469) |
+| `af12654` | `90f46181` | Engine: scenarios for the three 0.1.44 crashes |
+| `dc9813c` | `85c34901` | Full screen: Chromium's tab strip and toolbar stay out of sight (#472, #486) |
+| `0937043` | `0daee8be` | Engine -17: three 0.1.44 crashes, DevTools draw (#468), new tabs draw (#469), full screen keeps Chrome's bars hidden (#472, #486) |
+| `cf15b8c` | `d1cc8ed5` | Extensions: Remove asks over Cra's window again, and Chromium follows macOS's language (#484) |
+| `6c60282` | `a21c2aac` | Web Store installs' CRX downloads stay Chrome's: no ghost download in Cra |
+| `bd860ef` | `27584d22` | Engine: two 0.1.45 crashes, a permission element's second card (#111) and FedCM's sign-in dialog |
+| `dcec5d8` | `7ef07f51` | Engine -18: DevTools dock in the card, as they did on CEF |
+| `12889a6` | `006b4b16` | Engine: transient downloads aren't Cra's to list (#496) |
+| `bc1e4f2` | `d5e3feb6` | Little Window DevTools: ⌥⌘I reaches the Little Window, locked by a scenario |
 | `8cc7ac7` | `43828b3e` | Find bar goes with its tab, as in Arc (#454) |
 | `2507db1` | `215e9740` | Fix preview image size, search escaping and iOS popups (#447) |
 | `39615a1` | `bd9a0c5e` | iOS popups: a closed opener's page is let go; ios.sh test starts the popup fixtures (#447) |
@@ -441,7 +461,7 @@ The 16 Nov 2026 sync (14 picks and a hand-port, branch `upstream-sync-nov16`, al
   (`79ea4d67`) and the downloads list above the mini player's cards (`9bf42d58`).
 
 The Chromium engine pass (16 Nov 2026, the 103 commits, branch `chrome-158`): Pane runs on upstream's published
-Chrome 158 engine (`scripts/fetch-engine.sh`, `engine-158.0.8127.37-12`), which is Cra's build, rebranded at build
+Chrome 158 engine (`scripts/fetch-engine.sh`, `engine-158.0.8127.37-12`, `-18` since 17 Nov), which is Cra's build, rebranded at build
 time rather than built from Chrome's source. `CRA_ENGINE=cef scripts/build.sh` still builds on CEF (156, `codecs7`).
 
 - Keychain: `scripts/cef-keychain-item.py` renames the engine's item to "Pane Safe Storage" / "Pane" unchanged (the
@@ -463,23 +483,32 @@ time rather than built from Chrome's source. `CRA_ENGINE=cef scripts/build.sh` s
   a page's pop-up) came into the tab white on the engine, found by the owner the same night: the page ran (its sound
   played) but nothing showed, it took no clicks (no page menu), and a reload changed nothing. Two causes, both views
   (17 Nov 2026): Chromium's own view of the page (`WebContentsViewCocoa`) arrives hidden, as Chrome's window hid it
-  as a tab behind, and Pane shows it with its tab (`BrowserManager.showChromiumPageView`); and a link's tab opened in
+  as a tab behind, and Pane shows it with its tab (`ChromiumViews.reveal` since 17 Nov); and a link's tab opened in
   front was shown as Chromium handed its page over, before the window had its card, so the page stayed in the holder
-  for hidden pages, and the window now shows tabs again while a page isn't in its card (`hasUnplacedPages`).
-  Upstream's `BrowserManager` and window code are the same, so its engine likely has both. Scenario
+  for hidden pages, and the window now shows tabs again while a page isn't in its card (upstream's `waitsForItsPane`,
+  `17ea081`, took the place of Pane's same `hasUnplacedPages`). Scenario
   `link-new-tab-loads` checks the view (`cra://debug?pageRect`) and, when the window is on screen, its pixels
   (`expect-pixels`); a first fix by focus emulation (`62f69342`) made the page think it was shown, not the view.
-- No right-click menu opened in a page on the engine (the owner, 17 Nov 2026): Chrome reaches its menu code, but its
-  menu never appears in Pane's windows. Pane opens its own native menu (`PageContextMenu`, CraCore `PageMenu`):
-  the page still gets the right-click, a script in its isolated world says what was under the pointer and whether
-  the page made a menu of its own (`PageMenu.recorderScript`, with the engine's start scripts), and Chrome's items
-  for it follow (links, pictures, a selection, a field, else Back/Forward/Reload, Save As…, Print…, View Page Source,
-  then Inspect), with Pane's Open Link in Split View, Little Window and Peek and Open Image in Preview. While it is
-  open Chromium's view gives up the keyboard: macOS put spaces in place of a field's selected word otherwise.
-  Scenario `page-context-menu` (`cra://debug?watchMenus`, `menuPick`).
+- Engine -18 (17 Nov 2026, the chain `eb6fd55` to `12889a6` and `bc1e4f2`, branch `engine-18`), taken ahead of the
+  rest of upstream's new commits for the owner's report that DevTools opened as a blank white panel: Chrome had
+  attached the DevTools frontend to its own never-shown DevTools window before the bridge took it, so its frames went
+  there (`b98e03e`, #468; on -12 Pane's DevTools view had no `CALayerHost` at all), as a link's page in front went to
+  the page-host window (`17ea081`, #469); background tabs' views came in hidden (`eb6fd55`); page menus never showed
+  (`4901548`, #466); DevTools dock in the card under the page (`dcec5d8`, `EmbeddedDevTools`). Pane's own page menu
+  (`a6024eac`, `PageContextMenu` and CraCore `PageMenu`) went with -16: Chrome's menu shows, and Pane's had turned it
+  off. Every page view Pane puts on screen now goes through `ChromiumViews.reveal` (shown if Chrome hid it, sized if
+  empty), and `cra://debug?surfaces` lists each one with drawn=1 when Chromium's frames arrive under it: scenarios
+  `chromium-surfaces` (tabs, pane:// pages, a pop-up tab, DevTools right, bottom and undocked, Split View, Peek, Little
+  Windows and their DevTools, the find bar) and `extension-surfaces`. The Keychain rename applies to -18 unchanged.
+  Pause All Media's app half (`4610935`) is Pending; its engine half is in.
 - Checked on the engine: `scripts/test.sh` and lint; 188 of 207 scenarios in one run and 6 more on a rerun; the Mac
   half of `scripts/ios-sync-e2e.sh` (folder sync). The 6 that take over the screen were not run (the owner's call).
   `instant-links`, `little-window-devtools` and `permission-card` fail on CEF's main as well (not the engine's).
+  On -18 (17 Nov): `instant-links` passes (its first run after a build is too slow for its 0.5 s check);
+  `little-window-devtools` and `little-window-devtools-actions` need the test copy's Little Window to be key, which a
+  copy behind the owner's apps never is (`cra://debug?front`: key=none), so they pass only with the copy in front;
+  `permission-card` sits 2 pt lower than Arc's 12 pt where the window's top meets the menu bar, and its snapshot is
+  upstream's navy card, not Pane's frosted one (`1808e61f`).
 
 **Known limitations of the prebuilt engine** (Pane's own build of the engine would lift them):
 
@@ -490,6 +519,9 @@ time rather than built from Chrome's source. `CRA_ENGINE=cef scripts/build.sh` s
 - Activity Monitor lists Chrome's helpers as "Cra Helper (…)": Chrome finds them by a name compiled into the framework.
 - Settings' "Use hardware acceleration" does nothing on the engine: its bridge starts Chrome with the app's own
   arguments and has no call for `--disable-gpu`.
+- An extension's toolbar popup doesn't show when a tab was restored from before a relaunch, or a second extension is
+  installed: Chrome makes the popup's window (no parent) and never shows it, and the action times out (`placement-
+  expired`). Engine -12 and -18 alike (17 Nov 2026); `extension-popup-shown` and `extension-surfaces` avoid both.
 
 ### Hand-ported (6): Pane's own code after the upstream commit
 
@@ -652,7 +684,10 @@ commits add nothing the squashes don't.
 
 ## Pending
 
-None: every upstream commit through `f8a6402` is Ported or Skipped (16 Nov 2026). New upstream commits go here
+Every upstream commit through `f8a6402` is Ported or Skipped (16 Nov 2026). Past it, the engine chain is ported
+(17 Nov 2026, above) and these wait for triage: the other commits from `f8a6402` to `debd562`
+(`scripts/upstream-audit.py --new` lists them), among them Pause All Media's app half (`4610935`; its engine half and
+the -15 pin it set are in). New upstream commits go here
 when triaged, sorted as before: A (bug fixes, engine, tests: small, low risk), B (new features) and C (collide
 with Pane's own UI), each row with the files it would conflict in on main (`scripts/upstream-audit.py --conflicts`)
 and the earlier pending commit it needs.
