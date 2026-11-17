@@ -2791,20 +2791,18 @@ struct ClipboardPaste: Equatable {
 /// Tidy on the divider (TidyTabs.Visibility, 12 Nov 2026): off, shown (more than 10 Today tabs),
 /// shown while Shift is held, or sorting (shown, squiggling). It no longer waits for a hover.
 enum DividerTidy: Equatable {
-    case none, shown, withShift, running
+    case none, withShift, running
 
     init(_ v: TidyTabs.Visibility) {
         switch v {
         case .hidden: self = .none
         case .withShift: self = .withShift
-        case .shown: self = .shown
         }
     }
 }
 
-/// The line between pinned and Today; "Clear" shows on hover, and "Tidy" before it whenever Today
-/// holds more than 10 tabs, or with fewer while the row is hovered with Shift held, as long as two of
-/// them are loose (TidyTabs.visibility; DividerTidy; Arc
+/// The line between pinned and Today; "Clear" shows on hover, and "Tidy" before it only while the row is
+/// hovered with Shift held and a run could group something (TidyTabs.visibility; DividerTidy; Arc
 /// 1.171: UnpinnedSectionHeaderCellView with SidebarTidyButton, a SquiggleDivider while it works).
 final class DividerRowView: SidebarRowView {
     private let line = NSView()
@@ -2870,7 +2868,7 @@ final class DividerRowView: SidebarRowView {
         guard hasToday else { return false }
         switch tidy {
         case .none: return false
-        case .shown, .running: return true
+        case .running: return true
         case .withShift: return (isHovered || pointerInside) && (Self.debugShift ?? NSEvent.modifierFlags.contains(.shift))
         }
     }

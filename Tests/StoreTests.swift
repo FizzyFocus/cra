@@ -1695,18 +1695,15 @@ enum StoreTests {
         expect(store.integrityProblems().isEmpty, "and the sidebar stays sound")
     }
 
-    /// Tidy on the divider (Pane, 14 Nov 2026, the owner's spec): outright only with two loose tabs to
-    /// group among more than ten, and never right after a run, however many it left loose, until a tab
-    /// it didn't leave there comes (a new one, one unarchived, ⌘Z of the run); with Shift whenever a run
-    /// could do something, tabs all in Tidy's sections included.
+    /// Tidy on the divider (the owner's spec, 17 Nov 2026): only with Shift over the divider, however many
+    /// tabs Today holds, before or after a run, whenever a run could do something, tabs all in Tidy's
+    /// sections included.
     @MainActor
     private static func tidyNeedsTwoLooseTabs() {
         let store = AppComposition(clock: ManualScheduler()).store
         let sid = store.createSpace(title: "Loose", emoji: "🧺").id
-        let early = store.createTab(url: "https://example.org/early", in: sid, select: false).id
-        store.archiveTab(early, reason: .manual)
         _ = (0..<12).map { store.createTab(url: "https://example.org/t\($0)", in: sid, select: false).id }
-        expect(store.tidyVisibility(sid) == .shown, "twelve loose Today tabs: Tidy without Shift")
+        expect(store.tidyVisibility(sid) == .withShift, "twelve loose Today tabs: Tidy only with Shift")
         func run(_ name: String, _ picks: [Int]) {
             let loose = store.looseTodayTabs(sid).map(\.id)
             let offer = TidyRun.offer(loose: loose, sections: store.tidySections(in: sid))
@@ -1716,21 +1713,10 @@ enum StoreTests {
                                 tabIDs: offer.tabs, groups: offer.groups, in: sid)
             }
         }
-        // A run that groups two: ten left loose among twelve, and Tidy goes at once; Shift brings it.
         run("Pair", [0, 1])
         expect(store.looseTodayTabs(sid).count == 10 && store.tidyVisibility(sid) == .withShift,
-               "right after a run that left ten tabs loose: only with Shift")
-        // ⌘Z puts the run's tabs back loose: Tidy is back.
-        expect(store.undo() == .done("Tidy Tabs") && store.tidyVisibility(sid) == .shown, "⌘Z of the run brings Tidy back")
-        // Again; a new tab brings it back.
-        run("Pair", [0, 1])
-        expect(store.tidyVisibility(sid) == .withShift, "after the run again: only with Shift")
-        _ = store.createTab(url: "https://example.org/new", in: sid, select: false)
-        expect(store.tidyVisibility(sid) == .shown, "a new tab after the run: Tidy back")
-        // Again; a tab archived before the run, unarchived, brings it back too.
-        run("Trio", [0, 1, 2])
-        expect(store.tidyVisibility(sid) == .withShift, "after a third run: only with Shift")
-        expect(store.restoreArchived(early, select: false) != nil && store.tidyVisibility(sid) == .shown, "an unarchived tab: Tidy back")
+               "after a run that left ten tabs loose: only with Shift")
+        expect(store.undo() == .done("Tidy Tabs") && store.tidyVisibility(sid) == .withShift, "⌘Z of the run: only with Shift")
         // Everything into Tidy's sections: nothing loose, but Shift brings Tidy to tidy them again.
         let loose = store.looseTodayTabs(sid).count
         let offered = TidyRun.offer(loose: store.looseTodayTabs(sid).map(\.id), sections: store.tidySections(in: sid)).tabs.count
@@ -1790,7 +1776,7 @@ enum StoreTests {
         store.applyTidy(plan, tabIDs: loose, groups: [], in: sid)
         let fresh = store.createTab(url: "https://example.org/Jupiter", in: sid, select: false)
         let more = (0..<4).map { store.createTab(url: "https://example.org/more\($0)", in: sid, select: false) }
-        expect(store.tidyVisibility(sid) == .shown, "eleven Today tabs, grouped ones counted: Tidy without Shift")
+        expect(store.tidyVisibility(sid) == .withShift, "eleven Today tabs, grouped ones counted: Tidy still only with Shift")
         for t in more { store.archiveTab(t.id, reason: .manual) }
         let loose2 = store.looseTodayTabs(sid).map(\.id)
         let existing = store.tabGroups(in: sid).map { $0.title ?? "" }

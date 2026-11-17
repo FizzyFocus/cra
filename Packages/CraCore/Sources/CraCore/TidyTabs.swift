@@ -5,9 +5,6 @@ import Foundation
 /// named group headers (Arc's `SidebarItemData.tabGroup`): the model only proposes names and members;
 /// everything here decides what the sidebar does with that answer. Arc 1.171, 4 Nov 2026.
 public enum TidyTabs {
-    /// Tidy is on the divider, without a hover, once Today holds more than this many tabs, grouped
-    /// ones included (12 Nov 2026, the owner's call; Arc 1.171 offered it from six, on hover only).
-    public static let shownAbove = 10
     /// A model answer can't hold a sidebar's worth of tabs: the on-device model reads ~4K tokens.
     public static let maximumTabs = 60
     static let maximumTitleLength = 80
@@ -49,35 +46,21 @@ public enum TidyTabs {
     public enum Visibility: Equatable, Sendable {
         /// Nothing loose to sort: no Tidy.
         case hidden
-        /// Shown only while Shift is held.
+        /// Shown only while the divider is hovered with Shift held.
         case withShift
-        /// Shown all the time, hover or not.
-        case shown
     }
 
     /// Tidy makes groups of at least this many tabs.
     public static let minimumLoose = 2
 
-    /// When the divider shows Tidy (Pane, 14 Nov 2026, the owner's spec):
-    /// - outright, when Today holds more than `shownAbove` tabs, at least `minimumLoose` of them loose,
-    ///   unless every loose tab is one the last run left loose (`leftoversOnly`): that run has had its
-    ///   say, so Tidy goes the moment it is applied and comes back with a tab it didn't leave there (a
-    ///   new one, one unarchived, or ⌘Z of the run);
-    /// - with Shift held over the divider, whenever a run could do something with what it would offer the
-    ///   model (TidyRun.offer: loose tabs and Full sections' tabs, the sections it may add to): two tabs
-    ///   to group, or one and a section to put it in. Tabs all in Tidy's sections can be tidied again;
-    ///   ones all in sections made by hand (Add Only) or Locked can't, so it stays hidden then.
-    public static func visibility(todayTabs: Int, looseTabs: Int, offeredTabs: Int, offeredGroups: Int,
-                                  leftoversOnly: Bool) -> Visibility {
-        guard offeredTabs >= minimumLoose || (offeredTabs >= 1 && offeredGroups > 0) else { return .hidden }
-        return looseTabs >= minimumLoose && todayTabs > shownAbove && !leftoversOnly ? .shown : .withShift
-    }
-
-    /// Whether `loose` holds nothing but tabs the last run left loose (`leftAfterRun`; nil when no run
-    /// has been applied in the space this session).
-    public static func onlyLeftovers<ID: Hashable>(_ loose: [ID], leftAfterRun: Set<ID>?) -> Bool {
-        guard let leftAfterRun else { return false }
-        return Set(loose).isSubset(of: leftAfterRun)
+    /// When the divider shows Tidy (the owner's spec, 17 Nov 2026): only while the pointer is on the divider
+    /// with Shift held, however many tabs Today holds (it showed outright above ten from 12 Nov, which put it
+    /// on the divider out of nowhere), and only when a run could do something with what it would offer the
+    /// model (TidyRun.offer: loose tabs and Full sections' tabs, the sections it may add to): two tabs to
+    /// group, or one and a section to put it in. Tabs all in Tidy's sections can be tidied again; ones all in
+    /// sections made by hand (Add Only) or Locked can't, so it stays hidden then.
+    public static func visibility(offeredTabs: Int, offeredGroups: Int) -> Visibility {
+        offeredTabs >= minimumLoose || (offeredTabs >= 1 && offeredGroups > 0) ? .withShift : .hidden
     }
 
     /// Whether Tidy is on the divider now.
@@ -85,7 +68,6 @@ public enum TidyTabs {
         switch v {
         case .hidden: false
         case .withShift: shiftHeld
-        case .shown: true
         }
     }
 

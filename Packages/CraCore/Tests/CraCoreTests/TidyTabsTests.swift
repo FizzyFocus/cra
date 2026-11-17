@@ -4,41 +4,20 @@ import Testing
 
 /// Arc's Tidy Tabs with the Mac's own model: what the sidebar makes of the model's answer.
 struct TidyTabsTests {
-    /// The owner's rule (12 Nov 2026): Tidy is on the divider whenever Today holds more than 10 tabs,
-    /// with fewer while Shift is held; and (14 Nov) outright only with two loose tabs to group.
-    @Test func shownAboveTenTodayTabsOrWithShift() {
-        func v(_ today: Int, loose: Int, offered: Int? = nil, groups: Int = 0, after: Bool = false) -> TidyTabs.Visibility {
-            TidyTabs.visibility(todayTabs: today, looseTabs: loose, offeredTabs: offered ?? loose, offeredGroups: groups, leftoversOnly: after)
-        }
-        #expect(v(11, loose: 3) == .shown)
-        #expect(v(10, loose: 10) == .withShift, "ten is not more than ten")
-        #expect(v(2, loose: 2) == .withShift)
-        // Grouped tabs count towards the ten; outright only with two loose tabs to group.
-        #expect(v(14, loose: 2) == .shown)
-        #expect(v(14, loose: 1) == .hidden, "one loose tab and no section to put it in: nothing a run could do")
-        #expect(v(1, loose: 1) == .hidden, "one tab alone: not even with Shift")
-        #expect(TidyTabs.shows(.shown, shiftHeld: false) && TidyTabs.shows(.shown, shiftHeld: true))
+    /// The owner's rule (17 Nov 2026): Tidy is on the divider only while it is hovered with Shift held, however
+    /// many tabs Today holds (it showed outright above ten until then), and only when a run could do something.
+    @Test func onlyWithShiftWhenARunCouldGroup() {
+        #expect(TidyTabs.visibility(offeredTabs: 14, offeredGroups: 0) == .withShift, "many tabs: still only with Shift")
+        #expect(TidyTabs.visibility(offeredTabs: 2, offeredGroups: 0) == .withShift)
+        // Every tab in Tidy's (Full) sections: all of them offered again.
+        #expect(TidyTabs.visibility(offeredTabs: 6, offeredGroups: 3) == .withShift)
+        // One loose tab and a section it could join.
+        #expect(TidyTabs.visibility(offeredTabs: 1, offeredGroups: 1) == .withShift)
+        #expect(TidyTabs.visibility(offeredTabs: 1, offeredGroups: 0) == .hidden, "one tab and no section: nothing a run could do")
+        // Every tab in sections made by hand (Add Only): none offered.
+        #expect(TidyTabs.visibility(offeredTabs: 0, offeredGroups: 2) == .hidden)
         #expect(!TidyTabs.shows(.withShift, shiftHeld: false) && TidyTabs.shows(.withShift, shiftHeld: true))
         #expect(!TidyTabs.shows(.hidden, shiftHeld: true))
-    }
-
-    /// Pane, 14 Nov 2026: right after a run Tidy is off the divider (Shift brings it), however many tabs
-    /// the run left loose; and with every tab in Tidy's sections, Shift still brings it to tidy them again.
-    @Test func aRunTakesTidyOffTheDividerAndShiftStillReachesIt() {
-        // Fourteen Today tabs, twelve loose after a run that grouped two: Shift only, until a new tab comes.
-        #expect(TidyTabs.visibility(todayTabs: 14, looseTabs: 12, offeredTabs: 14, offeredGroups: 1, leftoversOnly: true) == .withShift)
-        #expect(TidyTabs.visibility(todayTabs: 15, looseTabs: 13, offeredTabs: 15, offeredGroups: 1, leftoversOnly: false) == .shown)
-        // Every tab in Tidy's (Full) sections: nothing loose, all of them offered again.
-        #expect(TidyTabs.visibility(todayTabs: 6, looseTabs: 0, offeredTabs: 6, offeredGroups: 3, leftoversOnly: true) == .withShift)
-        // One loose tab and a section it could join.
-        #expect(TidyTabs.visibility(todayTabs: 5, looseTabs: 1, offeredTabs: 1, offeredGroups: 1, leftoversOnly: false) == .withShift)
-        // Every tab in sections made by hand (Add Only): none offered, nothing a run could do.
-        #expect(TidyTabs.visibility(todayTabs: 6, looseTabs: 0, offeredTabs: 0, offeredGroups: 2, leftoversOnly: false) == .hidden)
-
-        #expect(!TidyTabs.onlyLeftovers(["a", "b"], leftAfterRun: nil), "no run yet")
-        #expect(TidyTabs.onlyLeftovers(["a"], leftAfterRun: ["a", "b"]), "one closed since: still the run's")
-        #expect(!TidyTabs.onlyLeftovers(["a", "c"], leftAfterRun: ["a", "b"]), "a new loose tab")
-        #expect(TidyTabs.onlyLeftovers([String](), leftAfterRun: []), "the run left nothing loose")
     }
 
     /// A collapsed group lists only what holds the open tab, as a closed folder does.
