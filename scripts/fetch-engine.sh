@@ -8,30 +8,12 @@ cd "$(dirname "$0")/.."
 
 ENGINE_VERSION="${ENGINE_VERSION:-158.0.8127.37}"
 # Bump the suffix when the build changes but the Chrome version does not.
-ENGINE_RELEASE="${ENGINE_RELEASE:-engine-${ENGINE_VERSION}-14}"
+ENGINE_RELEASE="${ENGINE_RELEASE:-engine-${ENGINE_VERSION}-16}"
 CPU="${ENGINE_CPU:-$([ "$(uname -m)" = arm64 ] && echo arm64 || echo x64)}"
 DIR="${ENGINE_DIR:-vendor/engine}"
 URL="${ENGINE_URL:-https://github.com/VictorKildahl/cra/releases/download/${ENGINE_RELEASE}/cra_framework_${CPU}.tar.xz}"
 
-# The engine's Keychain item. The published engine is upstream Cra's build, which names Cra's
-# item ("Cra Safe Storage", account "Chromium", engine/chromium/patches/keychain-service-name.patch).
-# Pane's is "Pane Safe Storage", account "Pane" (13 Nov 2026; SafeStorage.swift creates it before
-# Chromium starts): scripts/cef-keychain-item.py renames it in the binary, as it does in CEF's
-# (the code that copies the names into std::strings has the same shape in Chrome 158, 16 Nov 2026),
-# and prints the item the engine reads, which scripts/build.sh writes into Info.plist
-# (CraKeychainService). An engine the script doesn't know keeps Cra's item, and SafeStorage follows it.
-keychain_item() {
-  local bin
-  bin="$(cd "$DIR/Cra Framework.framework/Versions/Current" && pwd -P)/Cra Framework"  # the file, not a symlink
-  # Written after any change to the framework, so a newer one (a new download) is looked at again.
-  if [ ! "$DIR/.cra-keychain-item" -nt "$bin" ]; then
-    ITEM="$(python3 scripts/cef-keychain-item.py "$bin")" || exit 1
-    echo "$ITEM" > "$DIR/.cra-keychain-item"
-  fi
-}
-
 if [ -d "$DIR/Cra Framework.framework" ] && [ "$(cat "$DIR/.cra-source" 2>/dev/null)" = "$URL" ]; then
-  keychain_item
   exit 0
 fi
 echo "Downloading the engine ${ENGINE_RELEASE} (${CPU})..."
@@ -45,5 +27,3 @@ mkdir -p "$DIR"
 mv "$DIR-download/Cra Framework.framework" "$DIR/"
 rm -rf "$DIR-download"
 echo "$URL" > "$DIR/.cra-source"
-keychain_item
-echo "Engine ready: $DIR ($(cat "$DIR/.cra-keychain-item"))"
