@@ -1,0 +1,144 @@
+# Every place Pane shows one of Chromium's pages on the Chromium engine shows it: Chromium's own view of the page
+# (WebContentsViewCocoa) is in a window on screen, not hidden by Chrome or by anything of Pane's over it, sized as
+# the view it sits in and not empty, and its frames arrive there (drawn=1: Chromium's CALayerHost under the view;
+# drawn=window for a page in one of Chrome's own windows). cra://debug?surfaces lists them all (ChromiumViews.readout).
+# Pages drew blank white where Chrome had hidden the view or attached the page to its own never-shown window: a
+# link's new tab (16 Nov 2026, #469) and DevTools (17 Nov 2026, #468). Checked here: a tab, Chromium's pages behind
+# pane:// (history, extensions, downloads), a window.open pop-up tab, DevTools docked right, docked at the bottom and
+# undocked, both panes of a Split View, a Peek from a ⇧-click, a Little Window from another app's link and a sign-in
+# pop-up's, a Little Window's DevTools, and the page under the find bar (an extension's popup and side panel:
+# extension-surfaces).
+budget rss=1600 stalls50=120
+pace 0.5
+seed settings.json {"hasSeenImportPrompt": true, "toolbarDefaultMigrated": true, "showToolbar": false, "defaultLinkDestination": {"littleWindow": {}}}
+cra://debug?windowSize=1300x820
+
+# A tab.
+cra://open?url=${ORIGIN}/solid.html?n=tab
+expect-log loaded 127\.0\.0\.1 \(HTTP 200\)
+wait 2
+cra://debug?surfaces=tab
+expect-log surface tab: tab\[\S*n=tab\] window=[0-9]+ windowShown=1 parent=- inWindow=1 selfHidden=0 hiddenBy=- size=[1-9][0-9]*x[1-9][0-9]* empty=0 fills=1 .* drawn=1
+cra://debug?cdp=Runtime.evaluate&params={"expression":"new Promise(r=>{let n=0;const s=performance.now();(function f(){n++;if(performance.now()-s<500)requestAnimationFrame(f);else r('tab:'+document.visibilityState+':'+(n>5?'drawing':'still'))})();setTimeout(()=>r('tab:'+document.visibilityState+':still'),1500)})","awaitPromise":true}
+expect-log Cra cdp Runtime.evaluate .*"value":"tab:visible:drawing"
+
+# Chromium's own pages behind pane:// addresses.
+cra://open?url=pane://history
+wait 3
+cra://debug?surfaces=history
+expect-log surface history: tab\[\S*history\S*\] .* inWindow=1 selfHidden=0 hiddenBy=- .* empty=0 fills=1 .* drawn=1
+cra://open?url=pane://extensions
+wait 3
+cra://debug?surfaces=extensions
+expect-log surface extensions: tab\[\S*extensions\S*\] .* inWindow=1 selfHidden=0 hiddenBy=- .* empty=0 fills=1 .* drawn=1
+cra://open?url=pane://downloads
+wait 3
+cra://debug?surfaces=downloads
+expect-log surface downloads: tab\[\S*downloads\S*\] .* inWindow=1 selfHidden=0 hiddenBy=- .* empty=0 fills=1 .* drawn=1
+
+# A page's window.open: its tab in front, the page Chromium made in it.
+cra://open?url=${PAGE}?n=opener
+expect-log loaded 127\.0\.0\.1 \(HTTP 200\)
+wait 1
+cra://debug?cdp=Runtime.evaluate&params={"expression":"String(!!window.open('${ORIGIN}/solid.html?n=opened'))","userGesture":true}
+expect-log GET /solid\.html\?n=opened
+wait 3
+cra://debug?surfaces=popupTab
+expect-log surface popupTab: tab\[\S*n=opened\] .* inWindow=1 selfHidden=0 hiddenBy=- .* empty=0 fills=1 .* drawn=1
+cra://debug?cdp=Runtime.evaluate&params={"expression":"new Promise(r=>{let n=0;const s=performance.now();(function f(){n++;if(performance.now()-s<500)requestAnimationFrame(f);else r('opened:'+location.search+':'+document.visibilityState+':'+(n>5?'drawing':'still'))})();setTimeout(()=>r('opened:'+location.search+':'+document.visibilityState+':still'),1500)})","awaitPromise":true}
+expect-log Cra cdp Runtime.evaluate .*"value":"opened:\?n=opened:visible:drawing"
+
+# DevTools, docked right (Chrome's default), at the bottom, and undocked into a window of their own.
+cra://action/devTools
+wait 6
+cra://debug?surfaces=devRight
+expect-log surface devRight: tab\[\S*n=opened\] .* inWindow=1 selfHidden=0 hiddenBy=- .* empty=0 fills=1 .* drawn=1
+expect-log surface devRight: tab-devtools .* inWindow=1 selfHidden=0 hiddenBy=- .* empty=0 fills=1 .* drawn=1
+cra://debug?devToolsShown=devRight
+expect-log tab devtools devRight: .*open=1 drawn=1 docked=1 side=right
+cra://debug?targetEval=devRight&url=devtools://&expr=new Promise(r=>{let n=0;const s=performance.now();(function f(){n++;if(performance.now()-s<500)requestAnimationFrame(f);else r(document.visibilityState+':'+(n>5?'drawing':'still')+':'+(Math.min(innerWidth,innerHeight)>0?'sized':'empty'))})();setTimeout(()=>r(document.visibilityState+':still'),1500)})
+expect-log target eval devRight: visible:drawing:sized
+cra://debug?devtoolsjs=import('./ui/legacy/legacy.js').then(function(m){m.DockController.DockController.instance().setDockSide('bottom')})
+wait 3
+cra://debug?surfaces=devBottom
+expect-log surface devBottom: tab-devtools .* inWindow=1 selfHidden=0 hiddenBy=- .* empty=0 fills=1 .* drawn=1
+cra://debug?devToolsShown=devBottom
+expect-log tab devtools devBottom: .*open=1 drawn=1 docked=1 side=bottom
+cra://debug?devtoolsjs=import('./ui/legacy/legacy.js').then(function(m){m.DockController.DockController.instance().setDockSide('undocked')})
+wait 3
+cra://debug?surfaces=devUndocked
+expect-log surface devUndocked: tab-devtools window=[0-9]+ windowShown=1 parent=- inWindow=1 selfHidden=0 hiddenBy=- .* empty=0 fills=1 .* drawn=1
+cra://debug?targetEval=devUndocked&url=devtools://&expr=new Promise(r=>{let n=0;const s=performance.now();(function f(){n++;if(performance.now()-s<500)requestAnimationFrame(f);else r(document.visibilityState+':'+(n>5?'drawing':'still'))})();setTimeout(()=>r(document.visibilityState+':still'),1500)})
+expect-log target eval devUndocked: visible:drawing
+cra://debug?devtoolsjs=import('./ui/legacy/legacy.js').then(function(m){m.DockController.DockController.instance().setDockSide('right')})
+wait 3
+cra://action/devTools
+wait 3
+cra://debug?devToolsShown=devClosed
+expect-log tab devtools devClosed: windows=0 open=0
+
+# Split View: a link ⌥-clicked opens beside its page; both panes show and draw.
+cra://open?url=${PAGE}?n=splitSource
+expect-log loaded 127\.0\.0\.1 \(HTTP 200\)
+wait 1
+cra://debug?cdp=Runtime.evaluate&params={"expression":"(a=>(a.href='${ORIGIN}/solid.html?n=splitLink',a.textContent='link',a.style.cssText='position:fixed;inset:0;z-index:9;background:pink',document.body.append(a),'placed'))(document.createElement('a'))"}
+expect-log Cra cdp Runtime.evaluate .*"value":"placed"
+cra://debug?clickAt=800,400&mods=524288
+wait 3
+cra://debug?split=surfaces
+expect-log split surfaces: panes=\S+n=splitSource \| \S+n=splitLink
+cra://debug?surfaces=split
+expect-log surface split: tab\[\S*n=splitLink\] .* inWindow=1 selfHidden=0 hiddenBy=- .* empty=0 fills=1 .* drawn=1
+expect-log surface split: split\[\S*n=splitSource\] .* inWindow=1 selfHidden=0 hiddenBy=- .* empty=0 fills=1 .* drawn=1
+cra://action/closeTab
+wait 2
+
+# A Peek: a ⇧-clicked link opens over its page.
+cra://open?url=${PAGE}?n=peekSource
+expect-log loaded 127\.0\.0\.1 \(HTTP 200\)
+wait 1
+cra://debug?cdp=Runtime.evaluate&params={"expression":"(a=>(a.href='${ORIGIN}/solid.html?n=peeked',a.textContent='link',a.style.cssText='position:fixed;inset:0;z-index:9;background:pink',document.body.append(a),'placed'))(document.createElement('a'))"}
+expect-log Cra cdp Runtime.evaluate .*"value":"placed"
+cra://debug?clickAt=800,400&mods=131072
+wait 3
+cra://debug?peeks=surfaces
+expect-log Cra peeks surfaces: shown \S+n=peeked$
+cra://debug?surfaces=peek
+expect-log surface peek: peek\[\S*n=peeked\] .* inWindow=1 selfHidden=0 hiddenBy=- .* empty=0 fills=1 .* drawn=1
+cra://action/closeLittleWindows
+wait 2
+
+# A Little Window: another app's link, then a sign-in pop-up's (window.open with a size).
+cra://debug?externalURL=${ORIGIN}/solid.html?n=little
+wait 4
+cra://debug?surfaces=little
+expect-log surface little: little\[\S*n=little\] .* inWindow=1 selfHidden=0 hiddenBy=- .* empty=0 fills=1 .* drawn=1
+# Its DevTools, docked in it.
+cra://debug?target=little&inspectAt=40,40
+wait 5
+cra://debug?surfaces=littleDev
+expect-log surface littleDev: little\[\S*n=little\] .* fills=1 .* drawn=1
+expect-log surface littleDev: little-devtools .* inWindow=1 selfHidden=0 hiddenBy=- .* empty=0 fills=1 .* drawn=1
+cra://action/closeLittleWindows
+wait 2
+cra://open?url=${PAGE}?n=signInOpener
+expect-log loaded 127\.0\.0\.1 \(HTTP 200\)
+wait 1
+cra://debug?cdp=Runtime.evaluate&params={"expression":"String(!!window.open('${ORIGIN}/solid.html?n=signIn','signin','popup,width=480,height=600'))","userGesture":true}
+expect-log GET /solid\.html\?n=signIn
+wait 4
+cra://debug?surfaces=signIn
+expect-log surface signIn: (little|tab)\[\S*n=signIn\] .* inWindow=1 selfHidden=0 hiddenBy=- .* empty=0 fills=1 .* drawn=1
+
+# The find bar over a page: the page under it still shows and draws.
+cra://open?url=${ORIGIN}/solid.html?n=find
+expect-log loaded 127\.0\.0\.1 \(HTTP 200\)
+wait 2
+cra://action/find
+wait 1
+cra://debug?findBar=surfaces
+expect-log findBar surfaces: visible=1
+cra://debug?surfaces=find
+expect-log surface find: tab\[\S*n=find\] .* inWindow=1 selfHidden=0 hiddenBy=- .* empty=0 fills=1 .* drawn=1
+
+reject-log fault:

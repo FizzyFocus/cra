@@ -327,6 +327,7 @@ final class ExtensionPageWindow: NSWindow, NSWindowDelegate, @preconcurrency Cra
         contentView?.addSubview(v)
         if let host = b.hostWindow { attach(host) }
         makeKeyAndOrderFront(nil)
+        ChromiumViews.reveal(in: v, "an extension's page")
         // Show it even if the page never reports a size.
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in self?.alphaValue = 1 }
         measureTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
@@ -442,7 +443,9 @@ final class ExtensionPageWindow: NSWindow, NSWindowDelegate, @preconcurrency Cra
 
     func browser(_ browser: CraBrowser, didChangeTitle title: String) {}
     func browser(_ browser: CraBrowser, didChangeURL url: String) {}
-    func browser(_ browser: CraBrowser, didChangeLoading loading: Bool, canGoBack: Bool, canGoForward: Bool) {}
+    func browser(_ browser: CraBrowser, didChangeLoading loading: Bool, canGoBack: Bool, canGoForward: Bool) {
+        if browser === self.browser { ChromiumViews.reveal(in: browser.containerView, "an extension's page") }
+    }
     func browser(_ browser: CraBrowser, didChangeProgress progress: Double) {}
     func browser(_ browser: CraBrowser, didFinishLoadingURL url: String, title: String, statusCode: Int) { measure() }
     func browser(_ browser: CraBrowser, didLoadFavicon image: NSImage, forURL iconURL: String) {}

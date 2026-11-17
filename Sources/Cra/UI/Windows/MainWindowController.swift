@@ -5025,6 +5025,23 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
             + "layer=\(page.layer.map { "\(Int($0.bounds.width))x\(Int($0.bounds.height)) sublayers=\($0.sublayers?.count ?? 0)" } ?? "none")"
     }
 
+    /// For `cra://debug?surfaces=<label>`: the visible pages' views (`tab` the focused pane's, `split` another pane's,
+    /// with the page's address in brackets) and their DevTools' (in the card under the page, EmbeddedDevTools, or
+    /// their own window).
+    var debugSurfaces: [(String, NSView)] {
+        var out: [(String, NSView)] = []
+        for id in browsers.visibleTabIDs {
+            guard let rt = browsers.runtime(for: id) else { continue }
+            let role = id == browsers.visibleTabID ? "tab" : "split"
+            out.append(("\(role)[\(rt.browser.currentURL)]", rt.browser.containerView))
+            if let dev = browsers.devToolsViews[id] {
+                let inCard = EmbeddedDevTools.holder(of: dev.window).flatMap { $0.superview != nil ? $0 : nil }
+                out.append(("\(role)-devtools", inCard ?? dev))
+            }
+        }
+        return out
+    }
+
     /// For `cra://debug?pageLayers=<label>`: the visible page's views and their layers, a few levels down (what
     /// Chromium's compositor puts in the page's view: a page whose frames go elsewhere has none).
     func debugPageLayers(_ label: String) -> String {
@@ -5037,10 +5054,16 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, BrowserM
             for sub in l.sublayers ?? [] { layerLine(sub, depth + 1) }
         }
         func viewLine(_ v: NSView, _ depth: Int) {
-            guard depth < 5 else { return }
+            guard depth < 6 else { return }
             out += "\n  " + String(repeating: "  ", count: depth) + "V \(type(of: v)) \(Int(v.frame.width))x\(Int(v.frame.height)) hidden=\(v.isHidden ? 1 : 0) layer=\(v.layer.map { "\(type(of: $0))" } ?? "-")"
             if let l = v.layer, depth >= 1 { for sub in l.sublayers ?? [] where !(v.subviews.contains { $0.layer === sub }) { layerLine(sub, depth + 1) } }
             for sub in v.subviews { viewLine(sub, depth + 1) }
+        }
+        // devtools:<label>: the visible tab's DevTools instead.
+        if label.hasPrefix("devtools") {
+            guard let dev = browsers.devToolsViews[id] else { return out + " no devtools" }
+            viewLine(EmbeddedDevTools.holder(of: dev.window).flatMap { $0.superview != nil ? $0 : nil } ?? dev, 0)
+            return out
         }
         viewLine(rt.browser.containerView, 0)
         return out

@@ -109,3 +109,7 @@ extension CraBrowser {
         self.init(frame: frame, url: url, delegate: delegate, incognito: false, profilePath: nil)
     }
 }
+/// Chromium's page views shown and sized (Sources/Cra/UI/Windows/ChromiumViews.swift): none in a test window.
+enum ChromiumViews {
+    @discardableResult static func reveal(in root: NSView?, _ what: @autoclosure () -> String) -> Int { 0 }
+}

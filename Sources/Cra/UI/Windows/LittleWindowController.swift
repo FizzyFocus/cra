@@ -364,6 +364,7 @@ final class LittleWindowController: NSWindowController, NSWindowDelegate, @preco
         v.frame = shell.page.bounds
         v.autoresizingMask = [.width, .height]
         shell.page.addSubview(v)
+        ChromiumViews.reveal(in: v, "\(isPeek ? "the Peek's" : "the Little Window's") page")
         shell.onPageFrame = { [weak self] rect in self?.positionHostWindow(rect) }
         if let w = b.hostWindow { attachHostWindow(w) }
     }
@@ -618,6 +619,14 @@ final class LittleWindowController: NSWindowController, NSWindowDelegate, @preco
                 + String(format: " size=%.0fx%.0f", frame.width, frame.height)
         }
         return out + " pageFills=\(same(page, area) ? 1 : 0)" + String(format: " area=%.0fx%.0f", area.width, area.height)
+    }
+
+    /// For cra://debug?surfaces: the page's view and its DevTools', by role.
+    var debugSurfaces: [(String, NSView)] {
+        let name = isPeek ? "peek" : "little"
+        let dev = EmbeddedDevTools.holder(of: devToolsView?.window).flatMap { $0.superview != nil ? $0 : nil } ?? devToolsView
+        return [("\(name)[\(browser?.currentURL ?? "")]", browser?.containerView), ("\(name)-devtools", dev)]
+            .compactMap { role, view in view.map { (role, $0) } }
     }
 
     /// cra://debug?littleCard=<step>: `go:<typed>` is Return on what was typed in the card's bar,
@@ -1619,6 +1628,8 @@ final class LittleWindowController: NSWindowController, NSWindowDelegate, @preco
 
     func browser(_ browser: CraBrowser, didChangeLoading loading: Bool, canGoBack: Bool, canGoForward: Bool) {
         BrowserManager.pageMade(browser)
+        // A pop-up's page comes into its view once Chromium hands it over (a sign-in window, a Peek).
+        if browser === self.browser, !isParked { ChromiumViews.reveal(in: browser.containerView, "\(isPeek ? "the Peek's" : "the Little Window's") page") }
         state.isLoading = loading
         state.canGoBack = canGoBack
         state.canGoForward = canGoForward

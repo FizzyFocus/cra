@@ -270,6 +270,7 @@ final class ExtensionSidePanelController: NSObject, @preconcurrency CraBrowserDe
             if attaching { area.addSubview(view) }
             view.frame = area.bounds
             view.autoresizingMask = [.width, .height]
+            ChromiumViews.reveal(in: view, "an extension's side panel")
             if attaching { owner?.sidePanelPageAttached() }
             return
         }
@@ -311,7 +312,9 @@ final class ExtensionSidePanelController: NSObject, @preconcurrency CraBrowserDe
 
     func browser(_ browser: CraBrowser, didChangeTitle title: String) {}
     func browser(_ browser: CraBrowser, didChangeURL url: String) {}
-    func browser(_ browser: CraBrowser, didChangeLoading loading: Bool, canGoBack: Bool, canGoForward: Bool) {}
+    func browser(_ browser: CraBrowser, didChangeLoading loading: Bool, canGoBack: Bool, canGoForward: Bool) {
+        if browser === self.browser { ChromiumViews.reveal(in: browser.containerView, "an extension's side panel") }
+    }
     func browser(_ browser: CraBrowser, didChangeProgress progress: Double) {}
     func browser(_ browser: CraBrowser, didFinishLoadingURL url: String, title: String, statusCode: Int) {}
     func browser(_ browser: CraBrowser, didLoadFavicon image: NSImage, forURL iconURL: String) {}

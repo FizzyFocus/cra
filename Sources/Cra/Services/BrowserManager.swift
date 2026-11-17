@@ -288,24 +288,6 @@ final class BrowserManager: NSObject, @preconcurrency CraBrowserDelegate {
         return browser
     }
 
-    /// Set by the app on the Chromium engine (showChromiumPageView).
-    static var showsChromiumMadePages = false
-
-    /// The Chromium engine moves a page Chromium made itself (a link's new tab from ⌘-click, target=_blank or Chrome's
-    /// page menu, a page's pop-up) into the tab's container with its own view, WebContentsViewCocoa, still hidden:
-    /// Chrome's window hid it as a tab behind (16 Nov 2026). In the card it stayed hidden: the tab showed white (the
-    /// page ran, its sound played), took no clicks (no page menu), and the page read itself as hidden. Shown when its
-    /// tab is; Pane's container hides and shows it from then on, as any page's.
-    private func showChromiumPageView(_ rt: TabRuntime) {
-        guard Self.showsChromiumMadePages, let view = chromiumPageView(of: rt), view.isHidden else { return }
-        view.isHidden = false
-        log(rt.tabID, "shows Chromium's view of its page, which Chrome hid")
-    }
-
-    private func chromiumPageView(of rt: TabRuntime) -> NSView? {
-        rt.browser.containerView.subviews.first { NSStringFromClass(type(of: $0)) == "WebContentsViewCocoa" }
-    }
-
     @discardableResult
     private func register(browser: CraBrowser, tabID: UUID) -> TabRuntime {
         browser.userInfo = tabID.uuidString
@@ -428,7 +410,8 @@ final class BrowserManager: NSObject, @preconcurrency CraBrowserDelegate {
             }
         }
         visibleTabIDs = shown
-        for id in shown { if let rt = runtimes[id] { showChromiumPageView(rt) } }
+        // Chromium's own view of each page shown, as Pane shows it (ChromiumViews: one Chrome hid, or never sized).
+        for id in shown { if let rt = runtimes[id] { ChromiumViews.reveal(in: rt.browser.containerView, "tab \(id.uuidString.prefix(8))'s page") } }
         if let np = nowPlaying, np.onScreen != Set(shown) { np.onScreen = Set(shown) }
         visibleTabID = focused.flatMap { newSet.contains($0) ? $0 : nil } ?? shown.first
         if visibleTabID != previousFocus {
@@ -1527,7 +1510,7 @@ final class BrowserManager: NSObject, @preconcurrency CraBrowserDelegate {
         Self.pageMade(browser)
         guard let id = tabID(of: browser) else { return }
         // A page Chromium made, taken while its tab is already on screen (a link opened in front).
-        if visibleTabIDs.contains(id), let rt = runtimes[id] { showChromiumPageView(rt) }
+        if visibleTabIDs.contains(id), let rt = runtimes[id] { ChromiumViews.reveal(in: rt.browser.containerView, "tab \(id.uuidString.prefix(8))'s page") }
         if loading, findOwner?.tabID == id { stopFinding(false) }
         if loading {
             runtimes[id]?.navigationRevision &+= 1

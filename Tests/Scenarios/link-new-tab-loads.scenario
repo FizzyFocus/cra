@@ -5,7 +5,7 @@
 # also the window's own pixels there), the page is visible and drawing, it takes a real right-click (Chrome's page
 # menu opens), and ⌘R loads it again. On the Chromium engine (16 Nov 2026) Chromium's view of a page it made came into
 # the tab hidden: the tab was white with the page running behind it (its sound played), took no clicks and no
-# page menu, and a reload changed nothing (BrowserManager.showChromiumPageView).
+# page menu, and a reload changed nothing (ChromiumViews.reveal).
 budget rss=1100 stalls50=60
 pace 0.5
 seed settings.json {"hasSeenImportPrompt": true, "toolbarDefaultMigrated": true, "showToolbar": false}

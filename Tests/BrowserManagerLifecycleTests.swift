@@ -151,6 +151,7 @@ enum BrowserManagerLifecycleTests {
                "the active page's own close still removes its runtime and reports the tab close")
 
         embeddedPageHandoffCase()
+        chromiumViewRevealCase()
         await snapshotCase()
         loadingTabCase()
         reloadCase()
@@ -752,6 +753,42 @@ enum BrowserManagerLifecycleTests {
 
         // A late request from a page that already moved changes nothing.
         expect(!manager.browser(chromium, handsOffNavigationToURL: "https://www.netflix.com/", method: "GET"), "a retired page can't move its tab again")
+        manager.closeAll()
+    }
+
+    /// Chromium's view of a page (WebContentsViewCocoa) comes into its tab's container the way Chrome's own window left
+    /// it: hidden (a link's new tab, 16 Nov 2026) or with no size (DevTools' frontend, 17 Nov 2026). Shown with its tab,
+    /// it is unhidden and fills the container (ChromiumViews.reveal): a hidden one left the tab white while its page
+    /// ran (its sound played), took no clicks and read itself as hidden. Pane's own hiding of a tab behind stays.
+    @MainActor
+    private static func chromiumViewRevealCase() {
+        ChromiumViews.isEnabled = true
+        defer { ChromiumViews.isEnabled = false }
+        let store = SidebarStore()
+        let window = NSWindow(contentRect: NSRect(x: -10000, y: -10000, width: 400, height: 300),
+                              styleMask: .borderless, backing: .buffered, defer: true)
+        window.isReleasedWhenClosed = false
+        defer { window.close() }
+        let container = NSView(frame: NSRect(x: 0, y: 0, width: 400, height: 300))
+        window.contentView!.addSubview(container)
+        let webArea = NSView(frame: container.bounds)
+        container.addSubview(webArea)
+        let manager = BrowserManager(store: store, favicons: FaviconCache(), container: container)
+        manager.paneHost = { _ in webArea }
+        let linked = store.createTab(url: "https://example.test/linked").id
+        let other = store.createTab(url: "https://example.test/other").id
+        manager.show(other, focus: false)
+        manager.show(linked, focus: false)
+        let pageContainer = page(manager, linked).containerView
+        let chromium = FakeWebContentsView(frame: .zero)
+        chromium.isHidden = true
+        pageContainer.addSubview(chromium)
+        manager.show(other, focus: false)
+        expect(chromium.isHidden && pageContainer.isHidden, "a tab behind keeps its page out of sight")
+        manager.show(linked, focus: false)
+        expect(!chromium.isHidden && !chromium.isHiddenOrHasHiddenAncestor, "shown, Chromium's view of the page is shown")
+        expect(chromium.frame.size == pageContainer.bounds.size && chromium.frame.width == 400,
+               "and fills its tab's container (\(chromium.frame.size), container \(pageContainer.bounds.size))")
         manager.closeAll()
     }
 
@@ -2341,6 +2378,9 @@ enum BrowserManagerLifecycleTests {
 }
 
 @MainActor
+/// Chromium's view of a page, by its class name (ChromiumViews finds it so).
+@objc(WebContentsViewCocoa) private final class FakeWebContentsView: NSView {}
+
 private final class Observer: BrowserManagerDelegate {
     var closedTabs: [UUID] = []
     var activatedTabs: [UUID] = []

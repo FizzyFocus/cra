@@ -1,0 +1,33 @@
+# An extension's popup (one of Chrome's own windows) and its side panel (a view in Pane's window) show their pages on
+# the Chromium engine: in a window on screen, not hidden, not empty, and drawing (cra://debug?surfaces, ChromiumViews;
+# chromium-surfaces checks Pane's other surfaces). Each is installed before a relaunch, as an import leaves it; the
+# popup's with no tab open before the relaunch and no other extension. With a restored tab, or a second extension,
+# the popup never showed (17 Nov 2026, engine -12 and -18 alike: Chrome made its window and never showed it), a known
+# bug UPSTREAM_SYNC.md lists.
+budget rss=900 stalls50=20
+seed settings.json {"hasSeenImportPrompt": true, "toolbarDefaultMigrated": true}
+cra://debug?installExtension=${FIXTURES}/Extension
+relaunch
+cra://open?url=${PAGE}?n=ext
+wait 3
+cra://debug?extensionAction=${EXTENSION_ID}
+wait 2
+expect-log extension popup shown
+cra://debug?surfaces=extensionPopup
+expect-log surface extensionPopup: other\(\S+\) .* inWindow=1 selfHidden=0 hiddenBy=- .* empty=0 .* drawn=(1|window)
+cra://dismiss
+cra://debug?removeExtension=${EXTENSION_ID}
+wait 1
+cra://debug?installExtension=${FIXTURES}/SidePanelExtension
+relaunch
+cra://open?url=${PAGE}?n=panel
+wait 3
+cra://debug?extensionAction=${SIDE_PANEL_EXTENSION_ID}
+expect-log side panel shows ${SIDE_PANEL_EXTENSION_ID} in Default
+wait 3
+cra://debug?surfaces=sidePanel
+expect-log surface sidePanel: other\(CraWindow\) .* inWindow=1 selfHidden=0 hiddenBy=- .* empty=0 fills=1 .* drawn=1
+cra://debug?sidePanel=close
+cra://debug?removeExtension=${SIDE_PANEL_EXTENSION_ID}
+wait 1
+reject-log fault:

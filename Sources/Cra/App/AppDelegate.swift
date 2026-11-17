@@ -9,6 +9,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     static var menuWatch: NSObjectProtocol?
     static var menuPick: String?
     static var menusOpened = 0
+
+    /// cra://debug?targetEval (see there).
+    static func debugTargetEval(label: String, urlPrefix: String, expression: String) {
+        func json(_ o: Any) -> String { (try? JSONSerialization.data(withJSONObject: o)).flatMap { String(data: $0, encoding: .utf8) } ?? "{}" }
+        func object(_ s: String?) -> [String: Any]? { s?.data(using: .utf8).flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] } }
+        func say(_ what: String) { DispatchQueue.main.async { CraLog.note("target eval \(label): \(what)") } }
+        CraCEFRuntime.sendBrowserDevToolsMethod("Target.getTargets", params: "{}") { result, error in
+            let targets = object(result)?["targetInfos"] as? [[String: Any]] ?? []
+            guard let target = targets.first(where: { ($0["url"] as? String)?.hasPrefix(urlPrefix) == true }),
+                  let id = target["targetId"] as? String else { say("no target (\(error ?? "\(targets.count) targets"))"); return }
+            CraCEFRuntime.sendBrowserDevToolsMethod("Target.attachToTarget", params: json(["targetId": id, "flatten": true])) { result, error in
+                guard let session = object(result)?["sessionId"] as? String else { say("no session (\(error ?? "?"))"); return }
+                let params = json(["expression": expression, "awaitPromise": true, "returnByValue": true])
+                CraCEFRuntime.sendBrowserDevToolsMethod("Runtime.evaluate", params: params, sessionID: session) { result, error in
+                    let value = (object(result)?["result"] as? [String: Any])?["value"]
+                    say(value.map { "\($0)" } ?? "error \(error ?? result ?? "?")")
+                    CraCEFRuntime.sendBrowserDevToolsMethod("Target.detachFromTarget", params: json(["sessionId": session])) { _, _ in }
+                }
+            }
+        }
+    }
     /// cra://debug?clipboardSave: the Mac's clipboard as it was before a test's copy, and its change count then.
     static var savedClipboard: (items: [[NSPasteboard.PasteboardType: Data]], count: Int)?
 
@@ -64,7 +85,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         if EngineBoostScript.isNeeded {
             BrowserManager.pageMade = { EngineBoostScript.shared.pageExists($0) }
             BrowserManager.searchesIconsAfterLoad = true
-            BrowserManager.showsChromiumMadePages = true
+            ChromiumViews.isEnabled = true
             FaviconFinder.bridgeFetches = false
         }
         SettingsLaunch.hardwareAcceleration = store.settings.hardwareAcceleration
@@ -2259,6 +2280,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             if let f = dict["floatingSidebar"] { if f == "1" { main.floatingSidebar?.show() } else { main.floatingSidebar?.hide(animated: true) }; return }
             // leaveLibrary=1: the Library's ← (and Escape): back to the space on its slide (FloatingSidebarReturnHold).
             if dict["leaveLibrary"] != nil { main.leaveLibrary(); return }
+            // targetEval=<label>&url=<prefix>&expr=<js>: the expression (a promise is awaited) in the first page Chromium has
+            // whose address starts with <prefix>, any page of the app's (DevTools' frontend, an extension's popup), through
+            // the browser's DevTools pipe: "target eval <label>: <value>" (17 Nov 2026).
+            if let label = dict["targetEval"], let prefix = dict["url"], let expr = dict["expr"] {
+                Self.debugTargetEval(label: label, urlPrefix: prefix, expression: expr)
+                return
+            }
             if let method = dict["bcdp"] {
                 // To cra.log: a scenario reads it after a relaunch too, when stdout isn't kept (#299).
                 CraCEFRuntime.sendBrowserDevToolsMethod(method, params: dict["params"] ?? "{}") { result, error in
@@ -2326,6 +2354,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                 return
             }
             if let label = dict["pageLayers"] { CraLog.note(main.debugPageLayers(label)); return }
+            // surfaces=<label>: every Chromium page view on screen (ChromiumViews.readout), what it is and whether it shows.
+            if let label = dict["surfaces"] {
+                let roles = mainWindows.flatMap(\.debugSurfaces) + littleWindows.flatMap(\.debugSurfaces)
+                ChromiumViews.readout(label, roles: roles).forEach { CraLog.note($0) }
+                return
+            }
             // bringFront=1: the window to the front, so a pixel check can capture it (CRA_SCENARIO_SCREEN=1 only:
             // scenario.sh's expect-pixels; a test copy otherwise stays behind the user's apps).
             if dict["bringFront"] != nil, let w = main.window {

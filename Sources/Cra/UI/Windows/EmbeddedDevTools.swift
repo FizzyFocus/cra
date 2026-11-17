@@ -54,6 +54,7 @@ enum EmbeddedDevTools {
             area.addSubview(holder, positioned: .below, relativeTo: anchor)
         }
         holder.isHidden = false
+        ChromiumViews.reveal(in: holder, "DevTools")
         // Nothing of the window shows while its views are in the card.
         if w.parent != nil { w.parent?.removeChildWindow(w) }
         if w.isVisible { w.orderOut(nil) }
@@ -69,6 +70,7 @@ enum EmbeddedDevTools {
             v.frame = cv.bounds
             v.autoresizingMask = [.width, .height]
         }
+        ChromiumViews.reveal(in: cv, "undocked DevTools")
     }
 
     /// Out of the card while its tab isn't shown there; the views stay in the holder.
@@ -142,6 +144,7 @@ enum EmbeddedDevTools {
             return
         }
         if holder.frame != page { holder.frame = page }
+        ChromiumViews.reveal(in: holder, "DevTools")
         let pageViews = area.subviews.filter { $0 !== holder }
         EmbeddedPages.place(pageViews, in: placeholder?.pageRect(in: page) ?? page)
     }
