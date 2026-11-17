@@ -746,3 +746,5 @@
 #421   Packages/CraCore/Tests/CraCoreTests/LinkRoutingTests.swift::typedURLFollowsSpaceRoutes  cfbe95a599dd
 #421   Tests/Scenarios/command-bar-route.scenario  e9c6c3f45f79
 #450   Tests/Scenarios/about-chromium-no-update-check.scenario  b1bdfdccbe87
+#460   Tests/Scenarios/pip-document-window.scenario  a6c85b8fca7c
+#466   Tests/Scenarios/page-menu-shows.scenario  c85711765757
