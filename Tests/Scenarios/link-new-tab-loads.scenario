@@ -1,0 +1,67 @@
+# A link opened in a new tab loads there and shows: ⌘-click (a background tab whose page Chromium makes and the tab
+# takes), the page menu's Open Link in New Tab (Pane makes the tab's page, with a spare page and without), and a
+# target=_blank link (in front, Chromium's page again). Switched to, each tab has the link's page, visible and
+# drawing, and ⌘R loads it again. On the Chromium engine (16 Nov 2026) a page Chromium made stayed hidden to its
+# renderer once the tab took it: the tab was blank, a reload too (BrowserManager.syncChromiumMadePage).
+budget rss=1100 stalls50=60
+pace 0.5
+seed settings.json {"hasSeenImportPrompt": true, "toolbarDefaultMigrated": true, "showToolbar": false}
+cra://debug?windowSize=1200x800
+
+# ⌘-click: a background tab under the page.
+cra://open?url=${PAGE}?n=source
+expect-log loaded 127\.0\.0\.1 \(HTTP 200\)
+wait 1
+cra://debug?cdp=Runtime.evaluate&params={"expression":"(a=>(a.href='${PAGE}?n=cmdClicked',a.textContent='link',a.style.cssText='position:fixed;inset:0;z-index:9;background:pink',document.body.append(a),'placed'))(document.createElement('a'))"}
+expect-log Cra cdp Runtime.evaluate .*"value":"placed"
+cra://debug?clickAt=600,400&mods=1048576
+wait 3
+cra://action/nextTab
+wait 2
+cra://debug?cdp=Runtime.evaluate&params={"expression":"new Promise(r=>{const say=d=>r('cmd:'+location.search+':'+document.readyState+':'+document.visibilityState+':'+d);let n=0;const s=performance.now();(function f(){n++;if(performance.now()-s<500)requestAnimationFrame(f);else say(n>5?'drawing':'still')})();setTimeout(()=>say('still'),1500)})","awaitPromise":true}
+expect-log Cra cdp Runtime.evaluate .*"value":"cmd:\?n=cmdClicked:complete:visible:drawing"
+cra://debug?cdp=Runtime.evaluate&params={"expression":"window.beforeReload='yes';'marked'"}
+expect-log Cra cdp Runtime.evaluate .*"value":"marked"
+cra://action/reload
+wait 3
+cra://debug?cdp=Runtime.evaluate&params={"expression":"'cmdReloaded:'+location.search+':'+(window.beforeReload||'fresh')"}
+expect-log Cra cdp Runtime.evaluate .*"value":"cmdReloaded:\?n=cmdClicked:fresh"
+cra://debug?cdp=Runtime.evaluate&params={"expression":"new Promise(r=>{const say=d=>r('cmdAfterReload:'+location.search+':'+document.readyState+':'+document.visibilityState+':'+d);let n=0;const s=performance.now();(function f(){n++;if(performance.now()-s<500)requestAnimationFrame(f);else say(n>5?'drawing':'still')})();setTimeout(()=>say('still'),1500)})","awaitPromise":true}
+expect-log Cra cdp Runtime.evaluate .*"value":"cmdAfterReload:\?n=cmdClicked:complete:visible:drawing"
+
+# The page menu's Open Link in New Tab, twice: the first tab takes the spare page, the second makes its own.
+cra://open?url=${PAGE}?n=menuSource
+expect-log loaded 127\.0\.0\.1 \(HTTP 200\)
+wait 2
+cra://debug?linkMenuNewTab=${PAGE}?n=menuSecond
+wait 0.3
+cra://debug?linkMenuNewTab=${PAGE}?n=menuFirst
+expect-log link menu new tab: asked for 127\.0\.0\.1
+wait 3
+cra://action/nextTab
+wait 2
+cra://debug?cdp=Runtime.evaluate&params={"expression":"new Promise(r=>{const say=d=>r('menuA:'+location.search+':'+document.readyState+':'+document.visibilityState+':'+d);let n=0;const s=performance.now();(function f(){n++;if(performance.now()-s<500)requestAnimationFrame(f);else say(n>5?'drawing':'still')})();setTimeout(()=>say('still'),1500)})","awaitPromise":true}
+expect-log Cra cdp Runtime.evaluate .*"value":"menuA:\?n=menu(First|Second):complete:visible:drawing"
+cra://action/reload
+wait 3
+cra://debug?cdp=Runtime.evaluate&params={"expression":"new Promise(r=>{const say=d=>r('menuAReloaded:'+location.search+':'+document.readyState+':'+document.visibilityState+':'+d);let n=0;const s=performance.now();(function f(){n++;if(performance.now()-s<500)requestAnimationFrame(f);else say(n>5?'drawing':'still')})();setTimeout(()=>say('still'),1500)})","awaitPromise":true}
+expect-log Cra cdp Runtime.evaluate .*"value":"menuAReloaded:\?n=menu(First|Second):complete:visible:drawing"
+cra://action/nextTab
+wait 2
+cra://debug?cdp=Runtime.evaluate&params={"expression":"new Promise(r=>{const say=d=>r('menuB:'+location.search+':'+document.readyState+':'+document.visibilityState+':'+d);let n=0;const s=performance.now();(function f(){n++;if(performance.now()-s<500)requestAnimationFrame(f);else say(n>5?'drawing':'still')})();setTimeout(()=>say('still'),1500)})","awaitPromise":true}
+expect-log Cra cdp Runtime.evaluate .*"value":"menuB:\?n=menu(First|Second):complete:visible:drawing"
+
+# target=_blank: in front at once.
+cra://open?url=${PAGE}?n=blankSource
+expect-log loaded 127\.0\.0\.1 \(HTTP 200\)
+wait 1
+cra://debug?cdp=Runtime.evaluate&params={"expression":"(a=>(a.href='${PAGE}?n=blankTarget',a.target='_blank',a.textContent='link',a.style.cssText='position:fixed;inset:0;z-index:9;background:pink',document.body.append(a),'placed'))(document.createElement('a'))"}
+cra://debug?clickAt=600,400
+wait 3
+cra://debug?cdp=Runtime.evaluate&params={"expression":"new Promise(r=>{const say=d=>r('blank:'+location.search+':'+document.readyState+':'+document.visibilityState+':'+d);let n=0;const s=performance.now();(function f(){n++;if(performance.now()-s<500)requestAnimationFrame(f);else say(n>5?'drawing':'still')})();setTimeout(()=>say('still'),1500)})","awaitPromise":true}
+expect-log Cra cdp Runtime.evaluate .*"value":"blank:\?n=blankTarget:complete:visible:drawing"
+cra://action/reload
+wait 3
+cra://debug?cdp=Runtime.evaluate&params={"expression":"new Promise(r=>{const say=d=>r('blankReloaded:'+location.search+':'+document.readyState+':'+document.visibilityState+':'+d);let n=0;const s=performance.now();(function f(){n++;if(performance.now()-s<500)requestAnimationFrame(f);else say(n>5?'drawing':'still')})();setTimeout(()=>say('still'),1500)})","awaitPromise":true}
+expect-log Cra cdp Runtime.evaluate .*"value":"blankReloaded:\?n=blankTarget:complete:visible:drawing"
+reject-log fault:

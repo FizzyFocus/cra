@@ -57,6 +57,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         if EngineBoostScript.isNeeded {
             BrowserManager.pageMade = { EngineBoostScript.shared.pageExists($0) }
             BrowserManager.searchesIconsAfterLoad = true
+            BrowserManager.showsChromiumMadePages = true
             FaviconFinder.bridgeFetches = false
         }
         SettingsLaunch.hardwareAcceleration = store.settings.hardwareAcceleration
@@ -2158,6 +2159,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                 CraCEFRuntime.sendBrowserDevToolsMethod(method, params: dict["params"] ?? "{}") { result, error in
                     CraLog.note("bcdp \(method) → \(result ?? "error: \(error ?? "?")")")
                 }
+                return
+            }
+            // linkMenuNewTab=<url>[&front=1]: what the page menu's Open Link in New Tab does on the Chromium engine
+            // (its own item, which nextPageMenuCommand can't pick): the visible page asks for a tab at the link.
+            if let url = dict["linkMenuNewTab"], let page = main.currentBrowser {
+                main.browsers.browser(page, requestsNewTabWithURL: url, inBackground: dict["front"] != "1")
+                CraLog.note("link menu new tab: asked for \(CraLog.host(url))")
                 return
             }
             // nextPageMenuCommand=<IDC name>: the next page right-click runs that item of Chromium's menu

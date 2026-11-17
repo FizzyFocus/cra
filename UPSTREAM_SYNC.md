@@ -459,6 +459,12 @@ time rather than built from Chrome's source. `CRA_ENGINE=cef scripts/build.sh` s
   DevTools views in the card. `peekSource` keeps Pane's (upstream's builds on the skipped `8f9af14`) and finds the
   page by `pageWindow`/`pageScreenFrame`. The engine half of `dc7e3ef` (Ask on Page's find and evaluation) came in
   with these, so `engine/` and the pin equal upstream's.
+- A page Chromium makes itself and a tab takes (a link's new tab from ⌘-click, `target=_blank` or Chrome's page menu,
+  a page's pop-up) stays hidden to its renderer on the engine, whatever its view does: it loaded but never drew, a
+  reload neither (found by the owner the same night). While its tab is on screen Pane turns on focus emulation for it
+  (`Emulation.setFocusEmulationEnabled`: Chromium counts the page as captured, so it shows and draws), and off when
+  the tab leaves (`BrowserManager.syncChromiumMadePage`); scenario `link-new-tab-loads`. Upstream's `BrowserManager`
+  shows pages the same way and has no scenario for it, so its engine likely has the same bug.
 - Checked on the engine: `scripts/test.sh` and lint; 188 of 207 scenarios in one run and 6 more on a rerun; the Mac
   half of `scripts/ios-sync-e2e.sh` (folder sync). The 6 that take over the screen were not run (the owner's call).
   `instant-links`, `little-window-devtools` and `permission-card` fail on CEF's main as well (not the engine's).
