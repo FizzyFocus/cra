@@ -1123,7 +1123,7 @@ final class ShellView: NSView {
         if let focus, showDev {
             for v in [devToolsHost, devToolsDivider, devToolsHandle] where v.superview !== focus { v.removeFromSuperview(); focus.addSubview(v) }
             focus.webArea.frame = NSRect(x: 0, y: 0, width: fb.width - devW, height: bodyH)
-            EmbeddedPages.place(focus.webArea.subviews, in: focus.frozenWebBounds ?? focus.webArea.bounds)
+            EmbeddedDevTools.place(in: focus.webArea, page: focus.frozenWebBounds ?? focus.webArea.bounds, placeholder: focus.devToolsPlaceholder)
         }
         // A frontend-docked DevTools paints its own split; the shell's dock chrome stays hidden.
         devToolsHost.isHidden = !showDev || selfDock

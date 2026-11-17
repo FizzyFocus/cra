@@ -64,6 +64,8 @@ final class PaneCardView: NSView {
     var transparent = false { didSet { refreshBackground(); syncShadow() } }
     /// While a pane is being dragged open/closed its page keeps its last size.
     var frozenWebBounds: NSRect?
+    /// Where the page goes inside its area while the engine's DevTools frontend fills it (EmbeddedDevTools).
+    var devToolsPlaceholder: DevToolsPlaceholder? { didSet { if oldValue != devToolsPlaceholder { needsLayout = true } } }
     /// The page is on screen in another window: Arc keeps the tab selected here and shows a
     /// blurred snapshot of it (BlurredItemContent) until this window is used again.
     var elsewhereSnapshot: NSImage? {
@@ -214,7 +216,7 @@ final class PaneCardView: NSView {
         infoBarStrip.frame = NSRect(x: webArea.frame.minX, y: webArea.frame.maxY - barHeight, width: webArea.frame.width, height: barHeight)
         var page = frozenWebBounds ?? webArea.bounds
         page.size.height = max(0, page.height - barHeight)  // the web area isn't flipped: the bars take its top
-        EmbeddedPages.place(webArea.subviews, in: page)
+        EmbeddedDevTools.place(in: webArea, page: page, placeholder: devToolsPlaceholder)
         ring.frame = b
     }
 
